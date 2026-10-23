@@ -24,6 +24,9 @@ public static class RegistryCommands
 				WriteCatalog(sub);
 				return 0;
 
+			case "scan":
+				return Scan(sub);
+
 			case "site":
 				await SiteAsync(sub);
 				return 0;
@@ -42,10 +45,11 @@ public static class RegistryCommands
 			("init <folder> --repo Owner/Repo", "create a registry repository from the template"),
 			("check [folder] [--base ref] [--author login]", "validate packages and pull request changes"),
 			("catalog [folder]", "regenerate packages.json"),
+			("scan <package.zip|folder>", "look for suspicious code in a package"),
 			("site [folder] [-o out] [--serve] [--port n]", "build and preview the package website"),
 		];
 
-		Out.Info($"Usage: {Fmt.Cmd("crater registry <init|check|catalog|site>")}");
+		Out.Info($"Usage: {Fmt.Cmd("crater registry <init|check|catalog|scan|site>")}");
 		Out.Info("");
 
 		foreach ((string usage, string description) in entries)
@@ -120,15 +124,23 @@ public static class RegistryCommands
 	{
 		string root = Path.GetFullPath(args.First ?? ".");
 		RegistryChecker checker = new(root);
+		string? baseRef = args.Value("base");
 
 		using (new Spinner("Checking registry"))
 		{
 			checker.CheckContents();
 
-			if (args.Value("base") is string baseRef)
+			if (baseRef is not null)
 			{
 				checker.CheckChanges(baseRef, args.Value("author"));
 			}
+		}
+
+		if (baseRef is not null)
+		{
+			ScanReport.Print(checker.Findings);
+			ScanReport.PrintSummaryLine(checker.Findings, checker.ScannedVersions);
+			ScanReport.WriteGitHubSummary(checker.Findings, checker.ScannedVersions);
 		}
 
 		foreach (string warning in checker.Warnings)
@@ -152,6 +164,31 @@ public static class RegistryCommands
 		Out.Ok($"Registry is valid ({summary})");
 
 		return 0;
+	}
+
+	static int Scan(Args args)
+	{
+		string target = Path.GetFullPath(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater registry scan <package.zip|folder>")}"));
+		string label = Path.GetFileNameWithoutExtension(target);
+		List<Finding> findings;
+
+		if (File.Exists(target))
+		{
+			findings = PackageScanner.ScanArchive(File.ReadAllBytes(target), label);
+		}
+		else if (Directory.Exists(target))
+		{
+			findings = PackageScanner.ScanDirectory(target, label);
+		}
+		else
+		{
+			throw new CraterException($"{Fmt.File(target)} not found.");
+		}
+
+		ScanReport.Print(findings);
+		ScanReport.PrintSummaryLine(findings, 1);
+
+		return findings.Any(finding => finding.Severity == Severity.Blocked) ? 1 : 0;
 	}
 
 	static void WriteCatalog(Args args)

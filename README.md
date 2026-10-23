@@ -607,6 +607,7 @@ This writes the README, contributing rules, pull request template, `.gitattribut
 - an archive is missing, its sha256 does not match, or its `crater.json` has another name, version or dependencies
 - a package depends on a local folder or git repository
 - files outside package folders changed (`registry.json`, `.github/`, `packages.json`)
+- a new version contains an executable (`.exe`, `.dll`, `.bat`, `.ps1` and similar)
 
 Maintainers in `registry.json` (as it is on `main`, not in the pull request) may change anything. Run the same check locally:
 
@@ -615,6 +616,31 @@ crater registry check . --base origin/main --author yourlogin
 ```
 
 After merge `publish.yml` regenerates `packages.json` (`crater registry catalog`), commits it and deploys the website.
+
+### Reviewing pull requests
+
+Nothing is merged automatically. The check only reports; a maintainer reads the code and merges.
+
+To help with that, the check unpacks every new version and scans it. The report is shown in the log and in the **Summary** of the check run, with the file, the line and the code:
+
+| Level | Looks for |
+|---|---|
+| blocked | executables in the archive; the pull request fails |
+| danger | `require(<asset id>)` (the most common Roblox backdoor), `loadstring`, `InsertService` / `LoadAsset` / `GetObjects` |
+| warning | `getfenv` / `setfenv`, purchase prompts, obfuscation (long escaped strings, `string.char` chains, encoded blobs, very long lines), `.rbxm` / `.rbxl` model files |
+| info | `HttpService`, web addresses, `TeleportService`, `IsStudio` checks |
+
+Comments are ignored, so `-- require(123)` in a comment is not reported. A finding is not a verdict: an HTTP library uses `HttpService` on purpose. Read the flagged lines and decide.
+
+The same scan runs on your machine before `crater publish` (an executable stops the publish) and on demand:
+
+```bash
+crater registry scan path/to/package
+```
+
+### Branch protection
+
+On the official registry `main` is protected with a ruleset: changes only through pull requests, one approval and a green **Check packages** are required, force pushes and branch deletion are blocked. Repository admins can merge their own pull requests without an approval (GitHub does not allow approving your own), and GitHub Actions may push `packages.json` after a merge.
 
 ---
 
@@ -703,6 +729,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `registry init <folder> --repo Owner/Repo` | Create a registry repository from the template. |
 | `registry check [folder] [--base ref] [--author login]` | Validate a registry and pull request changes. |
 | `registry catalog [folder]` | Regenerate `packages.json`. |
+| `registry scan <package.zip\|folder>` | Look for suspicious code in a package. |
 | `registry site [folder] [-o out] [--serve] [--port n]` | Build (and preview) the website. |
 | `self-update [--check]` | Update crater. |
 | `version`, `--help` | Version and help. |

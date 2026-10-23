@@ -63,6 +63,7 @@ public static class PublishCommands
 		byte[] archive = Packer.Pack(project, out List<string> files);
 
 		DescribeEntry(project);
+		ScanBeforePublish(archive, $"{manifest.Name}@{manifest.Version}");
 
 		RegistryRelease release = new()
 		{
@@ -94,6 +95,26 @@ public static class PublishCommands
 
 		await registry.PublishAsync(release, archive);
 		Out.Ok($"Published {id} to {Fmt.File(registry.Location)}");
+	}
+
+	static void ScanBeforePublish(byte[] archive, string packageId)
+	{
+		List<Finding> findings = PackageScanner.ScanArchive(archive, packageId);
+
+		if (findings.Count == 0)
+		{
+			return;
+		}
+
+		Out.Warn("The scanner found code that registry reviewers will look at:");
+		ScanReport.Print(findings);
+
+		Finding? blocked = findings.FirstOrDefault(finding => finding.Severity == Severity.Blocked);
+
+		if (blocked is not null)
+		{
+			throw new CraterException($"{Fmt.File(blocked.File)} is an {blocked.Description}. Remove it or add it to {Fmt.Val("exclude")}.");
+		}
 	}
 
 	static void DescribeEntry(Project project)
