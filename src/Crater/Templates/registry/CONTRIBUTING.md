@@ -32,4 +32,4 @@ Nothing is merged automatically. A maintainer reads the code of every pull reque
 
 ## Pull requests
 
-`crater publish --pr` creates one branch and one commit per version. Keep one package version per pull request when possible.
+`crater publish` sends one request per package version. Publishing the same version again updates that request instead of opening a new one.

@@ -220,8 +220,9 @@ function emptyState() {
 
   return element("div", { className: "empty" },
     element("h3", { text: "No packages yet" }),
-    element("p", { text: "Publish the first one: name it after your GitHub login, then open a pull request with crater." }),
-    snippet("crater publish --registry <your fork> --pr"),
+    element("p", { text: "Publish the first one: sign in with GitHub, then send your package for review." }),
+    snippet("crater login"),
+    snippet("crater publish"),
     contributing ? element("a", { className: "button", href: contributing, rel: "noopener", text: "How to publish →" }) : null,
   );
 }

@@ -81,6 +81,7 @@ public static class RegistryCommands
 			["OWNER"] = owner,
 			["REPO"] = name,
 			["BRANCH"] = branch,
+			["LOCATION"] = branch == "main" ? $"github:{owner}/{name}" : $"github:{owner}/{name}@{branch}",
 			["CRATER_REPO"] = craterRepository,
 			["SITE_URL"] = siteUrl,
 			["YEAR"] = DateTime.UtcNow.Year.ToString(),

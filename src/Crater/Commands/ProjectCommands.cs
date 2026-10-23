@@ -22,7 +22,7 @@ public static class ProjectCommands
 		else
 		{
 			string name = PackageNameFor(directory, args.Value("name"));
-			string registry = args.Value("registry") ?? BuildInfo.DefaultRegistry;
+			string registry = args.Value("registry") ?? ShortRegistry(BuildInfo.DefaultRegistry);
 
 			Json.WriteText(manifestPath, Json.Serialize(ManifestTemplate(name, registry)));
 			Out.Ok($"Created {Fmt.File(Manifest.FileName)} ({Fmt.Pkg(name)}, registry {Fmt.Val(registry)})");
@@ -39,6 +39,16 @@ public static class ProjectCommands
 		}
 	}
 
+	static string ShortRegistry(string location)
+	{
+		if (GitHubRepository.FromRegistry(location) is not GitHubRepository github)
+		{
+			return location;
+		}
+
+		return github.Branch == "main" ? $"github:{github.Slug}" : $"github:{github.Slug}@{github.Branch}";
+	}
+
 	public static JsonObject ManifestTemplate(string name, string registry)
 	{
 		return new JsonObject
@@ -51,7 +61,7 @@ public static class ProjectCommands
 			["keywords"] = new JsonArray(),
 			["registry"] = registry,
 			["repository"] = "",
-			["can_publish"] = false,
+			["can_publish"] = true,
 			["import_to"] = "shared",
 			["path_to_main"] = "src/init.luau",
 			["path_to_definition_files"] = new JsonArray(),
@@ -89,7 +99,7 @@ public static class ProjectCommands
 		}
 
 		string folder = new DirectoryInfo(directory).Name.ToLowerInvariant().Replace(' ', '-');
-		string user = Environment.UserName.ToLowerInvariant();
+		string user = (GitHubCli.Login() ?? Environment.UserName).ToLowerInvariant();
 		string candidate = $"{user}/{folder}";
 
 		if (DependencySpec.IsValidPackageName(candidate))

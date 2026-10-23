@@ -41,7 +41,7 @@ public sealed class VersionReq
 
 		if (operatorSymbol is null)
 		{
-			throw new FormatException($"version '{version}' has no operator (=, +, ^, ~)");
+			throw new FormatException($"put a sign before the version: '^{version}' for compatible updates or '={version}' for exactly this one");
 		}
 
 		if (version.Length == 0)
@@ -51,7 +51,7 @@ public sealed class VersionReq
 
 		if (!SemVer.TryParse(version, out SemVer parsed, out int parts))
 		{
-			throw new FormatException($"invalid version '{version}'");
+			throw new FormatException(SemVer.Explain(version));
 		}
 
 		switch (operatorSymbol)
@@ -59,7 +59,7 @@ public sealed class VersionReq
 			case '=':
 				if (parts != 3)
 				{
-					throw new FormatException($"'=' requires a full MAJOR.MINOR.PATCH version, got '{version}'");
+					throw new FormatException($"'=' needs three numbers, write '={parsed}', or '^{version}' for any {version}.x");
 				}
 
 				return new VersionReq(ReqKind.Exact, parsed, version, parsed, null);
