@@ -65,6 +65,32 @@ Options: `installers/install.ps1 -Version 0.3.1 -InstallDir D:\tools -NoPath`, o
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
+### Uninstall
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall.ps1 | iex
+```
+
+**Linux and macOS:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall.sh | sh
+```
+
+This removes the crater executable and, on Windows, its `PATH` entry. Only crater's own files are deleted, other files in the install folder stay. The download cache and the global config are kept; add `-Purge` (Windows) or `--purge` (Linux and macOS) to remove them too:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall.ps1))) -Purge
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall.sh | sh -s -- --purge
+```
+
+Installed as a .NET tool instead? Run `dotnet tool uninstall -g crater`.
+
 The default registry is [TheExeDEV/crater-registry](https://github.com/TheExeDEV/crater-registry), browse it at [theexedev.github.io/crater-registry](https://theexedev.github.io/crater-registry/). It works without any config.
 
 **As a .NET tool** (needs the .NET 10 SDK):
@@ -693,7 +719,7 @@ src/Crater/
   Util/               output, colors, spinner, progress bar, selection, JSON, TOML, shell
   Templates/          registry repository and website templates (embedded)
 .github/workflows/    build and release of crater itself
-installers/           install scripts for Windows, Linux and macOS
+installers/           install and uninstall scripts for Windows, Linux and macOS
 ```
 
 The code follows `.editorconfig`: tabs, explicit types, braces everywhere, no comments.
