@@ -22,6 +22,8 @@ public sealed partial class RegistryChecker(string root)
 	public List<string> Warnings { get; } = [];
 	public int PackageCount { get; private set; }
 	public int VersionCount { get; private set; }
+	public List<Finding> Findings { get; } = [];
+	public int ScannedVersions { get; private set; }
 
 	public void CheckContents()
 	{
@@ -237,6 +239,32 @@ public sealed partial class RegistryChecker(string root)
 			}
 
 			CheckImmutable(baseRef, status, path, segments[2]);
+
+			if (status == 'A' && segments[2].EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+			{
+				ScanNewVersion(path, segments);
+			}
+		}
+	}
+
+	void ScanNewVersion(string path, string[] segments)
+	{
+		string archivePath = Path.Combine(root, path);
+
+		if (!File.Exists(archivePath))
+		{
+			return;
+		}
+
+		string packageId = $"{segments[0]}/{segments[1]}@{Path.GetFileNameWithoutExtension(segments[2])}";
+		List<Finding> found = Try(() => PackageScanner.ScanArchive(File.ReadAllBytes(archivePath), packageId), path) ?? [];
+
+		ScannedVersions++;
+		Findings.AddRange(found);
+
+		foreach (Finding blocked in found.Where(finding => finding.Severity == Severity.Blocked))
+		{
+			Errors.Add($"{Fmt.Pkg(packageId)}: {Fmt.File(blocked.File)} is an {blocked.Description}");
 		}
 	}
 
