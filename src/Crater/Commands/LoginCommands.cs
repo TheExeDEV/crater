@@ -5,6 +5,8 @@ namespace Crater.Commands;
 
 public static class LoginCommands
 {
+	const string DeviceUrl = "https://github.com/login/device";
+
 	public static int Login(Args args)
 	{
 		string gh = GitHubCli.Find() ?? InstallGitHubCli(args);
@@ -16,9 +18,21 @@ public static class LoginCommands
 			return 0;
 		}
 
-		Out.Step("Signing in to GitHub. A browser window opens, confirm the code shown below.");
+		bool hasBrowser = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+			|| !string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("DISPLAY"))
+			|| !string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
 
-		int exitCode = Shell.RunInteractive($"\"{gh}\" auth login --hostname github.com --git-protocol https --web", System.Environment.CurrentDirectory);
+		Out.Step("Signing in to GitHub.");
+		Out.Info($"  1. Open {Fmt.File(DeviceUrl)} in any browser, on this or another device.");
+		Out.Info("  2. Enter the one-time code shown below and confirm.");
+		Out.Info("");
+
+		Dictionary<string, string>? environment = hasBrowser ? null : new() { ["GH_BROWSER"] = "true" };
+
+		int exitCode = Shell.RunInteractive(
+			$"\"{gh}\" auth login --hostname github.com --git-protocol https --web",
+			System.Environment.CurrentDirectory,
+			environment);
 
 		if (exitCode != 0)
 		{
