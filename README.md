@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/in
 
 The installer downloads the latest release for your system into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin`, adds it to your user `PATH` on Windows and prints the line to add on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
 
-Options: `installers/install.ps1 -Version 0.3.2 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
+Options: `installers/install.ps1 -Version 0.0.1 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
@@ -665,11 +665,11 @@ The crater repository has two workflows:
 Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`github:TheExeDEV/crater-registry`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a fork updates from itself.
 
 ```bash
-git tag v0.3.0
+git tag v0.0.2
 ```
 
 ```bash
-git push origin v0.3.0
+git push origin v0.0.2
 ```
 
 The same properties work for local builds:
