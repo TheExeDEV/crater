@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/in
 
 The installer downloads the latest release for your system into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin`, adds it to your user `PATH` on Windows and prints the line to add on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
 
-Options: `installers/install.ps1 -Version 0.3.1 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
+Options: `installers/install.ps1 -Version 0.3.2 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
@@ -239,6 +239,8 @@ Settings are merged from two files, the project wins:
 Put `registry` in the global file once and every project uses it.
 
 The registry is taken from the first of: `repository_registry` in `crater.json`, `registry` in the config, the registry built into the crater binary.
+
+**Which one to set:** usually neither, the built-in registry is used. Set `registry` in the config to use another registry on your machine or project. Set `repository_registry` in `crater.json` only when your published package depends on packages from another registry; give it a full address, because it travels with the package.
 
 ### Confirmations
 
