@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/in
 
 The installer downloads the latest release for your system into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin`, adds it to your user `PATH` on Windows and prints the line to add on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
 
-Options: `installers/install.ps1 -Version 0.0.1 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
+Options: `installers/install.ps1 -Version 0.0.2 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
@@ -191,7 +191,7 @@ Every project and every package has a `crater.json`.
 | `can_publish` | Must be `true` for `crater publish`. Default `false`. |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
-| `path_to_definition_file` | A `.d.luau` file added to VS Code settings on install. |
+| `path_to_definition_file` | A `.d.luau` file added to VS Code settings on install. When empty, every `*.d.luau` file in the package is used. |
 | `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
 | `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
@@ -491,7 +491,7 @@ Generics, defaults, function types, string literal types and packs are kept. Tex
 
 **`.luaurc`:** an alias per installed folder, so `require("@Packages/adof")` works. Other settings are kept.
 
-**VS Code (luau-lsp):** every `path_to_definition_file` goes into `luau-lsp.types.definitionFiles`. Both the array and the object form are supported, and only entries inside crater folders are replaced.
+**VS Code (luau-lsp):** the definition files of every installed package, including dependencies of dependencies, go into `luau-lsp.types.definitionFiles`. A package names its file in `path_to_definition_file`; if it does not, crater uses every `*.d.luau` file inside it (up to 10). Both the array and the object form are supported, and only entries inside crater folders are replaced.
 
 Comments in these files are lost when crater rewrites them, and the prompt says so.
 
@@ -557,7 +557,6 @@ A registry is a folder tree. In the GitHub setup every user owns one folder, nam
 ```
 crater-registry/
   registry.json              name, URLs, maintainers
-  packages.json              catalog for search, generated
   theexedev/                 the folder of GitHub user TheExeDEV
     signal/
       index.json             versions, sha256, manifests
@@ -595,7 +594,6 @@ This writes the README, contributing rules, pull request template, `.gitattribut
 1. Create the GitHub repository and push the folder to `main`.
 2. In *Settings → Pages* choose *GitHub Actions* as the source.
 3. Make sure the crater repository named in `--crater-repo` is public: the workflows build crater from it.
-4. If `main` is protected, allow GitHub Actions to push (the publish workflow commits `packages.json`).
 
 ### Pull request checks
 
@@ -615,7 +613,7 @@ Maintainers in `registry.json` (as it is on `main`, not in the pull request) may
 crater registry check . --base origin/main --author yourlogin
 ```
 
-After merge `publish.yml` regenerates `packages.json` (`crater registry catalog`), commits it and deploys the website.
+After merge `publish.yml` builds the website, including the catalog (`data/packages.json`) used by `crater search`, and deploys it to GitHub Pages. Nothing is committed back, so `main` changes only through merged pull requests.
 
 ### Reviewing pull requests
 
@@ -640,7 +638,7 @@ crater registry scan path/to/package
 
 ### Branch protection
 
-On the official registry `main` is protected with a ruleset: changes only through pull requests, one approval and a green **Check packages** are required, force pushes and branch deletion are blocked. Repository admins can merge their own pull requests without an approval (GitHub does not allow approving your own), and GitHub Actions may push `packages.json` after a merge.
+On the official registry `main` is protected with a ruleset: changes only through pull requests, one approval and a green **Check packages** are required, force pushes and branch deletion are blocked. Repository admins can merge their own pull requests without an approval (GitHub does not allow approving your own). Nothing else writes to `main`.
 
 ---
 
@@ -691,11 +689,11 @@ The crater repository has two workflows:
 Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`github:TheExeDEV/crater-registry`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a fork updates from itself.
 
 ```bash
-git tag v0.0.2
+git tag v0.0.3
 ```
 
 ```bash
-git push origin v0.0.2
+git push origin v0.0.3
 ```
 
 The same properties work for local builds:

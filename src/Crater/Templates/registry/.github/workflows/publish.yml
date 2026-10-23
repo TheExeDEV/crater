@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    name: Update catalog and site
+    name: Build site
     runs-on: ubuntu-latest
 
     steps:
@@ -33,20 +33,6 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/{{CRATER_REPO}}.git "$RUNNER_TEMP/crater"
           dotnet publish "$RUNNER_TEMP/crater/src/Crater" --configuration Release --output "$RUNNER_TEMP/crater-bin"
-
-      - name: Update catalog
-        run: |
-          dotnet "$RUNNER_TEMP/crater-bin/crater.dll" registry catalog .
-
-          if git diff --quiet -- packages.json && git ls-files --error-unmatch packages.json > /dev/null 2>&1; then
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages.json
-          git commit -m "Update catalog"
-          git push
 
       - name: Build site
         run: dotnet "$RUNNER_TEMP/crater-bin/crater.dll" registry site . --output _site

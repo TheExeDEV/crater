@@ -108,9 +108,6 @@ public static class RegistryCommands
 			Out.Dim($"  wrote {RegistryInfo.FileName}");
 		}
 
-		new LocalRegistry(target).WriteCatalog();
-		Out.Dim($"  wrote {Catalog.FileName}");
-
 		Out.Ok("Registry template is ready");
 		Out.Info("");
 		Out.Info("Next steps:");

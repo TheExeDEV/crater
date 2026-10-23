@@ -760,8 +760,7 @@ a {
     scroll-behavior: auto;
   }
 
-  .dot,
-  .marquee-track {
+  .dot {
     animation: none;
   }
 }

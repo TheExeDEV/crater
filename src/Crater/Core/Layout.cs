@@ -26,16 +26,36 @@ public static class Layout
 
 			foreach (ResolvedPackage package in graph.All)
 			{
-				if (string.IsNullOrWhiteSpace(package.Manifest.PathToDefinitionFile))
+				string content = $"{folder}/{IndexFolder}/{package.IndexDirectory}/{package.ShortName}";
+
+				foreach (string definition in DefinitionsOf(project, package, content))
 				{
-					continue;
+					yield return (package, $"{content}/{definition}");
 				}
-
-				string definition = Links.NormalizeRelative(package.Manifest.PathToDefinitionFile);
-
-				yield return (package, $"{folder}/{IndexFolder}/{package.IndexDirectory}/{package.ShortName}/{definition}");
 			}
 		}
+	}
+
+	static IEnumerable<string> DefinitionsOf(Project project, ResolvedPackage package, string content)
+	{
+		if (!string.IsNullOrWhiteSpace(package.Manifest.PathToDefinitionFile))
+		{
+			return [Links.NormalizeRelative(package.Manifest.PathToDefinitionFile)];
+		}
+
+		string directory = project.Abs(content);
+
+		if (!Directory.Exists(directory))
+		{
+			return [];
+		}
+
+		return Directory.EnumerateFiles(directory, "*.d.luau", SearchOption.AllDirectories)
+			.Select(path => Path.GetRelativePath(directory, path).Replace('\\', '/'))
+			.Where(path => !path.Split('/').Any(segment => segment.StartsWith('.') || segment == IndexFolder))
+			.OrderBy(path => path, StringComparer.Ordinal)
+			.Take(10)
+			.ToList();
 	}
 
 	public static IEnumerable<string> ManagedPrefixes(Project project)

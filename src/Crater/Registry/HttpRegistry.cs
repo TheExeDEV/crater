@@ -60,7 +60,35 @@ public sealed class HttpRegistry(string baseUrl) : IRegistry
 		string url = $"{baseUrl}/{Catalog.FileName}";
 		string? text = await GetTextOrNullAsync(url);
 
-		return text is null ? null : Json.Parse<Catalog>(text, url);
+		if (text is not null)
+		{
+			return Json.Parse<Catalog>(text, url);
+		}
+
+		return await GetSiteCatalogAsync();
+	}
+
+	async Task<Catalog?> GetSiteCatalogAsync()
+	{
+		string infoUrl = $"{baseUrl}/{RegistryInfo.FileName}";
+		string? infoText = await GetTextOrNullAsync(infoUrl);
+
+		if (infoText is null)
+		{
+			return null;
+		}
+
+		RegistryInfo info = Json.Parse<RegistryInfo>(infoText, infoUrl);
+
+		if (string.IsNullOrWhiteSpace(info.SiteUrl))
+		{
+			return null;
+		}
+
+		string catalogUrl = $"{info.SiteUrl.TrimEnd('/')}/data/{Catalog.FileName}";
+		string? catalogText = await GetTextOrNullAsync(catalogUrl);
+
+		return catalogText is null ? null : Json.Parse<Catalog>(catalogText, catalogUrl);
 	}
 
 	public Task PublishAsync(RegistryRelease release, byte[] archive)
