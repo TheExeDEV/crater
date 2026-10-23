@@ -114,7 +114,7 @@ public static class RegistryCommands
 		Out.Info($"  1. Create the GitHub repository {Fmt.Val(repository)} and push this folder to {Fmt.Val(branch)}.");
 		Out.Info($"  2. In Settings → Pages, set Source to {Fmt.Val("GitHub Actions")}.");
 		Out.Info($"  3. Make sure {Fmt.Val(craterRepository)} is the public crater repository the workflows build from.");
-		Out.Info($"  4. Users set {Fmt.Cmd($"\"registry\": \"github:{repository}\"")} in their crater.json.");
+		Out.Info($"  4. Users set {Fmt.Cmd($"\"registry\": \"https://raw.githubusercontent.com/{repository}/{branch}\"")} in their crater.json.");
 	}
 
 	static int Check(Args args)
