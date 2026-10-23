@@ -50,18 +50,18 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 **Windows** (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/TheExeDEV/crater/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/install.ps1 | iex
 ```
 
 **Linux and macOS:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/install.sh | sh
 ```
 
 The installer downloads the latest release for your system into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin`, adds it to your user `PATH` on Windows and prints the line to add on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
 
-Options: `install.ps1 -Version 0.3.1 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `install.sh`.
+Options: `installers/install.ps1 -Version 0.3.1 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
@@ -693,6 +693,7 @@ src/Crater/
   Util/               output, colors, spinner, progress bar, selection, JSON, TOML, shell
   Templates/          registry repository and website templates (embedded)
 .github/workflows/    build and release of crater itself
+installers/           install scripts for Windows, Linux and macOS
 ```
 
 The code follows `.editorconfig`: tabs, explicit types, braces everywhere, no comments.
