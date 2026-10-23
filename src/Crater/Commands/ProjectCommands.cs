@@ -54,7 +54,7 @@ public static class ProjectCommands
 			["can_publish"] = false,
 			["import_to"] = "shared",
 			["path_to_main"] = "src/init.luau",
-			["path_to_definition_file"] = "",
+			["path_to_definition_files"] = new JsonArray(),
 			["import_client"] = new JsonArray(),
 			["import_server"] = new JsonArray(),
 			["import_develop"] = new JsonArray(),

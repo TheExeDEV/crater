@@ -38,24 +38,12 @@ public static class Layout
 
 	static IEnumerable<string> DefinitionsOf(Project project, ResolvedPackage package, string content)
 	{
-		if (!string.IsNullOrWhiteSpace(package.Manifest.PathToDefinitionFile))
-		{
-			return [Links.NormalizeRelative(package.Manifest.PathToDefinitionFile)];
-		}
-
 		string directory = project.Abs(content);
+		List<string> patterns = package.Manifest.DefinitionPatterns;
 
-		if (!Directory.Exists(directory))
-		{
-			return [];
-		}
-
-		return Directory.EnumerateFiles(directory, "*.d.luau", SearchOption.AllDirectories)
-			.Select(path => Path.GetRelativePath(directory, path).Replace('\\', '/'))
-			.Where(path => !path.Split('/').Any(segment => segment.StartsWith('.') || segment == IndexFolder))
-			.OrderBy(path => path, StringComparer.Ordinal)
-			.Take(10)
-			.ToList();
+		return patterns.Count > 0
+			? DefinitionLookup.Resolve(directory, patterns)
+			: DefinitionLookup.AutoDetect(directory);
 	}
 
 	public static IEnumerable<string> ManagedPrefixes(Project project)

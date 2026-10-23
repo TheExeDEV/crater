@@ -26,7 +26,24 @@ public sealed class Manifest
 	[JsonPropertyName("import_to")] public string ImportTo { get; set; } = "shared";
 
 	[JsonPropertyName("path_to_main")] public string PathToMain { get; set; } = "";
-	[JsonPropertyName("path_to_definition_file")] public string PathToDefinitionFile { get; set; } = "";
+	[JsonPropertyName("path_to_definition_files")] public List<string> DefinitionFiles { get; set; } = [];
+	[JsonPropertyName("path_to_definition_file")] public string? LegacyDefinitionFile { get; set; }
+
+	[JsonIgnore]
+	public List<string> DefinitionPatterns
+	{
+		get
+		{
+			IEnumerable<string> legacy = string.IsNullOrWhiteSpace(LegacyDefinitionFile) ? [] : [LegacyDefinitionFile];
+
+			return DefinitionFiles
+				.Concat(legacy)
+				.Where(entry => !string.IsNullOrWhiteSpace(entry))
+				.Select(entry => entry.Trim())
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToList();
+		}
+	}
 
 	[JsonPropertyName("import_client")] public List<string> ImportClient { get; set; } = [];
 	[JsonPropertyName("import_server")] public List<string> ImportServer { get; set; } = [];
