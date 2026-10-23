@@ -1,0 +1,71 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - {{BRANCH}}
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Update catalog and site
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build crater
+        run: |
+          git clone --depth 1 https://github.com/{{CRATER_REPO}}.git "$RUNNER_TEMP/crater"
+          dotnet publish "$RUNNER_TEMP/crater/src/Crater" --configuration Release --output "$RUNNER_TEMP/crater-bin"
+
+      - name: Update catalog
+        run: |
+          dotnet "$RUNNER_TEMP/crater-bin/crater.dll" registry catalog .
+
+          if git diff --quiet -- packages.json && git ls-files --error-unmatch packages.json > /dev/null 2>&1; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages.json
+          git commit -m "Update catalog"
+          git push
+
+      - name: Build site
+        run: dotnet "$RUNNER_TEMP/crater-bin/crater.dll" registry site . --output _site
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy site
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

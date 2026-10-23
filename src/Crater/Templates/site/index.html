@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{{NAME}}</title>
+  <meta name="description" content="{{DESCRIPTION}}">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,700;0,800;1,400&display=swap">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" defer></script>
+  <script src="assets/app.js" defer></script>
+</head>
+<body>
+  <div class="grid-lines" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#/">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <b>crater</b>
+      <span class="brand-sub">registry</span>
+    </a>
+
+    <label class="search">
+      <span class="visually-hidden">Search packages</span>
+      <input id="search" type="search" placeholder="search packages" autocomplete="off" spellcheck="false">
+      <kbd>/</kbd>
+    </label>
+
+    <nav class="links">
+      <a class="pill" href="{{REPO_URL}}" rel="noopener">github ↗</a>
+      <a class="pill" href="https://github.com/{{CRATER_REPO}}#readme" rel="noopener">docs ↗</a>
+    </nav>
+  </header>
+
+  <main id="view" class="page" aria-live="polite"></main>
+
+  <footer class="footer">
+    <span>© {{YEAR}} {{NAME}}</span>
+    <span class="footer-links">
+      <a href="{{REPO_URL}}" rel="noopener">GitHub</a>
+      <a href="https://github.com/{{CRATER_REPO}}" rel="noopener">crater</a>
+    </span>
+  </footer>
+</body>
+</html>

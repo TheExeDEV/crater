@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>crater</AssemblyName>
+    <RootNamespace>Crater</RootNamespace>
+    <Version>0.3.1</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <PackAsTool>true</PackAsTool>
+    <PackageId>crater</PackageId>
+    <ToolCommandName>crater</ToolCommandName>
+
+    <CraterDefaultRegistry>github:TheExeDEV/crater-registry</CraterDefaultRegistry>
+    <CraterUpdateRepo>TheExeDEV/crater</CraterUpdateRepo>
+
+    <Description>Package manager for Luau and Roblox</Description>
+    <Authors>TheExeDEV</Authors>
+    <RepositoryUrl>https://github.com/TheExeDEV/crater</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/TheExeDEV/crater</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 TheExeDEV</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="DefaultRegistry" Value="$(CraterDefaultRegistry)" />
+    <AssemblyMetadata Include="UpdateRepo" Value="$(CraterUpdateRepo)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\**\*" LogicalName="Templates/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

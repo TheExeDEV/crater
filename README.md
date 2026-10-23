@@ -1,0 +1,704 @@
+# crater
+
+A package manager for Luau and Roblox, written in C# on .NET 10.
+
+It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its registry in a plain GitHub repository where anyone can publish through a pull request.
+
+- Three dependency groups (`import_client`, `import_server`, `import_develop`), each installed into a folder you name
+- Short version syntax: `scope/name^`, `=1.2.3`, `+1.2.3`, `^1.2.3`, `~1.2.3`
+- Aliases (`Promise:evaera/promise^4`), local folders (`@path:../lib`) and git repositories (`@git+https://...#v1`)
+- Every package is installed once per folder, and `overrides` force one version for the whole tree
+- Workspaces for monorepos
+- Link files re-export `export type` declarations, so luau-lsp sees package types
+- Lock file with sha256 checks, parallel downloads, a summary of what changed
+- `outdated`, interactive `update -i`, `why`, `search`, `info`, `doctor`, `run`, `import` from Wally and pesde, `self-update`
+- A git registry with pull request checks and a static package website with search
+- Optional updates of `.luaurc` aliases and the luau-lsp definition files in VS Code
+- Optional confirmation before every action that changes files, colored output
+
+---
+
+## Contents
+
+1. [Installation](#installation)
+2. [Quick start](#quick-start)
+3. [crater.json](#craterjson)
+4. [crater.config.json](#craterconfigjson)
+5. [Dependency syntax](#dependency-syntax)
+6. [Aliases](#aliases)
+7. [One copy per package and overrides](#one-copy-per-package-and-overrides)
+8. [Local and git dependencies](#local-and-git-dependencies)
+9. [Workspaces](#workspaces)
+10. [Realms and transitive dependencies](#realms-and-transitive-dependencies)
+11. [What gets installed](#what-gets-installed)
+12. [Editor integration](#editor-integration)
+13. [crater.lock](#craterlock)
+14. [Everyday commands](#everyday-commands)
+15. [The registry](#the-registry)
+16. [Publishing](#publishing)
+17. [The package website](#the-package-website)
+18. [Releasing crater](#releasing-crater)
+19. [Command reference](#command-reference)
+20. [Environment variables](#environment-variables)
+21. [Limitations](#limitations)
+22. [Source layout](#source-layout)
+
+---
+
+## Installation
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/TheExeDEV/crater/main/install.ps1 | iex
+```
+
+**Linux and macOS:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/install.sh | sh
+```
+
+The installer downloads the latest release for your system into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin`, adds it to your user `PATH` on Windows and prints the line to add on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
+
+Options: `install.ps1 -Version 0.3.1 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `install.sh`.
+
+**Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
+
+The default registry is [TheExeDEV/crater-registry](https://github.com/TheExeDEV/crater-registry), browse it at [theexedev.github.io/crater-registry](https://theexedev.github.io/crater-registry/). It works without any config.
+
+**As a .NET tool** (needs the .NET 10 SDK):
+
+```bash
+dotnet pack src/Crater -c Release -o nupkg
+```
+
+```bash
+dotnet tool install -g crater --add-source ./nupkg
+```
+
+**From source:**
+
+```bash
+dotnet build src/Crater -c Release
+```
+
+```bash
+dotnet src/Crater/bin/Release/net10.0/crater.dll --help
+```
+
+---
+
+## Quick start
+
+```bash
+crater init --name yourlogin/my-game --registry github:TheExeDEV/crater-registry
+```
+
+This creates `crater.json` and `crater.config.json`. Add packages and install:
+
+```bash
+crater add evaera/promise^4 --client
+```
+
+```bash
+crater install
+```
+
+```
+» Resolving dependencies
+████████████████████████ 1/1 downloading evaera/promise@4.0.0
+
+  + evaera/promise 4.0.0  client
+
+✓ 1 change, 1 package installed in 0.4s
+```
+
+In code:
+
+```luau
+local Promise = require(ReplicatedStorage.Packages.promise)
+```
+
+---
+
+## crater.json
+
+Every project and every package has a `crater.json`.
+
+```json
+{
+  "name": "theexedev/my-game",
+  "authors": ["TheExeDEV"],
+  "description": "My game",
+  "license": "MIT",
+  "version": "1.0.0",
+  "keywords": ["game"],
+
+  "repository": "https://github.com/TheExeDEV/my-game",
+  "repository_registry": "",
+
+  "can_publish": false,
+  "import_to": "shared",
+
+  "path_to_main": "src/init.luau",
+  "path_to_definition_file": "",
+
+  "import_client": ["beta/adof+0.12.44", "Promise:evaera/promise^4"],
+  "import_server": ["dep/dependency^"],
+  "import_develop": ["roblox/testez^0.4"],
+
+  "overrides": ["evaera/promise^4.1.0"],
+  "workspace": ["packages/*"],
+  "scripts": { "build": "rojo build -o build.rbxl" },
+  "exclude": ["tests/"]
+}
+```
+
+| Field | Description |
+|---|---|
+| `name` | `scope/name`, lowercase letters, digits, `_` and `-`. In a GitHub registry the scope is your GitHub login in lowercase. |
+| `authors`, `description`, `license`, `keywords` | Shown by `info`, `search` and the website. |
+| `version` | `MAJOR.MINOR.PATCH`, optional `-prerelease`. A project that is never published can keep any value. |
+| `repository` | Source code URL, shown on the website. |
+| `repository_registry` | Registry for this project. Usually left empty and set in `crater.config.json` instead. |
+| `can_publish` | Must be `true` for `crater publish`. Default `false`. |
+| `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
+| `path_to_main` | Entry module, for example `src/init.luau`. Empty means the package root, which must contain `init.luau`. |
+| `path_to_definition_file` | A `.d.luau` file added to VS Code settings on install. |
+| `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
+| `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
+| `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
+| `scripts` | Commands for `crater run`. |
+| `exclude` | Extra glob patterns left out of the published archive. |
+
+---
+
+## crater.config.json
+
+Install settings. The folder names live here and only here: crater has no built-in folder names. `crater init` writes a full file:
+
+```json
+{
+  "registry": "github:TheExeDEV/crater-registry",
+
+  "import_client_path": "Packages",
+  "import_server_path": "ServerPackages",
+  "import_develop_path": "DevPackages",
+
+  "on_install_update_luaurc": true,
+  "on_install_update_vscode_luau_definition_files": true,
+  "on_install_should_i_ask_your_permission_to_do_any_action": true,
+
+  "link_style": "roblox",
+  "self_update_repo": ""
+}
+```
+
+| Field | Description |
+|---|---|
+| `registry` | Registry used for dependencies, publishing and search. See [Registry locations](#registry-locations). |
+| `import_client_path`, `import_server_path`, `import_develop_path` | Folder for each list. Required when the list has dependencies, otherwise crater stops and tells you which field to add. Nested paths work. |
+| `on_install_update_luaurc` | Keep folder aliases in `.luaurc` up to date. |
+| `on_install_update_vscode_luau_definition_files` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date. |
+| `on_install_should_i_ask_your_permission_to_do_any_action` | Ask before every change. `-y` skips the questions for one run. |
+| `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
+| `self_update_repo` | `Owner/Repo` used by `crater self-update`. |
+
+Settings are merged from two files, the project wins:
+
+1. global: `%APPDATA%\crater\config.json` (Windows) or `~/.config/crater/config.json`
+2. project: `crater.config.json` next to `crater.json`
+
+Put `registry` in the global file once and every project uses it.
+
+The registry is taken from the first of: `repository_registry` in `crater.json`, `registry` in the config, the registry built into the crater binary.
+
+### Confirmations
+
+```
+? Create folder Packages (4 packages: ...) [Y/n/a]
+```
+
+`Enter` or `y` does it, `n` skips it (refusing to build a package folder cancels the install), `a` says yes to everything for this run. Without a terminal the action is skipped with a warning, so use `-y` in CI.
+
+---
+
+## Dependency syntax
+
+```
+[Alias:]scope/name<operator><version>
+[Alias:]scope/name@<source>
+```
+
+| Spec | Meaning |
+|---|---|
+| `bebra/dbv^` or `bebra/dbv` | latest stable version |
+| `bebra/zxc=1.2.3` | exactly 1.2.3 |
+| `beta/adof+0.12.44` | 0.12.44 or newer |
+| `a/b^1.2.3` | compatible: `>=1.2.3 <2.0.0` (for 0.x: `^0.2.3` is `<0.3.0`) |
+| `a/b^1` | `>=1.0.0 <2.0.0` |
+| `a/b~1.2.3` | patch updates only: `>=1.2.3 <1.3.0` |
+| `Promise:evaera/promise^4` | any of the above with an [alias](#aliases) |
+| `me/lib@path:../lib` | a [local folder](#local-and-git-dependencies) |
+| `me/lib@git+https://github.com/me/lib.git#v1.0.0` | a [git repository](#local-and-git-dependencies) at a tag, branch or commit |
+
+- `=` needs a full `MAJOR.MINOR.PATCH`.
+- Prereleases are picked only by `=` or by a requirement that names a prerelease of the same version.
+- Names are case insensitive and stored in lowercase.
+
+---
+
+## Aliases
+
+The link file is named after the short package name: `beta/adof` becomes `adof.luau`. An alias picks the name yourself:
+
+```json
+"import_client": [
+  "Promise:evaera/promise^4",
+  "OtherPromise:other/promise^1",
+  "Signal:bebra/zxc=1.2.3"
+]
+```
+
+```luau
+local Promise = require(ReplicatedStorage.Packages.Promise)
+```
+
+- Use it when two packages share a short name or the name is inconvenient.
+- An alias starts with a letter and contains letters, digits, `_` and `-`.
+- Link names must be unique per list, compared case insensitively (`Promise` and `promise` are the same file on Windows).
+- Aliases work inside packages too: a package that lists `Signal:bebra/zxc^1` gets `Signal.luau` next to it.
+- `crater add Alias:scope/name^` replaces an entry with the same link name. `remove` and `update` accept an alias or a full name.
+
+When names collide crater suggests an alias:
+
+```
+✗ crater.json: dependencies evaera/promise and other/promise would both be linked as promise.
+  Give one of them an alias, for example OtherPromise:other/promise^.
+```
+
+---
+
+## One copy per package and overrides
+
+Within one folder every package is installed **once**. If ten packages need `evaera/promise`, there is one `evaera_promise@4.0.0` folder and ten small link files pointing at it. crater picks the highest version that satisfies everybody. `crater list` marks repeats as `(shared)`:
+
+```
+Packages/ (import_client)
+  x/new-user@1.0.0
+  └ dep/dependency@2.0.0
+  x/old-user@1.0.0
+  └ dep/dependency@2.0.0 (shared)
+```
+
+When requirements cannot be satisfied together (one package needs `^1`, another `^2`), crater stops and shows who needs what:
+
+```
+✗ [client] No version of dep/dependency satisfies all requirements:
+    x/old-user requires >=1.0.0 <2.0.0
+    x/new-user requires >=2.0.0 <3.0.0
+  Available versions: 1.0.0, 1.1.0, 2.0.0
+  To use one version for every package, add "overrides": ["dep/dependency^2.0.0"] to crater.json.
+```
+
+`overrides` force one version for the whole project, in every folder:
+
+```json
+"overrides": ["dep/dependency^2.0.0"]
+```
+
+```
+! x/old-user wants dep/dependency >=1.0.0 <2.0.0, using 2.0.0 from overrides
+```
+
+An override can also point to a fork: `"overrides": ["evaera/promise@path:../promise-fork"]` replaces the package everywhere in the tree.
+
+---
+
+## Local and git dependencies
+
+```json
+"import_client": [
+  "me/mylib@path:../mylib",
+  "me/gitlib@git+https://github.com/me/gitlib.git#v1.2.0"
+]
+```
+
+- The folder or repository must contain a `crater.json` whose `name` matches the dependency.
+- Path dependencies are packed on every install. When the files change, the summary shows `~ me/mylib 0.1.0 (contents changed)`.
+- Git dependencies need `git`. The ref can be a tag, branch or commit. The commit is stored in `crater.lock`, so `install` keeps it even when the branch moves, and `crater update me/gitlib` moves to the newest commit.
+- Dependencies of a local package come from its own `repository_registry` (relative to its folder) or from your registry.
+- Published packages cannot have path or git dependencies.
+
+---
+
+## Workspaces
+
+A monorepo lists its packages in the root `crater.json`:
+
+```json
+{
+  "name": "me/mono",
+  "version": "0.0.0",
+  "workspace": ["packages/*", "tools/build"]
+}
+```
+
+- A dependency on another member (`"me/core^0.1.0"`) is taken from the member's folder instead of the registry, so changes are used right away.
+- `crater install --workspace` installs the root and every member. `crater update --workspace` updates them all.
+- `crater publish --workspace` publishes every member with `can_publish: true`, dependencies first.
+- Each member keeps its own `crater.config.json` and `crater.lock`.
+
+---
+
+## Realms and transitive dependencies
+
+Each list is resolved on its own, into its own folder.
+
+| Package installed into | Its dependencies that come along |
+|---|---|
+| client folder | its `import_client` |
+| server folder | its `import_server` |
+| develop folder | its `import_client` and `import_server` |
+
+`import_develop` of a dependency is never installed, like Cargo dev dependencies.
+
+---
+
+## What gets installed
+
+```
+Packages/
+  adof.luau                       link to a direct dependency
+  Promise.luau                    link with an alias
+  _Index/
+    beta_adof@0.13.0/
+      adof/                       package contents
+      zxc.luau                    link to a dependency of adof
+    bebra_zxc@1.2.3/
+      zxc/
+```
+
+- Only direct dependencies get a link in the folder root. Packages link their own dependencies next to themselves, so a package can `require(script.Parent.zxc)`.
+- The folder belongs to crater and is rebuilt when it changes. Add it to `.gitignore`.
+- crater refuses to touch an existing non-empty folder without `_Index`, so it cannot wipe your code.
+
+### Link styles
+
+`roblox` (default, works with Rojo and the luau-lsp sourcemap):
+
+```luau
+return require(script.Parent._Index["beta_adof@0.13.0"]["adof"]["src"])
+```
+
+`string` (require by string):
+
+```luau
+return require("./_Index/beta_adof@0.13.0/adof/src")
+```
+
+### Type re-exports
+
+Link files re-export every `export type` of the package's main module, so `Types.Point` works in your code:
+
+```luau
+-- Generated by crater. Do not edit.
+local MODULE = require(script.Parent._Index["acme_types@1.0.0"]["types"]["src"])
+export type Point = MODULE.Point
+export type Pair<K, V = string> = MODULE.Pair<K, V>
+return MODULE
+```
+
+Generics, defaults, function types, string literal types and packs are kept. Text in comments and strings is ignored, `export type function` is skipped. A default that uses a private type, `typeof(...)` or another module's type is re-exported as `any`, and `install` says so. Verified with `luau-lsp analyze` in strict mode for both link styles.
+
+### Rojo
+
+```json
+{
+  "name": "game",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": { "Packages": { "$path": "Packages" } },
+    "ServerScriptService": { "ServerPackages": { "$path": "ServerPackages" } }
+  }
+}
+```
+
+`crater doctor` warns when a package folder is not mapped.
+
+---
+
+## Editor integration
+
+**`.luaurc`:** an alias per installed folder, so `require("@Packages/adof")` works. Other settings are kept.
+
+**VS Code (luau-lsp):** every `path_to_definition_file` goes into `luau-lsp.types.definitionFiles`. Both the array and the object form are supported, and only entries inside crater folders are replaced.
+
+Comments in these files are lost when crater rewrites them, and the prompt says so.
+
+---
+
+## crater.lock
+
+Exact versions, sources, git commits and sha256 of everything installed. Commit it.
+
+- `install` keeps locked versions while they still satisfy `crater.json`.
+- `update` takes the newest matching versions, `update name` only for the given packages.
+- A locked version whose sha256 changed in the registry stops the install (`crater update name` if that is expected).
+- Local registry paths are stored relative to the project.
+
+---
+
+## Everyday commands
+
+**`crater outdated`** compares the lock with the registry:
+
+```
+Package    Realm   Installed  Wanted  Latest  Requirement
+bebra/zxc  client  1.2.3      1.2.3   2.0.0   =1.2.3
+beta/adof  client  0.13.0     0.14.0  0.14.0  +0.12.44
+```
+
+*Wanted* is what `update` installs (same resolver), *Latest* is the newest version in the registry. `--all` shows every dependency.
+
+**`crater update -i`** lets you pick with the arrow keys:
+
+```
+? Select packages to update
+  ↑/↓ move, space toggle, a all, enter confirm, esc cancel
+› ◉ beta/adof 0.13.0 → 0.14.0  client
+  ○ bebra/zxc 1.2.3 → 2.0.0  client changes =1.2.3 to =2.0.0
+```
+
+Picking a version outside the requirement rewrites it in `crater.json` (keeping the operator and alias) and installs, with rollback if the install fails.
+
+**`crater why dep/dependency`** shows every chain that pulls a package in:
+
+```
+Packages/ (import_client)
+  crater.json → beta/adof@0.13.0 → bebra/zxc@1.2.3 → dep/dependency@2.0.0
+```
+
+**`crater search signal`**, **`crater info theexedev/signal`**, **`crater versions theexedev/signal`** read the registry.
+
+**`crater run build -- --verbose`** runs a script from `crater.json` in the project folder. `CRATER_PROJECT_DIR`, `CRATER_PACKAGE_NAME` and `CRATER_PACKAGE_VERSION` are set. `crater run` lists the scripts.
+
+**`crater doctor`** checks the config, registry access, lock vs manifest, package folders and links, `.luaurc`, VS Code definitions, Rojo mapping and git.
+
+**`crater import`** converts `wally.toml` or `pesde.toml`. Wally aliases are kept (so `require(Packages.Promise)` still works), `[server-dependencies]` go to `import_server`, `[dev-dependencies]` to `import_develop`, version ranges are converted. Anything without an equivalent is reported.
+
+**`crater self-update`** downloads the newest release for your platform and replaces the executable. `--check` only reports.
+
+---
+
+## The registry
+
+A registry is a folder tree. In the GitHub setup every user owns one folder, named after their GitHub login in lowercase, and each package is a folder inside it:
+
+```
+crater-registry/
+  registry.json              name, URLs, maintainers
+  packages.json              catalog for search, generated
+  theexedev/                 the folder of GitHub user TheExeDEV
+    signal/
+      index.json             versions, sha256, manifests
+      1.4.0.zip
+      1.5.0.zip
+    cool-lib/
+      index.json
+      1.0.0.zip
+  .github/workflows/
+    check.yml                validates pull requests
+    publish.yml              updates the catalog and the website after merge
+```
+
+Why lowercase: GitHub logins are case insensitive, but raw file URLs are not, so `TheExeDEV` and `theexedev` must map to one folder.
+
+### Registry locations
+
+| Value | Meaning |
+|---|---|
+| `github:TheExeDEV/crater-registry` | `https://raw.githubusercontent.com/TheExeDEV/crater-registry/main` |
+| `github:TheExeDEV/crater-registry@dev` | the same, branch `dev` |
+| `https://example.com/registry` | any static host with the same layout |
+| `../registry`, `C:/registries/team`, `file:///...` | a local folder |
+
+Set `CRATER_REGISTRY_TOKEN` for private HTTP registries (sent as a bearer token).
+
+### Creating a GitHub registry
+
+```bash
+crater registry init crater-registry --repo TheExeDEV/crater-registry --crater-repo TheExeDEV/crater
+```
+
+This writes the README, contributing rules, pull request template, `.gitattributes`, `registry.json` (with you as maintainer), an empty catalog and the two workflows. Then:
+
+1. Create the GitHub repository and push the folder to `main`.
+2. In *Settings → Pages* choose *GitHub Actions* as the source.
+3. Make sure the crater repository named in `--crater-repo` is public: the workflows build crater from it.
+4. If `main` is protected, allow GitHub Actions to push (the publish workflow commits `packages.json`).
+
+### Pull request checks
+
+`check.yml` runs `crater registry check . --base origin/main --author <PR author>`. A pull request fails when:
+
+- a changed file is outside the author's folder
+- an existing version, archive or index entry was modified or removed
+- `index.json` is invalid, names or versions are wrong, a version is listed twice
+- an archive is missing, its sha256 does not match, or its `crater.json` has another name, version or dependencies
+- a package depends on a local folder or git repository
+- files outside package folders changed (`registry.json`, `.github/`, `packages.json`)
+
+Maintainers in `registry.json` (as it is on `main`, not in the pull request) may change anything. Run the same check locally:
+
+```bash
+crater registry check . --base origin/main --author yourlogin
+```
+
+After merge `publish.yml` regenerates `packages.json` (`crater registry catalog`), commits it and deploys the website.
+
+---
+
+## Publishing
+
+1. Set `"name": "<your login in lowercase>/<package>"`, a new `version` and `"can_publish": true`.
+2. Check the archive with `crater pack`.
+3. Fork the registry on GitHub and clone your fork.
+4. Publish into the clone as a pull request:
+
+   ```bash
+   crater publish --registry ../crater-registry-fork --pr
+   ```
+
+   crater checks that the clone has no uncommitted changes, creates the branch `publish/<scope>-<name>-<version>`, commits the package, pushes it and opens the pull request with `gh` when it is installed (otherwise it prints the compare link). Each step asks first unless `-y` is given. `--push` pushes without asking.
+
+For a plain folder registry (no git), `crater publish --registry <folder>` writes the files and updates `packages.json` directly.
+
+What goes into the archive: everything except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.config.json`, the package folders and `exclude`. Archives use fixed timestamps, so the same files always give the same sha256.
+
+---
+
+## The package website
+
+```bash
+crater registry site . --output _site
+```
+
+Builds a static site (`index.html`, `assets/`, `data/`) from the registry: a searchable list of packages and a page per package with its README, install snippets with copy buttons, metadata, dependencies and versions. Light and dark themes follow the system. README files are rendered with marked and sanitized with DOMPurify; all other data is inserted as text.
+
+Preview it locally:
+
+```bash
+crater registry site . --serve --port 8080
+```
+
+The publish workflow deploys it to GitHub Pages after every merge.
+
+---
+
+## Releasing crater
+
+The crater repository has two workflows:
+
+- `build.yml` builds on every push and pull request (warnings are errors).
+- `release.yml` runs on a `v*` tag, builds single-file executables for Windows, Linux and macOS (x64 and arm64) and creates a GitHub release with `crater-<platform>` assets.
+
+Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`github:TheExeDEV/crater-registry`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a fork updates from itself.
+
+```bash
+git tag v0.3.0
+```
+
+```bash
+git push origin v0.3.0
+```
+
+The same properties work for local builds:
+
+```bash
+dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:CraterDefaultRegistry=github:TheExeDEV/crater-registry
+```
+
+---
+
+## Command reference
+
+| Command | Description |
+|---|---|
+| `init [--name scope/name] [--registry r]` | Create `crater.json` and `crater.config.json`. |
+| `import [wally.toml\|pesde.toml] [--force]` | Convert a Wally or pesde project. |
+| `install [--workspace]` (`i`) | Install, respecting `crater.lock`. |
+| `add <spec...> [--client\|--server\|--dev]` | Add or replace dependencies and install. Restores `crater.json` if the install fails. |
+| `remove <name...> [--client\|--server\|--dev]` (`rm`) | Remove by `scope/name` or alias. |
+| `update [name...] [-i] [--workspace]` (`up`) | Update all or the given packages. `-i` to pick. |
+| `outdated [--all]` | Show newer versions. |
+| `list` (`ls`) | Installed tree. |
+| `why <scope/name>` | Why a package is installed. |
+| `search [query]` | Search the registry catalog. |
+| `info <scope/name>` | Package details. |
+| `versions <scope/name>` | Published versions. |
+| `run [script] [-- args]` | Run a script. |
+| `doctor` | Check the project. |
+| `pack [-o file.zip]` | Build the archive. |
+| `publish [--registry r] [--pr] [--push] [--workspace]` | Publish, as a pull request with `--pr`. |
+| `registry init <folder> --repo Owner/Repo` | Create a registry repository from the template. |
+| `registry check [folder] [--base ref] [--author login]` | Validate a registry and pull request changes. |
+| `registry catalog [folder]` | Regenerate `packages.json`. |
+| `registry site [folder] [-o out] [--serve] [--port n]` | Build (and preview) the website. |
+| `self-update [--check]` | Update crater. |
+| `version`, `--help` | Version and help. |
+
+`-y` / `--yes` skips confirmations. crater finds `crater.json` in the current folder or any parent. Exit codes: `0` success, `1` error, `2` internal error.
+
+---
+
+## Environment variables
+
+| Variable | Description |
+|---|---|
+| `CRATER_CACHE` | Download cache. Default `%LOCALAPPDATA%\crater\cache`. Archives are stored by sha256 and verified on read, git checkouts live in `git/`. |
+| `CRATER_REGISTRY_TOKEN` | Bearer token for HTTP registries. |
+| `CRATER_UPDATE_REPO` | Overrides the repository used by `self-update`. |
+| `NO_COLOR` | No colors and no animations. |
+| `CI` | No animations. |
+| `CRATER_DEBUG` | Full stack traces for internal errors. |
+
+---
+
+## Limitations
+
+- One version per package per folder. Incompatible requirements need an override (Wally would install two copies).
+- The resolver takes the highest matching version and does not backtrack. Rarely an older version would make everything fit; pin it with `=`.
+- A client package and a server package are separate copies, because the folders live in different places in Roblox.
+- Type re-exports come only from the main module.
+- Publishing goes through git (a pull request or a local folder); there is no HTTP upload.
+- `import` does not convert pesde git dependencies or Wally version ranges with an upper bound.
+
+---
+
+## Source layout
+
+```
+src/Crater/
+  Program.cs          entry point and command dispatch
+  Cli/                argument parsing and help
+  Commands/           one file per command group
+  Core/               resolver, installer, folder builder, links, type re-exports, workspace
+  Models/             crater.json, crater.config.json, crater.lock, realms
+  Registry/           local, HTTP, source and git registries, catalog, registry checks
+  Site/               website builder and local server
+  Integrations/       .luaurc and VS Code settings
+  Versioning/         versions, requirements, dependency specs
+  Util/               output, colors, spinner, progress bar, selection, JSON, TOML, shell
+  Templates/          registry repository and website templates (embedded)
+.github/workflows/    build and release of crater itself
+```
+
+The code follows `.editorconfig`: tabs, explicit types, braces everywhere, no comments.
+
+---
+
+## License
+
+crater is released under the [MIT License](LICENSE).

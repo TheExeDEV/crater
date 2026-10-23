@@ -1,0 +1,32 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build crater
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build src/Crater --configuration Release -warnaserror
+
+      - name: Smoke test
+        run: |
+          dotnet src/Crater/bin/Release/net10.0/crater.dll --version
+          dotnet src/Crater/bin/Release/net10.0/crater.dll --help > /dev/null
