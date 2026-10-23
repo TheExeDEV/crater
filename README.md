@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/in
 
 The installer downloads the latest release for your system into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin`, adds it to your user `PATH` on Windows and prints the line to add on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
 
-Options: `installers/install.ps1 -Version 0.0.3 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
+Options: `installers/install.ps1 -Version 0.0.4 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
@@ -121,7 +121,7 @@ dotnet src/Crater/bin/Release/net10.0/crater.dll --help
 crater init --name yourlogin/my-game
 ```
 
-This creates `crater.json` (with `"registry": "github:TheExeDEV/crater-registry"` already filled in) and `crater.settings.json`. Add packages and install:
+This creates `crater.json` (with `"registry": "https://raw.githubusercontent.com/TheExeDEV/crater-registry/main"` already filled in) and `crater.settings.json`. Add packages and install:
 
 ```bash
 crater add evaera/promise^4 --client
@@ -161,7 +161,7 @@ Every project and every package has a `crater.json`.
   "version": "1.0.0",
   "keywords": ["game"],
 
-  "registry": "github:TheExeDEV/crater-registry",
+  "registry": "https://raw.githubusercontent.com/TheExeDEV/crater-registry/main",
   "repository": "https://github.com/TheExeDEV/my-game",
 
   "can_publish": false,
@@ -686,20 +686,20 @@ The crater repository has two workflows:
 - `build.yml` builds on every push and pull request (warnings are errors).
 - `release.yml` runs on a `v*` tag, builds single-file executables for Windows, Linux and macOS (x64 and arm64) and creates a GitHub release with `crater-<platform>` assets.
 
-Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`github:TheExeDEV/crater-registry`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a fork updates from itself.
+Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`https://raw.githubusercontent.com/TheExeDEV/crater-registry/main`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a fork updates from itself.
 
 ```bash
-git tag v0.0.4
+git tag v0.0.5
 ```
 
 ```bash
-git push origin v0.0.4
+git push origin v0.0.5
 ```
 
 The same properties work for local builds:
 
 ```bash
-dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:CraterDefaultRegistry=github:TheExeDEV/crater-registry
+dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:CraterDefaultRegistry=https://raw.githubusercontent.com/TheExeDEV/crater-registry/main
 ```
 
 ---
