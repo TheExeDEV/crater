@@ -190,7 +190,7 @@ Every project and every package has a `crater.json`.
 | `repository_registry` | Registry for this project. Usually left empty and set in `crater.config.json` instead. |
 | `can_publish` | Must be `true` for `crater publish`. Default `false`. |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
-| `path_to_main` | Entry module, for example `src/init.luau`. Empty means the package root, which must contain `init.luau`. |
+| `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
 | `path_to_definition_file` | A `.d.luau` file added to VS Code settings on install. |
 | `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
@@ -423,6 +423,41 @@ return require(script.Parent._Index["beta_adof@0.13.0"]["adof"]["src"])
 ```luau
 return require("./_Index/beta_adof@0.13.0/adof/src")
 ```
+
+### Packages without a main module
+
+Not every library has one entry point. A package of independent modules can leave `path_to_main` empty (or point it at a folder without `init.luau`):
+
+```
+utils/
+  crater.json        "path_to_main": ""
+  Signal.luau
+  Promise.luau
+  Spring/init.luau
+  Spring/solver.luau
+```
+
+crater then generates a **collection**: requiring the package returns a table with one field per module.
+
+```luau
+local Utils = require(ReplicatedStorage.Packages.utils)
+
+local changed = Utils.Signal.new()
+local spring = Utils.Spring.new(0)
+```
+
+| `path_to_main` | What `require` returns |
+|---|---|
+| a file, or a folder with `init.luau` | that module |
+| empty, and the package root has `init.luau` | the root module |
+| empty (or a folder) without `init.luau` | a collection of the modules in that folder |
+| nothing requirable at all | an error that names the package; `install`, `pack` and `publish` warn about it |
+
+- **Members:** `.luau` and `.lua` files and folders that contain `init.luau`, one level deep. Scripts (`*.server.luau`, `*.client.luau`), tests (`*.spec.luau`, `*.test.luau`) and folders without `init.luau` are left out.
+- **Lazy:** a module is required the first time its field is read, so a server-only module is not run on the client just because the package was required.
+- **Typed:** the collection has an exported `Modules` type built from `typeof(require(...))` of every member, so luau-lsp completes `Utils.Signal` and reports `Utils.Nope` as an error. Verified with `luau-lsp analyze` in strict mode for both link styles.
+- Names that are not identifiers or are Luau keywords work with brackets: `Utils["my-module"]`, `Utils["end"]`.
+- `crater pack` and `crater publish` print the entry they found, for example `entry: collection of 3 modules (Promise, Signal, Spring)`.
 
 ### Type re-exports
 

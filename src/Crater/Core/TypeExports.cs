@@ -18,13 +18,6 @@ public static partial class TypeExports
 	[GeneratedRegex(@"\s+")]
 	private static partial Regex Whitespace();
 
-	public static List<TypeExport> FromPackage(string contentDirectory, string pathToMain)
-	{
-		string? file = FindMainFile(contentDirectory, pathToMain);
-
-		return file is null ? [] : Parse(File.ReadAllText(file));
-	}
-
 	public static string? FindMainFile(string contentDirectory, string pathToMain)
 	{
 		string relative = Links.NormalizeRelative(pathToMain);

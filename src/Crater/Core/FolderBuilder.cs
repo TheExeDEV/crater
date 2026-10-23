@@ -71,11 +71,13 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		string index = Path.Combine(folder, Layout.IndexFolder);
 		Directory.CreateDirectory(index);
 
-		Dictionary<ResolvedPackage, List<TypeExport>> types = ExtractPackages(graph, archives, index);
+		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, archives, index);
 
-		WriteLinks(graph, types, folder, index);
-		ReportTypes(graph, types);
+		WriteLinks(graph, extracted, folder, index);
+		Report(graph, extracted);
 	}
+
+	sealed record Extracted(PackageEntry Entry, List<TypeExport> Types);
 
 	void RemoveEmpty(Realm realm)
 	{
@@ -120,12 +122,12 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			$"Rename it or set a different {ProjectConfig.FolderField(realm)} in {Fmt.File(ProjectConfig.FileName)}.");
 	}
 
-	static Dictionary<ResolvedPackage, List<TypeExport>> ExtractPackages(
+	static Dictionary<ResolvedPackage, Extracted> ExtractPackages(
 		ResolvedGraph graph,
 		IReadOnlyDictionary<ResolvedPackage, byte[]> archives,
 		string index)
 	{
-		Dictionary<ResolvedPackage, List<TypeExport>> types = [];
+		Dictionary<ResolvedPackage, Extracted> extracted = [];
 
 		foreach (ResolvedPackage package in graph.All)
 		{
@@ -134,20 +136,16 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			Directory.CreateDirectory(content);
 			Packer.Extract(archives[package], content, package.Id);
 
-			if (TypeExports.FindMainFile(content, package.Manifest.PathToMain) is null)
-			{
-				Out.Warn(
-					$"{Fmt.Pkg(package.Id)}: main module not found (path_to_main = {Fmt.File(package.Manifest.PathToMain)}), " +
-					"require may fail");
-			}
+			PackageEntry entry = PackageEntry.Analyze(content, package.Manifest.PathToMain);
+			List<TypeExport> types = entry.MainFile is null ? [] : TypeExports.Parse(File.ReadAllText(entry.MainFile));
 
-			types[package] = TypeExports.FromPackage(content, package.Manifest.PathToMain);
+			extracted[package] = new Extracted(entry, types);
 		}
 
-		return types;
+		return extracted;
 	}
 
-	void WriteLinks(ResolvedGraph graph, Dictionary<ResolvedPackage, List<TypeExport>> types, string folder, string index)
+	void WriteLinks(ResolvedGraph graph, Dictionary<ResolvedPackage, Extracted> extracted, string folder, string index)
 	{
 		string style = project.Config.LinkStyle;
 
@@ -155,25 +153,36 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		{
 			foreach (ResolvedDependency edge in package.Dependencies)
 			{
+				Extracted target = extracted[edge.Package];
 				string path = Path.Combine(index, package.IndexDirectory, edge.LinkName + ".luau");
 
-				File.WriteAllText(path, Links.Nested(edge.Package, style, types[edge.Package]));
+				File.WriteAllText(path, Links.Nested(edge.Package, style, target.Entry, target.Types));
 			}
 		}
 
 		foreach (ResolvedDependency edge in graph.Roots)
 		{
+			Extracted target = extracted[edge.Package];
 			string path = Path.Combine(folder, edge.LinkName + ".luau");
 
-			File.WriteAllText(path, Links.TopLevel(edge.Package, style, types[edge.Package]));
+			File.WriteAllText(path, Links.TopLevel(edge.Package, style, target.Entry, target.Types));
 		}
 	}
 
-	static void ReportTypes(ResolvedGraph graph, Dictionary<ResolvedPackage, List<TypeExport>> types)
+	static void Report(ResolvedGraph graph, Dictionary<ResolvedPackage, Extracted> extracted)
 	{
 		foreach (ResolvedPackage package in graph.All)
 		{
-			foreach (TypeExport type in types[package].Where(type => type.Approximated))
+			Extracted item = extracted[package];
+
+			if (item.Entry.Kind == EntryKind.Missing)
+			{
+				Out.Warn(
+					$"{Fmt.Pkg(package.Id)} has no main module and no modules to expose " +
+					$"(path_to_main = {Fmt.File(package.Manifest.PathToMain.Length == 0 ? "\"\"" : package.Manifest.PathToMain)}), require will fail");
+			}
+
+			foreach (TypeExport type in item.Types.Where(type => type.Approximated))
 			{
 				Out.Dim($"  {package.Id}: default of type {type.Name} uses names not visible outside the module, re-exported as any");
 			}

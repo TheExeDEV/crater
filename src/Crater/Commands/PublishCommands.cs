@@ -17,6 +17,8 @@ public static class PublishCommands
 
 		byte[] archive = Packer.Pack(project, out List<string> files);
 		string defaultName = $"{project.Manifest.Name.Replace('/', '_')}@{project.Manifest.Version}.zip";
+
+		DescribeEntry(project);
 		string output = args.Value("o", "output") ?? Path.Combine(project.Directory, defaultName);
 
 		File.WriteAllBytes(output, archive);
@@ -59,6 +61,9 @@ public static class PublishCommands
 			: project.RequireRegistry();
 
 		byte[] archive = Packer.Pack(project, out List<string> files);
+
+		DescribeEntry(project);
+
 		RegistryRelease release = new()
 		{
 			Version = SemVer.Parse(manifest.Version).ToString(),
@@ -89,6 +94,31 @@ public static class PublishCommands
 
 		await registry.PublishAsync(release, archive);
 		Out.Ok($"Published {id} to {Fmt.File(registry.Location)}");
+	}
+
+	static void DescribeEntry(Project project)
+	{
+		PackageEntry entry = PackageEntry.Analyze(project.Directory, project.Manifest.PathToMain);
+
+		switch (entry.Kind)
+		{
+			case EntryKind.Module:
+				Out.Dim($"  entry: {Path.GetRelativePath(project.Directory, entry.MainFile!).Replace('\\', '/')}");
+				break;
+
+			case EntryKind.Collection:
+				string names = string.Join(", ", entry.Members.Take(8).Select(member => member.Name));
+				string more = entry.Members.Count > 8 ? ", ..." : "";
+
+				Out.Dim($"  entry: collection of {Fmt.Plural(entry.Members.Count, "module", "modules")} ({names}{more})");
+				break;
+
+			default:
+				Out.Warn(
+					"No main module and no modules to expose. Set path_to_main, add init.luau, " +
+					"or put .luau modules in the package root so users can require it.");
+				break;
+		}
 	}
 
 	static List<Project> WorkspacePublishOrder(Project current)
