@@ -121,7 +121,7 @@ dotnet src/Crater/bin/Release/net10.0/crater.dll --help
 crater init
 ```
 
-This creates `crater.json` and `crater.settings.json` with everything filled in: the package name comes from your GitHub login (after `crater login`, otherwise from your computer user name) and the folder name, `"registry": "github:TheExeDEV/crater-registry"` is already set. Add packages and install:
+This creates `crater.json` and `crater.settings.json` with everything filled in: the package name comes from your GitHub login (after `crater login`, otherwise from your computer user name) and the folder name, `"registry": "https://github.com/TheExeDEV/crater-registry"` is already set. Add packages and install:
 
 ```bash
 crater add evaera/promise^4 --client
@@ -161,7 +161,7 @@ Every project and every package has a `crater.json`.
   "version": "1.0.0",
   "keywords": ["game"],
 
-  "registry": "github:TheExeDEV/crater-registry",
+  "registry": "https://github.com/TheExeDEV/crater-registry",
   "repository": "https://github.com/TheExeDEV/my-game",
 
   "can_publish": true,
@@ -576,8 +576,9 @@ Why lowercase: GitHub logins are case insensitive, but raw file URLs are not, so
 
 | Value | Meaning |
 |---|---|
-| `github:TheExeDEV/crater-registry` | `https://raw.githubusercontent.com/TheExeDEV/crater-registry/main` |
-| `github:TheExeDEV/crater-registry@dev` | the same, branch `dev` |
+| `https://github.com/TheExeDEV/crater-registry` | the GitHub repository, branch `main` (what `crater init` writes) |
+| `https://github.com/TheExeDEV/crater-registry/tree/dev` | the same, branch `dev` |
+| `github:TheExeDEV/crater-registry`, `github:TheExeDEV/crater-registry@dev` | short forms of the two lines above, still supported |
 | `https://example.com/registry` | any static host with the same layout |
 | `../registry`, `C:/registries/team`, `file:///...` | a local folder |
 
@@ -673,7 +674,7 @@ When the owner accepts it, everyone can install it with `crater add theexedev/co
 {
   "name": "theexedev/cool-lib",
   "version": "1.0.0",
-  "registry": "github:TheExeDEV/crater-registry",
+  "registry": "https://github.com/TheExeDEV/crater-registry",
   "can_publish": true
 }
 ```

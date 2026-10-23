@@ -46,7 +46,7 @@ public static class ProjectCommands
 			return location;
 		}
 
-		return github.Branch == "main" ? $"github:{github.Slug}" : $"github:{github.Slug}@{github.Branch}";
+		return github.Branch == "main" ? $"https://github.com/{github.Slug}" : $"https://github.com/{github.Slug}/tree/{github.Branch}";
 	}
 
 	public static JsonObject ManifestTemplate(string name, string registry)

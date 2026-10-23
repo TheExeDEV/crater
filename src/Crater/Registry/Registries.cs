@@ -5,6 +5,7 @@ namespace Crater.Registry;
 public static class Registries
 {
 	const string GitHubPrefix = "github:";
+	const string GitHubWebPrefix = "https://github.com/";
 
 	static readonly Dictionary<string, IRegistry> Opened = new(StringComparer.OrdinalIgnoreCase);
 
@@ -49,6 +50,11 @@ public static class Registries
 	{
 		string trimmed = location.Trim();
 
+		if (trimmed.StartsWith(GitHubWebPrefix, StringComparison.OrdinalIgnoreCase))
+		{
+			return ExpandWebUrl(location, trimmed[GitHubWebPrefix.Length..]);
+		}
+
 		if (!trimmed.StartsWith(GitHubPrefix, StringComparison.OrdinalIgnoreCase))
 		{
 			return trimmed;
@@ -68,11 +74,48 @@ public static class Registries
 
 		if (parts.Length != 2 || parts.Any(part => part.Length == 0) || branch.Length == 0)
 		{
-			throw new CraterException($"Invalid registry {Fmt.Val(location)}. Expected {Fmt.Cmd("github:Owner/Repo")} or {Fmt.Cmd("github:Owner/Repo@branch")}.");
+			throw InvalidLocation(location);
 		}
 
-		return $"https://raw.githubusercontent.com/{parts[0]}/{parts[1]}/{branch}";
+		return RawUrl(parts[0], parts[1], branch);
 	}
+
+	static string ExpandWebUrl(string location, string path)
+	{
+		string[] parts = path.Trim('/').Split('/');
+
+		if (parts.Length < 2 || parts[0].Length == 0 || parts[1].Length == 0)
+		{
+			throw InvalidLocation(location);
+		}
+
+		string repository = parts[1].EndsWith(".git", StringComparison.OrdinalIgnoreCase) ? parts[1][..^4] : parts[1];
+
+		if (parts.Length == 2)
+		{
+			return RawUrl(parts[0], repository, "main");
+		}
+
+		if (parts.Length >= 4 && parts[2] == "tree")
+		{
+			return RawUrl(parts[0], repository, string.Join('/', parts[3..]));
+		}
+
+		throw InvalidLocation(location);
+	}
+
+	static string RawUrl(string owner, string repository, string branch)
+	{
+		return $"https://raw.githubusercontent.com/{owner}/{repository}/{branch}";
+	}
+
+	static CraterException InvalidLocation(string location)
+	{
+		return new CraterException(
+			$"Invalid registry {Fmt.Val(location)}. Expected {Fmt.Cmd("https://github.com/Owner/Repo")} " +
+			$"or {Fmt.Cmd("https://github.com/Owner/Repo/tree/branch")}.");
+	}
+
 
 	public static bool IsAbsolute(string location)
 	{

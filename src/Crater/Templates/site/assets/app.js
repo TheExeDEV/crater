@@ -134,11 +134,11 @@ function score(entry, query) {
 function registryConfigValue() {
   const registry = state.registry || {};
 
-  if (registry.url) {
-    return registry.url;
+  if (registry.repository) {
+    return `https://github.com/${registry.repository}`;
   }
 
-  return registry.repository ? `https://raw.githubusercontent.com/${registry.repository}/main` : "";
+  return registry.url || "";
 }
 
 function copyButton(text) {
