@@ -53,7 +53,7 @@ public sealed class Project
 	{
 		get
 		{
-			string[] candidates = [Manifest.RepositoryRegistry, Config.Registry, BuildInfo.DefaultRegistry];
+			string[] candidates = [Manifest.RegistryLocation, BuildInfo.DefaultRegistry];
 
 			return candidates.FirstOrDefault(candidate => !string.IsNullOrWhiteSpace(candidate));
 		}
@@ -73,7 +73,7 @@ public sealed class Project
 		if (registry is null)
 		{
 			throw new CraterException(
-				$"No registry configured. Set {Fmt.Val("registry")} in {Fmt.File(ProjectConfig.FileName)}, " +
+				$"No registry configured. Set {Fmt.Val("registry")} in {Fmt.File(Manifest.FileName)}, " +
 				$"for example {Fmt.Cmd("\"registry\": \"github:Owner/crater-registry\"")}.");
 		}
 

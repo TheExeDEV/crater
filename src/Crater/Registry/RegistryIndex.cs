@@ -12,6 +12,7 @@ public sealed class RegistryIndex
 	[JsonPropertyName("name")] public string Name { get; set; } = "";
 	[JsonPropertyName("versions")] public List<RegistryRelease> Versions { get; set; } = [];
 
+	[JsonIgnore]
 	public RegistryRelease? Latest =>
 		Versions.Where(release => !release.SemVer.IsPrerelease).MaxBy(release => release.SemVer)
 		?? Versions.MaxBy(release => release.SemVer);

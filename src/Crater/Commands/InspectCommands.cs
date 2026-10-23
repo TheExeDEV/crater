@@ -343,15 +343,12 @@ public static class InspectCommands
 			return project.RequireRegistry();
 		}
 
-		ProjectConfig global = ProjectConfig.LoadGlobal();
-		string location = global.Registry.Length > 0 ? global.Registry : BuildInfo.DefaultRegistry;
-
-		if (location.Length == 0)
+		if (BuildInfo.DefaultRegistry.Length == 0)
 		{
-			throw new CraterException($"No registry configured. Pass {Fmt.Cmd("--registry <location>")} or set it in {Fmt.File(ProjectConfig.GlobalPath)}.");
+			throw new CraterException($"No registry configured. Pass {Fmt.Cmd("--registry <location>")} or run inside a project.");
 		}
 
-		return Registries.Open(location, Environment.CurrentDirectory);
+		return Registries.Open(BuildInfo.DefaultRegistry, Environment.CurrentDirectory);
 	}
 
 	static Project? TryLoadProject()

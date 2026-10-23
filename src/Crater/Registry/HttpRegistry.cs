@@ -86,13 +86,31 @@ public sealed class HttpRegistry(string baseUrl) : IRegistry
 
 	public static async Task<HttpResponseMessage> SendAsync(string url)
 	{
-		try
+		const int attempts = 3;
+
+		for (int attempt = 1; ; attempt++)
 		{
-			return await Http.GetAsync(url);
-		}
-		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
-		{
-			throw new CraterException($"Request to {Fmt.File(url)} failed: {exception.Message}");
+			try
+			{
+				HttpResponseMessage response = await Http.GetAsync(url);
+				bool retryable = (int)response.StatusCode is 502 or 503 or 504;
+
+				if (!retryable || attempt == attempts)
+				{
+					return response;
+				}
+
+				response.Dispose();
+			}
+			catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+			{
+				if (attempt == attempts)
+				{
+					throw new CraterException($"Request to {Fmt.File(url)} failed after {attempts} attempts: {exception.Message}");
+				}
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(500 * attempt * attempt));
 		}
 	}
 

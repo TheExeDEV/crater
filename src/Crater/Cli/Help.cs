@@ -9,7 +9,7 @@ public static class Help
 	static readonly (string Title, Entry[] Entries)[] Sections =
 	[
 		("Project", [
-			new("init [--name scope/name]", "create crater.json and crater.config.json"),
+			new("init [--name scope/name]", "create crater.json and crater.settings.json"),
 			new("import [wally.toml|pesde.toml]", "convert a Wally or pesde project"),
 			new("run [script] [-- args]", "run a script from crater.json"),
 			new("doctor", "check the project for problems"),

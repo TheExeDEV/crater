@@ -18,6 +18,7 @@ public static class Packer
 		"*.zip",
 		LockFile.FileName,
 		ProjectConfig.FileName,
+		ProjectConfig.LegacyFileName,
 	];
 
 	static readonly DateTimeOffset FixedTime = new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);

@@ -13,7 +13,7 @@ public static class ProjectCommands
 	{
 		string directory = Environment.CurrentDirectory;
 		string manifestPath = Path.Combine(directory, Manifest.FileName);
-		string configPath = Path.Combine(directory, ProjectConfig.FileName);
+		string settingsPath = ProjectConfig.PathIn(directory);
 
 		if (File.Exists(manifestPath))
 		{
@@ -22,23 +22,24 @@ public static class ProjectCommands
 		else
 		{
 			string name = PackageNameFor(directory, args.Value("name"));
+			string registry = args.Value("registry") ?? BuildInfo.DefaultRegistry;
 
-			Json.WriteText(manifestPath, Json.Serialize(ManifestTemplate(name)));
-			Out.Ok($"Created {Fmt.File(Manifest.FileName)} ({Fmt.Pkg(name)})");
+			Json.WriteText(manifestPath, Json.Serialize(ManifestTemplate(name, registry)));
+			Out.Ok($"Created {Fmt.File(Manifest.FileName)} ({Fmt.Pkg(name)}, registry {Fmt.Val(registry)})");
 		}
 
-		if (File.Exists(configPath))
+		if (File.Exists(settingsPath))
 		{
-			Out.Warn($"{Fmt.File(ProjectConfig.FileName)} already exists, skipped");
+			Out.Warn($"{Fmt.File(Path.GetFileName(settingsPath))} already exists, skipped");
 		}
 		else
 		{
-			Json.WriteText(configPath, Json.Serialize(ConfigTemplate(args.Value("registry") ?? "")));
+			Json.WriteText(settingsPath, Json.Serialize(SettingsTemplate()));
 			Out.Ok($"Created {Fmt.File(ProjectConfig.FileName)}");
 		}
 	}
 
-	public static JsonObject ManifestTemplate(string name)
+	public static JsonObject ManifestTemplate(string name, string registry)
 	{
 		return new JsonObject
 		{
@@ -48,8 +49,8 @@ public static class ProjectCommands
 			["license"] = "MIT",
 			["version"] = "0.1.0",
 			["keywords"] = new JsonArray(),
+			["registry"] = registry,
 			["repository"] = "",
-			["repository_registry"] = "",
 			["can_publish"] = false,
 			["import_to"] = "shared",
 			["path_to_main"] = "src/init.luau",
@@ -61,11 +62,10 @@ public static class ProjectCommands
 		};
 	}
 
-	public static JsonObject ConfigTemplate(string registry)
+	public static JsonObject SettingsTemplate()
 	{
 		return new JsonObject
 		{
-			["registry"] = registry,
 			["import_client_path"] = ProjectConfig.SuggestedFolder(Realm.Client),
 			["import_server_path"] = ProjectConfig.SuggestedFolder(Realm.Server),
 			["import_develop_path"] = ProjectConfig.SuggestedFolder(Realm.Develop),

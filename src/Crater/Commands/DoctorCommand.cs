@@ -84,7 +84,7 @@ public static class DoctorCommand
 
 		if (registry is null)
 		{
-			report.Fail($"Dependencies need a registry, but none is configured. Set {Fmt.Val("registry")} in {Fmt.File(ProjectConfig.FileName)}.");
+			report.Fail($"Dependencies need a registry, but none is configured. Set {Fmt.Val("registry")} in {Fmt.File(Manifest.FileName)}.");
 			return;
 		}
 

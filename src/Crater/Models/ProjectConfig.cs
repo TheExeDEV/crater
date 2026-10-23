@@ -6,9 +6,8 @@ namespace Crater.Models;
 
 public sealed class ProjectConfig
 {
-	public const string FileName = "crater.config.json";
-
-	[JsonPropertyName("registry")] public string Registry { get; set; } = "";
+	public const string FileName = "crater.settings.json";
+	public const string LegacyFileName = "crater.config.json";
 
 	[JsonPropertyName("import_client_path")] public string ImportClientPath { get; set; } = "";
 	[JsonPropertyName("import_server_path")] public string ImportServerPath { get; set; } = "";
@@ -25,7 +24,17 @@ public sealed class ProjectConfig
 	public static string GlobalDirectory =>
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "crater");
 
-	public static string GlobalPath => Path.Combine(GlobalDirectory, "config.json");
+	public static string GlobalPath => Existing(Path.Combine(GlobalDirectory, "settings.json"), Path.Combine(GlobalDirectory, "config.json"));
+
+	public static string PathIn(string projectDirectory)
+	{
+		return Existing(Path.Combine(projectDirectory, FileName), Path.Combine(projectDirectory, LegacyFileName));
+	}
+
+	static string Existing(string current, string legacy)
+	{
+		return !File.Exists(current) && File.Exists(legacy) ? legacy : current;
+	}
 
 	public static string FolderField(Realm realm) => $"import_{realm.Key()}_path";
 
@@ -78,7 +87,7 @@ public sealed class ProjectConfig
 	public static ProjectConfig Load(string projectDirectory)
 	{
 		JsonObject merged = new();
-		string[] sources = [GlobalPath, Path.Combine(projectDirectory, FileName)];
+		string[] sources = [GlobalPath, PathIn(projectDirectory)];
 
 		foreach (string path in sources)
 		{
@@ -87,7 +96,14 @@ public sealed class ProjectConfig
 				continue;
 			}
 
-			foreach ((string key, JsonNode? value) in Json.ReadObject(path))
+			JsonObject settings = Json.ReadObject(path);
+
+			if (settings.ContainsKey("registry"))
+			{
+				Out.Warn($"{Fmt.File(path)}: {Fmt.Val("registry")} is ignored here, it now lives in {Fmt.File(Manifest.FileName)}");
+			}
+
+			foreach ((string key, JsonNode? value) in settings)
 			{
 				merged[key] = value?.DeepClone();
 			}

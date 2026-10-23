@@ -16,7 +16,8 @@ public static class ImportCommand
 		string source = args.First ?? DetectSource(directory);
 		string sourcePath = Path.GetFullPath(Path.Combine(directory, source));
 		string manifestPath = Path.Combine(directory, Manifest.FileName);
-		string configPath = Path.Combine(directory, ProjectConfig.FileName);
+		string settingsPath = ProjectConfig.PathIn(directory);
+		string registry = args.Value("registry") ?? BuildInfo.DefaultRegistry;
 
 		if (!File.Exists(sourcePath))
 		{
@@ -32,12 +33,14 @@ public static class ImportCommand
 		bool isPesde = Path.GetFileName(sourcePath).Equals("pesde.toml", StringComparison.OrdinalIgnoreCase);
 		Imported imported = isPesde ? FromPesde(toml, directory) : FromWally(toml, directory);
 
-		Json.WriteText(manifestPath, Json.Serialize(imported.Manifest));
-		Out.Ok($"Created {Fmt.File(Manifest.FileName)} from {Fmt.File(source)}");
+		imported.Manifest["registry"] = registry;
 
-		if (!File.Exists(configPath))
+		Json.WriteText(manifestPath, Json.Serialize(imported.Manifest));
+		Out.Ok($"Created {Fmt.File(Manifest.FileName)} from {Fmt.File(source)} (registry {Fmt.Val(registry)})");
+
+		if (!File.Exists(settingsPath))
 		{
-			Json.WriteText(configPath, Json.Serialize(ProjectCommands.ConfigTemplate(args.Value("registry") ?? "")));
+			Json.WriteText(settingsPath, Json.Serialize(ProjectCommands.SettingsTemplate()));
 			Out.Ok($"Created {Fmt.File(ProjectConfig.FileName)}");
 		}
 
@@ -47,7 +50,7 @@ public static class ImportCommand
 		}
 
 		Out.Info("");
-		Out.Info($"Set {Fmt.Val("registry")} in {Fmt.File(ProjectConfig.FileName)}, then run {Fmt.Cmd("crater install")}.");
+		Out.Info($"Check the packages exist in {Fmt.Val(registry)}, then run {Fmt.Cmd("crater install")}.");
 	}
 
 	static string DetectSource(string directory)
@@ -151,7 +154,7 @@ public static class ImportCommand
 	static JsonObject BaseManifest(string? name, TomlTable package, string directory)
 	{
 		string fullName = (name ?? "scope/package").ToLowerInvariant();
-		JsonObject manifest = ProjectCommands.ManifestTemplate(fullName);
+		JsonObject manifest = ProjectCommands.ManifestTemplate(fullName, BuildInfo.DefaultRegistry);
 
 		manifest["version"] = package.String("version") ?? "0.1.0";
 		manifest["description"] = package.String("description") ?? "";

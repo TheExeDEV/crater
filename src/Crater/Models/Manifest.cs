@@ -16,8 +16,11 @@ public sealed class Manifest
 	[JsonPropertyName("version")] public string Version { get; set; } = "0.1.0";
 	[JsonPropertyName("keywords")] public List<string>? Keywords { get; set; }
 
+	[JsonPropertyName("registry")] public string Registry { get; set; } = "";
 	[JsonPropertyName("repository")] public string Repository { get; set; } = "";
-	[JsonPropertyName("repository_registry")] public string RepositoryRegistry { get; set; } = "";
+	[JsonPropertyName("repository_registry")] public string? LegacyRegistry { get; set; }
+
+	[JsonIgnore] public string RegistryLocation => Registry.Length > 0 ? Registry : LegacyRegistry ?? "";
 
 	[JsonPropertyName("can_publish")] public bool CanPublish { get; set; }
 	[JsonPropertyName("import_to")] public string ImportTo { get; set; } = "shared";
