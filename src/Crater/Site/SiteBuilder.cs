@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Serialization;
 using Crater.Core;
 using Crater.Registry;
@@ -43,6 +44,7 @@ public static class SiteBuilder
 			["CRATER_REPO"] = Html(craterRepository),
 			["REPO_URL"] = Html(repositoryUrl),
 			["YEAR"] = DateTime.UtcNow.Year.ToString(),
+			["ASSET_VERSION"] = AssetVersion(),
 		};
 
 		Templates.WriteTo("site", target, values, overwrite: true);
@@ -110,6 +112,18 @@ public static class SiteBuilder
 		{
 			throw new CraterException($"Output {Fmt.File(target)} looks like a package folder.");
 		}
+	}
+
+	static string AssetVersion()
+	{
+		StringBuilder content = new();
+
+		foreach ((string path, string text) in Templates.Under("site"))
+		{
+			content.Append(path).Append('\n').Append(text);
+		}
+
+		return PackageCache.Sha256(Encoding.UTF8.GetBytes(content.ToString()))[..10];
 	}
 
 	static string Html(string text)
