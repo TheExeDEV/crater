@@ -26,7 +26,19 @@ public sealed class SemVer : IComparable<SemVer>, IEquatable<SemVer>
 			return version;
 		}
 
-		throw new FormatException($"invalid version '{text}' (expected MAJOR.MINOR.PATCH)");
+		throw new FormatException(Explain(text));
+	}
+
+	public static string Explain(string? text)
+	{
+		string shown = (text ?? "").Trim();
+
+		if (TryParse(shown, out SemVer version, out int parts) && parts < 3)
+		{
+			return $"version '{shown}' needs three numbers, write '{version}'";
+		}
+
+		return $"'{shown}' is not a version, write three numbers like '1.0.0'";
 	}
 
 	public static bool TryParse(string? text, out SemVer version)

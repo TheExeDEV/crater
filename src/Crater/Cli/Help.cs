@@ -24,11 +24,14 @@ public static class Help
 			new("why <name>", "show why a package is installed"),
 		]),
 		("Registry", [
+			new("login [--force]", "sign in with GitHub to publish packages"),
+			new("logout", "sign out"),
+			new("whoami", "show who you are signed in as"),
 			new("search [query]", "search packages in the registry"),
 			new("info <scope/name>", "show package details"),
 			new("versions <scope/name>", "list published versions"),
 			new("pack [-o file.zip]", "build the package archive"),
-			new("publish [--registry path] [--pr]", "publish, --pr opens a pull request to a git registry"),
+			new("publish [--dry-run]", "send the package to the registry for review"),
 			new("registry init|check|catalog|site", "manage a registry repository"),
 		]),
 		("Crater", [

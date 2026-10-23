@@ -108,6 +108,15 @@ public static class Program
 				await PublishCommands.PublishAsync(args);
 				return 0;
 
+			case "login":
+				return LoginCommands.Login(args);
+
+			case "logout":
+				return LoginCommands.Logout();
+
+			case "whoami":
+				return LoginCommands.WhoAmI();
+
 			case "registry":
 				return await RegistryCommands.RunAsync(args);
 

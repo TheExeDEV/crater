@@ -56,9 +56,15 @@ public static class PublishCommands
 
 		manifest.ValidateForPublish();
 
-		IRegistry registry = args.Value("registry") is string location
-			? Registries.Open(location, Environment.CurrentDirectory)
-			: project.RequireRegistry();
+		IRegistry registry = project.RequireRegistry();
+		GitHubRepository? github = GitHubRepository.FromRegistry(Registries.Expand(project.RegistryLocation!));
+
+		if (github is null && registry is not LocalRegistry)
+		{
+			throw new CraterException(
+				$"{Fmt.File(registry.Location)} is not a GitHub registry, so crater cannot send packages to it. " +
+				$"Use a registry like {Fmt.Cmd("\"registry\": \"github:Owner/crater-registry\"")} in {Fmt.File(Manifest.FileName)}.");
+		}
 
 		byte[] archive = Packer.Pack(project, out List<string> files);
 
@@ -76,15 +82,15 @@ public static class PublishCommands
 		string id = Fmt.Pkg($"{manifest.Name}@{release.Version}");
 		Prompter prompt = Common.PrompterFor(project, args);
 
-		if (args.Has("pr"))
+		if (github is not null)
 		{
-			if (registry is not LocalRegistry local)
-			{
-				throw new CraterException(
-					$"{Fmt.Cmd("--pr")} needs a local clone of the registry repository. Pass {Fmt.Cmd("--registry <path to clone>")}.");
-			}
+			await new GitHubPublisher(github, prompt, args.Has("dry-run")).PublishAsync(release, archive, files.Count);
+			return;
+		}
 
-			await new PullRequestPublisher(local, prompt, args.Has("push")).PublishAsync(release, archive, files.Count);
+		if (args.Has("dry-run"))
+		{
+			Out.Ok($"Dry run: {id} is ready, nothing was written.");
 			return;
 		}
 
@@ -182,119 +188,5 @@ public static class PublishCommands
 		}
 
 		return ordered;
-	}
-}
-
-public sealed class PullRequestPublisher(LocalRegistry registry, Prompter prompt, bool push)
-{
-	public async Task PublishAsync(RegistryRelease release, byte[] archive, int fileCount)
-	{
-		string root = registry.Location;
-		string name = release.Manifest.Name;
-		string id = $"{name}@{release.Version}";
-
-		if (!registry.IsGitRepository)
-		{
-			throw new CraterException($"{Fmt.File(root)} is not a git repository. Clone the registry repository first.");
-		}
-
-		string status = Shell.Run("git", ["status", "--porcelain"], root);
-
-		if (status.Length > 0)
-		{
-			throw new CraterException($"{Fmt.File(root)} has uncommitted changes. Commit or stash them first.");
-		}
-
-		string baseBranch = Shell.Run("git", ["rev-parse", "--abbrev-ref", "HEAD"], root);
-		string branch = $"publish/{name.Replace('/', '-')}-{release.Version}";
-
-		if (!prompt.Confirm($"Create branch {Fmt.Val(branch)} in {Fmt.File(root)} and commit {Fmt.Pkg(id)} ({Fmt.Plural(fileCount, "file", "files")})"))
-		{
-			throw new CraterException("Cancelled.");
-		}
-
-		Shell.Run("git", ["checkout", "--quiet", "-b", branch], root);
-
-		try
-		{
-			await registry.PublishAsync(release, archive);
-
-			string packagePath = Path.GetRelativePath(root, registry.PackageDirectory(name)).Replace('\\', '/');
-
-			Shell.Run("git", ["add", "--", packagePath], root);
-			Shell.Run("git", ["commit", "--quiet", "-m", $"Publish {id}"], root);
-		}
-		catch
-		{
-			Shell.Capture("git", ["checkout", "--quiet", baseBranch], root);
-			Shell.Capture("git", ["branch", "--quiet", "-D", branch], root);
-
-			throw;
-		}
-
-		Out.Ok($"Committed {Fmt.Pkg(id)} on branch {Fmt.Val(branch)}");
-
-		bool pushed = push || prompt.Confirm($"Push {Fmt.Val(branch)} to {Fmt.Val("origin")}");
-
-		if (pushed)
-		{
-			Shell.Run("git", ["push", "--quiet", "--set-upstream", "origin", branch], root);
-			Out.Ok($"Pushed {Fmt.Val(branch)}");
-
-			OpenPullRequest(root, branch, baseBranch, id);
-		}
-		else
-		{
-			Out.Info($"Push it later with {Fmt.Cmd($"git -C \"{root}\" push -u origin {branch}")} and open a pull request.");
-		}
-
-		Shell.Run("git", ["checkout", "--quiet", baseBranch], root);
-
-		Out.Dim($"  The registry check accepts packages only inside the folder named after your GitHub login ({Fmt.Val(release.Manifest.Name.Split('/')[0])}).");
-	}
-
-	void OpenPullRequest(string root, string branch, string baseBranch, string id)
-	{
-		if (Shell.Exists("gh") && prompt.Confirm($"Open a pull request with {Fmt.Cmd("gh")}"))
-		{
-			string url = Shell.Run("gh", ["pr", "create", "--title", $"Publish {id}", "--body", $"Publishes `{id}`.", "--head", branch, "--base", baseBranch], root);
-
-			Out.Ok($"Pull request: {Fmt.File(url)}");
-			return;
-		}
-
-		string remote = Shell.Capture("git", ["remote", "get-url", "origin"], root).Output;
-		string? compare = GitHubCompareUrl(remote, baseBranch, branch);
-
-		if (compare is not null)
-		{
-			Out.Info($"Open the pull request here: {Fmt.File(compare)}");
-		}
-		else
-		{
-			Out.Info($"Open a pull request from {Fmt.Val(branch)} into {Fmt.Val(baseBranch)}.");
-		}
-	}
-
-	static string? GitHubCompareUrl(string remote, string baseBranch, string branch)
-	{
-		string trimmed = remote.Trim();
-
-		if (trimmed.StartsWith("git@github.com:"))
-		{
-			trimmed = "https://github.com/" + trimmed["git@github.com:".Length..];
-		}
-
-		if (!trimmed.StartsWith("https://github.com/"))
-		{
-			return null;
-		}
-
-		if (trimmed.EndsWith(".git"))
-		{
-			trimmed = trimmed[..^4];
-		}
-
-		return $"{trimmed}/compare/{baseBranch}...{branch}?expand=1";
 	}
 }

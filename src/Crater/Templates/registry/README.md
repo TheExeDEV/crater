@@ -10,7 +10,7 @@ Set it in `crater.json` of your project (new projects from `crater init` already
 
 ```json
 {
-  "registry": "https://raw.githubusercontent.com/{{OWNER}}/{{REPO}}/{{BRANCH}}"
+  "registry": "{{LOCATION}}"
 }
 ```
 
@@ -22,19 +22,19 @@ crater add scope/name^
 
 ## Publish a package
 
-Every GitHub user owns one folder, named after their login in lowercase. If your login is `TheExeDEV`, your packages live in `theexedev/` and are named `theexedev/<package>`.
+Two commands, run in the folder of your package:
 
-1. Fork this repository and clone your fork.
-2. In your package, set `"name": "<your login>/<package>"` and `"can_publish": true` in `crater.json`.
-3. Publish into the clone and open a pull request:
+```bash
+crater login
+```
 
-   ```bash
-   crater publish --registry path/to/your/fork --pr
-   ```
+```bash
+crater publish
+```
 
-4. The **Check** workflow validates the pull request. A maintainer reviews and merges it.
+`crater login` signs you in with GitHub (once per computer). `crater publish` sends the package here for review and prints a link to the request. A maintainer checks the code and accepts or declines it; GitHub notifies you either way. After it is accepted, the website and `crater search` show it within a few minutes.
 
-After the merge the catalog and the website update automatically.
+Your packages are named after your GitHub login in lowercase: if your login is `TheExeDEV`, the name is `theexedev/<package>`. `crater init` fills this in for you. The version is three numbers, like `1.0.0`, and every publish needs a new one.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the rules.
 

@@ -130,7 +130,7 @@ public sealed class Manifest
 
 		if (!SemVer.TryParse(Version, out _))
 		{
-			throw new CraterException($"Invalid version {Fmt.Val(Version)}. Expected MAJOR.MINOR.PATCH, for example 1.0.0.");
+			throw new CraterException($"Bad {Fmt.Val("version")} in {Fmt.File(FileName)}: {SemVer.Explain(Version)}.");
 		}
 
 		ValidateCommon();

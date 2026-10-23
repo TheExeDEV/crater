@@ -118,10 +118,10 @@ dotnet src/Crater/bin/Release/net10.0/crater.dll --help
 ## Quick start
 
 ```bash
-crater init --name yourlogin/my-game
+crater init
 ```
 
-This creates `crater.json` (with `"registry": "https://raw.githubusercontent.com/TheExeDEV/crater-registry/main"` already filled in) and `crater.settings.json`. Add packages and install:
+This creates `crater.json` and `crater.settings.json` with everything filled in: the package name comes from your GitHub login (after `crater login`, otherwise from your computer user name) and the folder name, `"registry": "github:TheExeDEV/crater-registry"` is already set. Add packages and install:
 
 ```bash
 crater add evaera/promise^4 --client
@@ -161,10 +161,10 @@ Every project and every package has a `crater.json`.
   "version": "1.0.0",
   "keywords": ["game"],
 
-  "registry": "https://raw.githubusercontent.com/TheExeDEV/crater-registry/main",
+  "registry": "github:TheExeDEV/crater-registry",
   "repository": "https://github.com/TheExeDEV/my-game",
 
-  "can_publish": false,
+  "can_publish": true,
   "import_to": "shared",
 
   "path_to_main": "src/init.luau",
@@ -185,10 +185,10 @@ Every project and every package has a `crater.json`.
 |---|---|
 | `name` | `scope/name`, lowercase letters, digits, `_` and `-`. In a GitHub registry the scope is your GitHub login in lowercase. |
 | `authors`, `description`, `license`, `keywords` | Shown by `info`, `search` and the website. |
-| `version` | `MAJOR.MINOR.PATCH`, optional `-prerelease`. A project that is never published can keep any value. |
+| `version` | Three numbers, `MAJOR.MINOR.PATCH`, for example `1.0.0` (not `1.0`), optional `-prerelease`. A project that is never published can keep any value. |
 | `registry` | Where dependencies come from and where `publish` goes. `crater init` fills in the default registry. See [Registry locations](#registry-locations). |
 | `repository` | Source code URL, shown on the website. |
-| `can_publish` | Must be `true` for `crater publish`. Default `false`. |
+| `can_publish` | `true` lets `crater publish` send the package. `crater init` sets `true`; use `false` for games that are never published. |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
 | `path_to_definition_files` | `.d.luau` files added to VS Code settings on install. Each entry is a file, a folder (every `.d.luau` inside it) or a pattern with `*` / `**`. Empty means every `*.d.luau` in the package (up to 10). The old single-file field `path_to_definition_file` still works. |
@@ -335,7 +335,7 @@ When requirements cannot be satisfied together (one package needs `^1`, another 
 ! x/old-user wants dep/dependency >=1.0.0 <2.0.0, using 2.0.0 from overrides
 ```
 
-An override can also point to a fork: `"overrides": ["evaera/promise@path:../promise-fork"]` replaces the package everywhere in the tree.
+An override can also point to your own modified copy of a package: `"overrides": ["evaera/promise@path:../my-promise"]` replaces it everywhere in the tree.
 
 ---
 
@@ -644,20 +644,81 @@ On the official registry `main` is protected with a ruleset: changes only throug
 
 ## Publishing
 
-1. Set `"name": "<your login in lowercase>/<package>"`, a new `version` and `"can_publish": true`.
-2. Check the archive with `crater pack`.
-3. Fork the registry on GitHub and clone your fork.
-4. Publish into the clone as a pull request:
+Two commands, the same for everyone:
 
-   ```bash
-   crater publish --registry ../crater-registry-fork --pr
-   ```
+```bash
+crater login
+```
 
-   crater checks that the clone has no uncommitted changes, creates the branch `publish/<scope>-<name>-<version>`, commits the package, pushes it and opens the pull request with `gh` when it is installed (otherwise it prints the compare link). Each step asks first unless `-y` is given. `--push` pushes without asking.
+```bash
+crater publish
+```
 
-For a plain folder registry (no git), `crater publish --registry <folder>` writes the files and updates `packages.json` directly.
+`crater login` signs you in with your GitHub account (a browser opens, you confirm a code). You do it once per computer. If the GitHub CLI is missing, crater offers to install it.
 
-What goes into the archive: everything except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the package folders and `exclude`. Archives use fixed timestamps, so the same files always give the same sha256.
+`crater publish` sends the package to the registry written in `crater.json` for review. There is nothing to fill in: no paths, no flags. crater prints a link like this:
+
+```
+✓ Sent theexedev/cool-lib@1.0.0 for review: https://github.com/TheExeDEV/crater-registry/pull/7
+  The registry owner checks it and adds it. GitHub notifies you when it is accepted.
+```
+
+When the owner accepts it, everyone can install it with `crater add theexedev/cool-lib^1`. Until then it is not in the registry.
+
+### Before the first publish
+
+`crater init` already fills in everything, so usually you only change `version` and `description`:
+
+```json
+{
+  "name": "theexedev/cool-lib",
+  "version": "1.0.0",
+  "registry": "github:TheExeDEV/crater-registry",
+  "can_publish": true
+}
+```
+
+| Field | What to write |
+|---|---|
+| `name` | `<your GitHub login in lowercase>/<package name>`. `crater init` puts your login there after `crater login`. Packages of other people's names are rejected. |
+| `version` | Three numbers: `1.0.0`, `0.2.5`. Not `1.0`, not `v1`. Each publish needs a new version; a published version never changes. |
+| `registry` | Already set by `crater init`. Leave it. |
+| `can_publish` | `true`. Set it to `false` for games and projects that should never be published. |
+
+### Useful extras
+
+| Command | What it does |
+|---|---|
+| `crater whoami` | Shows the GitHub account you are signed in with. |
+| `crater pack` | Shows which files go into the package, without sending anything. |
+| `crater publish --dry-run` | Does everything except sending. Good for a first try. |
+| `crater publish --workspace` | Publishes every package of a workspace, dependencies first. |
+| `crater login --force` | Switches to another GitHub account. |
+| `crater logout` | Signs out. |
+
+### Common errors
+
+| Message | Fix |
+|---|---|
+| `You are not signed in to GitHub` | Run `crater login`. |
+| `the package name must start with yourlogin/` | Change `name` in `crater.json` to the suggested value. |
+| `version '1.0' needs three numbers, write '1.0.0'` | Write the suggested version. |
+| `theexedev/cool-lib@1.0.0 is already published` | Raise `version`, for example to `1.0.1`. |
+| `Publishing is disabled` | Set `"can_publish": true`. |
+
+### What happens behind the scenes
+
+You do not need this to publish. The registry is a GitHub repository, and only its owner can change it. So crater keeps a copy of the registry under your GitHub account (created automatically on your first publish), adds your package to that copy and asks the owner to take it over. On GitHub this request is called a pull request; the owner sees your files, the automatic check and the scan report, then accepts or declines it. The registry owner skips the copy and sends the request from the registry itself.
+
+The local working files live in the crater cache (`publish/` inside it) and are reset before every publish.
+
+### What goes into the package
+
+Everything in the package folder except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the installed package folders and the patterns in `exclude`. Archives use fixed timestamps, so the same files always give the same sha256. Before sending, crater scans the files like the registry check does; an executable stops the publish.
+
+### Local folder registries
+
+If `registry` in `crater.json` is a local folder (for example `"../my-registry"`), `crater publish` writes the files straight into that folder. This is for testing and private setups; GitHub registries always go through review.
 
 ---
 
@@ -686,7 +747,7 @@ The crater repository has two workflows:
 - `build.yml` builds on every push and pull request (warnings are errors).
 - `release.yml` runs on a `v*` tag, builds single-file executables for Windows, Linux and macOS (x64 and arm64) and creates a GitHub release with `crater-<platform>` assets.
 
-Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`https://raw.githubusercontent.com/TheExeDEV/crater-registry/main`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a fork updates from itself.
+Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`https://raw.githubusercontent.com/TheExeDEV/crater-registry/main`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a copy of the repository under another account updates from itself.
 
 ```bash
 git tag v0.0.5
@@ -708,7 +769,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 
 | Command | Description |
 |---|---|
-| `init [--name scope/name] [--registry r]` | Create `crater.json` (registry filled in) and `crater.settings.json`. |
+| `init [--name scope/name]` | Create `crater.json` (name from your GitHub login, registry filled in) and `crater.settings.json`. |
 | `import [wally.toml\|pesde.toml] [--force]` | Convert a Wally or pesde project. |
 | `install [--workspace]` (`i`) | Install, respecting `crater.lock`. |
 | `add <spec...> [--client\|--server\|--dev]` | Add or replace dependencies and install. Restores `crater.json` if the install fails. |
@@ -723,7 +784,10 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `run [script] [-- args]` | Run a script. |
 | `doctor` | Check the project. |
 | `pack [-o file.zip]` | Build the archive. |
-| `publish [--registry r] [--pr] [--push] [--workspace]` | Publish, as a pull request with `--pr`. |
+| `login [--force]` | Sign in with GitHub (needed for `publish`). |
+| `logout` | Sign out. |
+| `whoami` | Show the signed-in GitHub account. |
+| `publish [--dry-run] [--workspace]` | Send the package to the registry for review. See [Publishing](#publishing). |
 | `registry init <folder> --repo Owner/Repo` | Create a registry repository from the template. |
 | `registry check [folder] [--base ref] [--author login]` | Validate a registry and pull request changes. |
 | `registry catalog [folder]` | Regenerate `packages.json`. |
