@@ -654,7 +654,7 @@ crater login
 crater publish
 ```
 
-`crater login` signs you in with your GitHub account. You do it once per computer. crater prints a link, `https://github.com/login/device`, and a one-time code: open the link in any browser (on this computer, your phone, anywhere), enter the code and confirm. On Windows and macOS the browser opens by itself; on Linux without a desktop (for example over SSH) just open the link yourself. If the GitHub CLI is missing, crater offers to install it.
+`crater login` signs you in with your GitHub account. You do it once per computer. crater prints the link `https://github.com/login/device` and a one-time code like `5AFE-2162` right in the console: open the link in any browser (on this computer, your phone, anywhere), enter the code and confirm. On Windows and macOS the browser opens by itself; on Linux without a desktop (for example over SSH) just open the link yourself. If the GitHub CLI is missing, crater offers to install it.
 
 `crater publish` sends the package to the registry written in `crater.json` for review. There is nothing to fill in: no paths, no flags. crater prints a link like this:
 
