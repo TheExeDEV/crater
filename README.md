@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/in
 
 The installer downloads the latest release for your system into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin`, adds it to your user `PATH` on Windows and prints the line to add on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
 
-Options: `installers/install.ps1 -Version 0.0.2 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
+Options: `installers/install.ps1 -Version 0.0.3 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
@@ -168,7 +168,7 @@ Every project and every package has a `crater.json`.
   "import_to": "shared",
 
   "path_to_main": "src/init.luau",
-  "path_to_definition_file": "",
+  "path_to_definition_files": ["types/api.d.luau", "defs", "extra/*.d.luau"],
 
   "import_client": ["beta/adof+0.12.44", "Promise:evaera/promise^4"],
   "import_server": ["dep/dependency^"],
@@ -191,7 +191,7 @@ Every project and every package has a `crater.json`.
 | `can_publish` | Must be `true` for `crater publish`. Default `false`. |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
-| `path_to_definition_file` | A `.d.luau` file added to VS Code settings on install. When empty, every `*.d.luau` file in the package is used. |
+| `path_to_definition_files` | `.d.luau` files added to VS Code settings on install. Each entry is a file, a folder (every `.d.luau` inside it) or a pattern with `*` / `**`. Empty means every `*.d.luau` in the package (up to 10). The old single-file field `path_to_definition_file` still works. |
 | `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
 | `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
@@ -491,7 +491,7 @@ Generics, defaults, function types, string literal types and packs are kept. Tex
 
 **`.luaurc`:** an alias per installed folder, so `require("@Packages/adof")` works. Other settings are kept.
 
-**VS Code (luau-lsp):** the definition files of every installed package, including dependencies of dependencies, go into `luau-lsp.types.definitionFiles`. A package names its file in `path_to_definition_file`; if it does not, crater uses every `*.d.luau` file inside it (up to 10). Both the array and the object form are supported, and only entries inside crater folders are replaced.
+**VS Code (luau-lsp):** the definition files of every installed package, including dependencies of dependencies, go into `luau-lsp.types.definitionFiles`. A package lists its files in `path_to_definition_files`; if the list is empty, crater uses every `*.d.luau` file inside it (up to 10). `crater pack` and `crater publish` fail when an entry matches no file. Both the array and the object form are supported, and only entries inside crater folders are replaced.
 
 Comments in these files are lost when crater rewrites them, and the prompt says so.
 
@@ -689,11 +689,11 @@ The crater repository has two workflows:
 Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`github:TheExeDEV/crater-registry`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a fork updates from itself.
 
 ```bash
-git tag v0.0.3
+git tag v0.0.4
 ```
 
 ```bash
-git push origin v0.0.3
+git push origin v0.0.4
 ```
 
 The same properties work for local builds:

@@ -43,7 +43,7 @@ public static class Packer
 		}
 
 		RequirePath(project, files, project.Manifest.PathToMain, "path_to_main");
-		RequirePath(project, files, project.Manifest.PathToDefinitionFile, "path_to_definition_file");
+		RequireDefinitions(project, files);
 
 		using MemoryStream stream = new();
 
@@ -114,6 +114,24 @@ public static class Packer
 		using StreamReader reader = new(entry.Open());
 
 		return reader.ReadToEnd();
+	}
+
+	static void RequireDefinitions(Project project, List<string> files)
+	{
+		List<string> packed = files.Where(file => file.EndsWith(DefinitionLookup.Extension, StringComparison.OrdinalIgnoreCase)).ToList();
+
+		foreach (string pattern in project.Manifest.DefinitionPatterns)
+		{
+			List<string> matched = DefinitionLookup.Match(project.Directory, packed, pattern)
+				.Where(match => packed.Contains(match, StringComparer.OrdinalIgnoreCase))
+				.ToList();
+
+			if (matched.Count == 0)
+			{
+				throw new CraterException(
+					$"path_to_definition_files entry {Fmt.File(pattern)} matches no {DefinitionLookup.Extension} file in the archive.");
+			}
+		}
 	}
 
 	static void RequirePath(Project project, List<string> files, string path, string field)
