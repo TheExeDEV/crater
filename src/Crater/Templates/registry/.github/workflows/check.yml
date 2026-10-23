@@ -1,0 +1,36 @@
+name: Check
+
+on:
+  pull_request:
+    branches:
+      - {{BRANCH}}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build crater
+        run: |
+          git clone --depth 1 https://github.com/{{CRATER_REPO}}.git "$RUNNER_TEMP/crater"
+          dotnet publish "$RUNNER_TEMP/crater/src/Crater" --configuration Release --output "$RUNNER_TEMP/crater-bin"
+
+      - name: Check registry
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE: origin/${{ github.base_ref }}
+        run: dotnet "$RUNNER_TEMP/crater-bin/crater.dll" registry check . --base "$BASE" --author "$AUTHOR"
