@@ -1,9 +1,11 @@
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Crater.Cli;
 using Crater.Util;
 
 namespace Crater.Commands;
 
-public static class LoginCommands
+public static partial class LoginCommands
 {
 	const string DeviceUrl = "https://github.com/login/device";
 
@@ -22,22 +24,7 @@ public static class LoginCommands
 			|| !string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("DISPLAY"))
 			|| !string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
 
-		Out.Step("Signing in to GitHub.");
-		Out.Info($"  1. Open {Fmt.File(DeviceUrl)} in any browser, on this or another device.");
-		Out.Info("  2. Enter the one-time code shown below and confirm.");
-		Out.Info("");
-
-		Dictionary<string, string>? environment = hasBrowser ? null : new() { ["GH_BROWSER"] = "true" };
-
-		int exitCode = Shell.RunInteractive(
-			$"\"{gh}\" auth login --hostname github.com --git-protocol https --web",
-			System.Environment.CurrentDirectory,
-			environment);
-
-		if (exitCode != 0)
-		{
-			throw new CraterException("GitHub sign-in did not finish.");
-		}
+		RunDeviceLogin(gh, hasBrowser);
 
 		GitHubCli.Run(["auth", "setup-git", "--hostname", "github.com"]);
 
@@ -47,6 +34,105 @@ public static class LoginCommands
 
 		return 0;
 	}
+
+	static void RunDeviceLogin(string gh, bool hasBrowser)
+	{
+		ProcessStartInfo info = new(gh)
+		{
+			UseShellExecute = false,
+			RedirectStandardInput = true,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+		};
+
+		foreach (string argument in new[] { "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web" })
+		{
+			info.ArgumentList.Add(argument);
+		}
+
+		using Process process = Process.Start(info) ?? throw new CraterException("Could not start the GitHub CLI.");
+
+		Task<string> output = process.StandardOutput.ReadToEndAsync();
+		List<string> messages = [];
+		string? code = null;
+
+		while (code is null && process.StandardError.ReadLine() is string line)
+		{
+			string text = AnsiCodes().Replace(line, "").Trim();
+			Match match = DeviceCode().Match(text);
+
+			if (match.Success)
+			{
+				code = match.Value;
+			}
+			else if (text.Length > 0)
+			{
+				messages.Add(text);
+			}
+		}
+
+		if (code is null)
+		{
+			process.WaitForExit();
+			throw new CraterException($"GitHub sign-in did not start: {string.Join(" ", messages)}");
+		}
+
+		Out.Step("Signing in to GitHub");
+		Out.Info("");
+		Out.Info($"  1. Open    {Fmt.File(DeviceUrl)}");
+		Out.Info($"  2. Enter   {Fmt.Val(code)}");
+		Out.Info("  3. Confirm access");
+		Out.Info("");
+		Out.Dim("  The link works in any browser, also on your phone or another computer.");
+		Out.Info("");
+
+		if (hasBrowser)
+		{
+			OpenBrowser(DeviceUrl);
+		}
+
+		Task<string> rest = process.StandardError.ReadToEndAsync();
+
+		using (new Spinner("Waiting for you to confirm on GitHub"))
+		{
+			process.WaitForExit();
+		}
+
+		if (process.ExitCode != 0)
+		{
+			string details = string.Join(" ", AnsiCodes().Replace(rest.Result + output.Result, "")
+				.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+				.Where(text => !text.Contains("Open this URL", StringComparison.OrdinalIgnoreCase)));
+
+			throw new CraterException($"GitHub sign-in did not finish. {details}".Trim());
+		}
+	}
+
+	static void OpenBrowser(string url)
+	{
+		try
+		{
+			ProcessStartInfo info = OperatingSystem.IsWindows()
+				? new ProcessStartInfo(url) { UseShellExecute = true }
+				: new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open", url)
+				{
+					UseShellExecute = false,
+					RedirectStandardOutput = true,
+					RedirectStandardError = true,
+				};
+
+			Process.Start(info)?.Dispose();
+		}
+		catch (Exception)
+		{
+		}
+	}
+
+	[GeneratedRegex(@"\x1b\[[0-9;]*[A-Za-z]")]
+	private static partial Regex AnsiCodes();
+
+	[GeneratedRegex(@"\b[A-Z0-9]{4}-[A-Z0-9]{4}\b")]
+	private static partial Regex DeviceCode();
 
 	public static int Logout()
 	{
