@@ -74,7 +74,7 @@ public sealed class Project
 		{
 			throw new CraterException(
 				$"No registry configured. Set {Fmt.Val("registry")} in {Fmt.File(Manifest.FileName)}, " +
-				$"for example {Fmt.Cmd("\"registry\": \"github:Owner/crater-registry\"")}.");
+				$"for example {Fmt.Cmd("\"registry\": \"https://github.com/Owner/crater-registry\"")}.");
 		}
 
 		return registry;

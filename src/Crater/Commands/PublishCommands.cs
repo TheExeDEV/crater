@@ -63,7 +63,7 @@ public static class PublishCommands
 		{
 			throw new CraterException(
 				$"{Fmt.File(registry.Location)} is not a GitHub registry, so crater cannot send packages to it. " +
-				$"Use a registry like {Fmt.Cmd("\"registry\": \"github:Owner/crater-registry\"")} in {Fmt.File(Manifest.FileName)}.");
+				$"Use a registry like {Fmt.Cmd("\"registry\": \"https://github.com/Owner/crater-registry\"")} in {Fmt.File(Manifest.FileName)}.");
 		}
 
 		byte[] archive = Packer.Pack(project, out List<string> files);
