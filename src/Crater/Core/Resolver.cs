@@ -176,24 +176,24 @@ public sealed class Resolver
 
 			throw new CraterException(
 				$"{Fmt.Pkg(name)} (required by {owners}) needs a registry, but none is configured. " +
-				$"Set {Fmt.Val("registry")} in {Fmt.File(ProjectConfig.FileName)}.");
+				$"Set {Fmt.Val("registry")} in {Fmt.File(Manifest.FileName)}.");
 		}
 
 		IRegistry? DependencyRegistry(Manifest manifest, IRegistry packageRegistry)
 		{
 			if (packageRegistry is SourceRegistry source)
 			{
-				if (string.IsNullOrWhiteSpace(manifest.RepositoryRegistry))
+				if (string.IsNullOrWhiteSpace(manifest.RegistryLocation))
 				{
 					return request.DefaultRegistry;
 				}
 
-				return Registries.Open(manifest.RepositoryRegistry, source.Directory);
+				return Registries.Open(manifest.RegistryLocation, source.Directory);
 			}
 
-			if (Registries.IsAbsolute(manifest.RepositoryRegistry))
+			if (Registries.IsAbsolute(manifest.RegistryLocation))
 			{
-				return Registries.Open(manifest.RepositoryRegistry, Environment.CurrentDirectory);
+				return Registries.Open(manifest.RegistryLocation, Environment.CurrentDirectory);
 			}
 
 			return packageRegistry;

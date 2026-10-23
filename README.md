@@ -23,7 +23,7 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 1. [Installation](#installation)
 2. [Quick start](#quick-start)
 3. [crater.json](#craterjson)
-4. [crater.config.json](#craterconfigjson)
+4. [crater.settings.json](#cratersettingsjson)
 5. [Dependency syntax](#dependency-syntax)
 6. [Aliases](#aliases)
 7. [One copy per package and overrides](#one-copy-per-package-and-overrides)
@@ -118,10 +118,10 @@ dotnet src/Crater/bin/Release/net10.0/crater.dll --help
 ## Quick start
 
 ```bash
-crater init --name yourlogin/my-game --registry github:TheExeDEV/crater-registry
+crater init --name yourlogin/my-game
 ```
 
-This creates `crater.json` and `crater.config.json`. Add packages and install:
+This creates `crater.json` (with `"registry": "github:TheExeDEV/crater-registry"` already filled in) and `crater.settings.json`. Add packages and install:
 
 ```bash
 crater add evaera/promise^4 --client
@@ -161,8 +161,8 @@ Every project and every package has a `crater.json`.
   "version": "1.0.0",
   "keywords": ["game"],
 
+  "registry": "github:TheExeDEV/crater-registry",
   "repository": "https://github.com/TheExeDEV/my-game",
-  "repository_registry": "",
 
   "can_publish": false,
   "import_to": "shared",
@@ -186,8 +186,8 @@ Every project and every package has a `crater.json`.
 | `name` | `scope/name`, lowercase letters, digits, `_` and `-`. In a GitHub registry the scope is your GitHub login in lowercase. |
 | `authors`, `description`, `license`, `keywords` | Shown by `info`, `search` and the website. |
 | `version` | `MAJOR.MINOR.PATCH`, optional `-prerelease`. A project that is never published can keep any value. |
+| `registry` | Where dependencies come from and where `publish` goes. `crater init` fills in the default registry. See [Registry locations](#registry-locations). |
 | `repository` | Source code URL, shown on the website. |
-| `repository_registry` | Registry for this project. Usually left empty and set in `crater.config.json` instead. |
 | `can_publish` | Must be `true` for `crater publish`. Default `false`. |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
@@ -200,14 +200,12 @@ Every project and every package has a `crater.json`.
 
 ---
 
-## crater.config.json
+## crater.settings.json
 
-Install settings. The folder names live here and only here: crater has no built-in folder names. `crater init` writes a full file:
+Install settings of your project. The folder names live here and only here: crater has no built-in folder names. `crater init` writes a full file:
 
 ```json
 {
-  "registry": "github:TheExeDEV/crater-registry",
-
   "import_client_path": "Packages",
   "import_server_path": "ServerPackages",
   "import_develop_path": "DevPackages",
@@ -223,7 +221,6 @@ Install settings. The folder names live here and only here: crater has no built-
 
 | Field | Description |
 |---|---|
-| `registry` | Registry used for dependencies, publishing and search. See [Registry locations](#registry-locations). |
 | `import_client_path`, `import_server_path`, `import_develop_path` | Folder for each list. Required when the list has dependencies, otherwise crater stops and tells you which field to add. Nested paths work. |
 | `on_install_update_luaurc` | Keep folder aliases in `.luaurc` up to date. |
 | `on_install_update_vscode_luau_definition_files` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date. |
@@ -233,14 +230,12 @@ Install settings. The folder names live here and only here: crater has no built-
 
 Settings are merged from two files, the project wins:
 
-1. global: `%APPDATA%\crater\config.json` (Windows) or `~/.config/crater/config.json`
-2. project: `crater.config.json` next to `crater.json`
+1. global: `%APPDATA%\crater\settings.json` (Windows) or `~/.config/crater/settings.json`
+2. project: `crater.settings.json` next to `crater.json`
 
-Put `registry` in the global file once and every project uses it.
+The registry is not a setting: it lives in `crater.json`, because it is part of the package and travels with it when published. If `registry` is empty, the registry built into crater is used.
 
-The registry is taken from the first of: `repository_registry` in `crater.json`, `registry` in the config, the registry built into the crater binary.
-
-**Which one to set:** usually neither, the built-in registry is used. Set `registry` in the config to use another registry on your machine or project. Set `repository_registry` in `crater.json` only when your published package depends on packages from another registry; give it a full address, because it travels with the package.
+Older projects keep working: `crater.config.json` is still read when there is no `crater.settings.json`, and the old field `repository_registry` in `crater.json` is still read when `registry` is empty. A `registry` left in a settings file is ignored with a warning.
 
 ### Confirmations
 
@@ -356,7 +351,7 @@ An override can also point to a fork: `"overrides": ["evaera/promise@path:../pro
 - The folder or repository must contain a `crater.json` whose `name` matches the dependency.
 - Path dependencies are packed on every install. When the files change, the summary shows `~ me/mylib 0.1.0 (contents changed)`.
 - Git dependencies need `git`. The ref can be a tag, branch or commit. The commit is stored in `crater.lock`, so `install` keeps it even when the branch moves, and `crater update me/gitlib` moves to the newest commit.
-- Dependencies of a local package come from its own `repository_registry` (relative to its folder) or from your registry.
+- Dependencies of a local package come from its own `registry` (relative to its folder) or from your registry.
 - Published packages cannot have path or git dependencies.
 
 ---
@@ -376,7 +371,7 @@ A monorepo lists its packages in the root `crater.json`:
 - A dependency on another member (`"me/core^0.1.0"`) is taken from the member's folder instead of the registry, so changes are used right away.
 - `crater install --workspace` installs the root and every member. `crater update --workspace` updates them all.
 - `crater publish --workspace` publishes every member with `can_publish: true`, dependencies first.
-- Each member keeps its own `crater.config.json` and `crater.lock`.
+- Each member keeps its own `crater.settings.json` and `crater.lock`.
 
 ---
 
@@ -638,7 +633,7 @@ After merge `publish.yml` regenerates `packages.json` (`crater registry catalog`
 
 For a plain folder registry (no git), `crater publish --registry <folder>` writes the files and updates `packages.json` directly.
 
-What goes into the archive: everything except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.config.json`, the package folders and `exclude`. Archives use fixed timestamps, so the same files always give the same sha256.
+What goes into the archive: everything except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the package folders and `exclude`. Archives use fixed timestamps, so the same files always give the same sha256.
 
 ---
 
@@ -689,7 +684,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 
 | Command | Description |
 |---|---|
-| `init [--name scope/name] [--registry r]` | Create `crater.json` and `crater.config.json`. |
+| `init [--name scope/name] [--registry r]` | Create `crater.json` (registry filled in) and `crater.settings.json`. |
 | `import [wally.toml\|pesde.toml] [--force]` | Convert a Wally or pesde project. |
 | `install [--workspace]` (`i`) | Install, respecting `crater.lock`. |
 | `add <spec...> [--client\|--server\|--dev]` | Add or replace dependencies and install. Restores `crater.json` if the install fails. |
@@ -748,7 +743,7 @@ src/Crater/
   Cli/                argument parsing and help
   Commands/           one file per command group
   Core/               resolver, installer, folder builder, links, type re-exports, workspace
-  Models/             crater.json, crater.config.json, crater.lock, realms
+  Models/             crater.json, crater.settings.json, crater.lock, realms
   Registry/           local, HTTP, source and git registries, catalog, registry checks
   Site/               website builder and local server
   Integrations/       .luaurc and VS Code settings
