@@ -12,6 +12,8 @@ public static class Program
 		Console.OutputEncoding = new UTF8Encoding(false);
 		Console.InputEncoding = new UTF8Encoding(false);
 
+		Console.CancelKeyPress += (_, _) => Terminal.Restore();
+
 		SelfUpdateCommand.CleanupPreviousVersion();
 
 		Args args = Args.Parse(argv);

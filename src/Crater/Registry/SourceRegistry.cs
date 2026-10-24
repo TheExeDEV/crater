@@ -80,7 +80,7 @@ public sealed class SourceRegistry : IRegistry
 
 	public Task<byte[]> DownloadAsync(string fullName, string version) => Task.FromResult(archive);
 
-	public Task<Catalog?> GetCatalogAsync() => Task.FromResult<Catalog?>(null);
+	public Task<Catalog?> GetCatalogAsync(string query) => Task.FromResult<Catalog?>(null);
 
 	public Task PublishAsync(RegistryRelease release, byte[] archive)
 	{

@@ -30,6 +30,20 @@ public static class Terminal
 			}
 		}
 	}
+
+	public static void Restore()
+	{
+		LiveLine.Set(null);
+
+		try
+		{
+			Console.ResetColor();
+			Console.CursorVisible = true;
+		}
+		catch (Exception exception) when (exception is IOException or PlatformNotSupportedException)
+		{
+		}
+	}
 }
 
 public static class LiveLine
@@ -95,12 +109,13 @@ public sealed class Spinner : IDisposable
 
 	readonly Timer? timer;
 	readonly Stopwatch watch = Stopwatch.StartNew();
-	readonly string text;
 	int frame;
+
+	public string Text { get; set; }
 
 	public Spinner(string text)
 	{
-		this.text = text;
+		Text = text;
 
 		if (!Terminal.CanAnimate)
 		{
@@ -118,7 +133,7 @@ public sealed class Spinner : IDisposable
 		string symbol = Frames[frame % Frames.Length];
 		frame++;
 
-		LiveLine.Set($"[c]{symbol}[/] {text} [v]{watch.Elapsed.TotalSeconds:0.0}s[/]");
+		LiveLine.Set($"[c]{symbol}[/] {Text} [v]{watch.Elapsed.TotalSeconds:0.0}s[/]");
 	}
 
 	public void Dispose()

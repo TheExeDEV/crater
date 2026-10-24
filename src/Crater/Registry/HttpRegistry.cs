@@ -1,77 +1,86 @@
-using System.Net;
-using System.Net.Http.Headers;
+using System.Collections.Concurrent;
 using Crater.Util;
 
 namespace Crater.Registry;
 
-public sealed class HttpRegistry(string baseUrl) : IRegistry
+public sealed class HttpRegistry : IRegistry
 {
-	static readonly HttpClient Http = CreateClient();
+	readonly string baseUrl;
+	readonly ConcurrentDictionary<string, Lazy<Task<RegistryIndex?>>> indexes = new();
+	readonly Lazy<Task<WallyRegistry?>> wally;
 
-	readonly Dictionary<string, RegistryIndex?> indexes = [];
+	public HttpRegistry(string baseUrl)
+	{
+		this.baseUrl = baseUrl;
+		wally = new Lazy<Task<WallyRegistry?>>(() => WallyRegistry.DetectAsync(baseUrl));
+	}
 
 	public string Location => baseUrl;
 
-	public static HttpClient Client => Http;
+	public bool IsWally => KnownWally() is not null;
 
-	static HttpClient CreateClient()
+	WallyRegistry? KnownWally()
 	{
-		HttpClient client = new() { Timeout = TimeSpan.FromSeconds(60) };
-		client.DefaultRequestHeaders.UserAgent.ParseAdd($"crater/{BuildInfo.Version}");
-
-		string? token = Environment.GetEnvironmentVariable("CRATER_REGISTRY_TOKEN");
-
-		if (!string.IsNullOrWhiteSpace(token))
-		{
-			client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-		}
-
-		return client;
+		return wally.IsValueCreated && wally.Value.IsCompletedSuccessfully ? wally.Value.Result : null;
 	}
 
-	public async Task<RegistryIndex?> GetIndexAsync(string fullName)
+	public Task<RegistryIndex?> GetIndexAsync(string fullName)
 	{
-		if (indexes.TryGetValue(fullName, out RegistryIndex? cached))
+		return indexes.GetOrAdd(fullName, name => new Lazy<Task<RegistryIndex?>>(() => LoadIndexAsync(name))).Value;
+	}
+
+	async Task<RegistryIndex?> LoadIndexAsync(string fullName)
+	{
+		if (KnownWally() is WallyRegistry known)
 		{
-			return cached;
+			return await known.GetIndexAsync(fullName);
 		}
 
 		string url = $"{baseUrl}/{fullName}/{RegistryIndex.FileName}";
-		string? text = await GetTextOrNullAsync(url);
-		RegistryIndex? index = text is null ? null : Json.Parse<RegistryIndex>(text, url).Normalize(url);
+		string? text = await Http.GetTextOrNullAsync(url);
 
-		indexes[fullName] = index;
+		if (text is not null)
+		{
+			return Json.Parse<RegistryIndex>(text, url).Normalize(url);
+		}
 
-		return index;
+		return await wally.Value is WallyRegistry detected ? await detected.GetIndexAsync(fullName) : null;
 	}
 
-	public async Task<byte[]> DownloadAsync(string fullName, string version)
+	public Task<byte[]> DownloadAsync(string fullName, string version)
 	{
-		string url = $"{baseUrl}/{fullName}/{version}.zip";
+		if (KnownWally() is WallyRegistry known)
+		{
+			return known.DownloadAsync(fullName, version);
+		}
 
-		using HttpResponseMessage response = await SendAsync(url);
-		EnsureSuccess(response, url);
-
-		return await response.Content.ReadAsByteArrayAsync();
+		return Http.GetBytesAsync($"{baseUrl}/{fullName}/{version}.zip");
 	}
 
-	public async Task<Catalog?> GetCatalogAsync()
+	public async Task<Catalog?> GetCatalogAsync(string query)
 	{
 		string url = $"{baseUrl}/{Catalog.FileName}";
-		string? text = await GetTextOrNullAsync(url);
+		string? text = await Http.GetTextOrNullAsync(url);
 
 		if (text is not null)
 		{
 			return Json.Parse<Catalog>(text, url);
 		}
 
-		return await GetSiteCatalogAsync();
+		Catalog? site = await GetSiteCatalogAsync();
+
+		if (site is not null)
+		{
+			return site;
+		}
+
+		return await wally.Value is WallyRegistry detected ? await detected.GetCatalogAsync(query) : null;
 	}
 
 	async Task<Catalog?> GetSiteCatalogAsync()
 	{
 		string infoUrl = $"{baseUrl}/{RegistryInfo.FileName}";
-		string? infoText = await GetTextOrNullAsync(infoUrl);
+		string? infoText = await Http.GetTextOrNullAsync(infoUrl);
 
 		if (infoText is null)
 		{
@@ -86,67 +95,13 @@ public sealed class HttpRegistry(string baseUrl) : IRegistry
 		}
 
 		string catalogUrl = $"{info.SiteUrl.TrimEnd('/')}/data/{Catalog.FileName}";
-		string? catalogText = await GetTextOrNullAsync(catalogUrl);
+		string? catalogText = await Http.GetTextOrNullAsync(catalogUrl);
 
 		return catalogText is null ? null : Json.Parse<Catalog>(catalogText, catalogUrl);
 	}
 
 	public Task PublishAsync(RegistryRelease release, byte[] archive)
 	{
-		throw new CraterException(
-			$"Publishing over HTTP is not supported. Clone the registry repository and run " +
-			$"{Fmt.Cmd("crater publish --registry <clone> --pr")} to open a pull request.");
-	}
-
-	public static async Task<string?> GetTextOrNullAsync(string url)
-	{
-		using HttpResponseMessage response = await SendAsync(url);
-
-		if (response.StatusCode == HttpStatusCode.NotFound)
-		{
-			return null;
-		}
-
-		EnsureSuccess(response, url);
-
-		return await response.Content.ReadAsStringAsync();
-	}
-
-	public static async Task<HttpResponseMessage> SendAsync(string url)
-	{
-		const int attempts = 3;
-
-		for (int attempt = 1; ; attempt++)
-		{
-			try
-			{
-				HttpResponseMessage response = await Http.GetAsync(url);
-				bool retryable = (int)response.StatusCode is 502 or 503 or 504;
-
-				if (!retryable || attempt == attempts)
-				{
-					return response;
-				}
-
-				response.Dispose();
-			}
-			catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
-			{
-				if (attempt == attempts)
-				{
-					throw new CraterException($"Request to {Fmt.File(url)} failed after {attempts} attempts: {exception.Message}");
-				}
-			}
-
-			await Task.Delay(TimeSpan.FromMilliseconds(500 * attempt * attempt));
-		}
-	}
-
-	static void EnsureSuccess(HttpResponseMessage response, string url)
-	{
-		if (!response.IsSuccessStatusCode)
-		{
-			throw new CraterException($"{Fmt.File(url)}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
-		}
+		throw new CraterException($"Run {Fmt.Cmd("crater publish")} to send packages to a GitHub registry.");
 	}
 }

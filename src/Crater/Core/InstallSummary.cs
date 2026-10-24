@@ -25,7 +25,7 @@ public static class InstallSummary
 
 		if (changes.Count == 0)
 		{
-			Out.Ok($"Everything is up to date ({Fmt.Plural(total, "package", "packages")}, {time})");
+			Out.Ok($"No changes, {Fmt.Plural(total, "package", "packages")} ready in {time}");
 			return;
 		}
 

@@ -89,6 +89,17 @@ public sealed class Resolver
 
 			list.Add(new Constraint(spec.Req, owner));
 			Queue.Enqueue(spec.FullName);
+			Prefetch(spec.FullName);
+		}
+
+		void Prefetch(string name)
+		{
+			IRegistry? registry = request.Pinned(name) ?? edgeRegistries.GetValueOrDefault(name);
+
+			if (registry is HttpRegistry)
+			{
+				_ = registry.GetIndexAsync(name).ContinueWith(task => task.Exception, TaskContinuationOptions.OnlyOnFaulted);
+			}
 		}
 
 		public async Task ResolveAsync(string name)
@@ -316,7 +327,7 @@ public sealed class Resolver
 
 	static List<DependencySpec> DependenciesOf(Manifest manifest, Realm realm, string? where = null)
 	{
-		return manifest.TransitiveDepsFor(realm).Select(raw => DependencySpec.Parse(raw, where)).ToList();
+		return manifest.TransitiveDepsFor(realm).Distinct().Select(raw => DependencySpec.Parse(raw, where)).ToList();
 	}
 
 	static void CheckRealm(Realm realm, string name, RegistryRelease release)

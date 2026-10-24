@@ -104,6 +104,22 @@ public static class GitHubCli
 		return result.Output.Length > 0 ? result.Output : "";
 	}
 
+	public static ShellResult Send(string method, string endpoint, System.Text.Json.Nodes.JsonNode body, string jq)
+	{
+		string file = Path.Combine(Path.GetTempPath(), $"crater-{Guid.NewGuid():N}.json");
+
+		try
+		{
+			File.WriteAllText(file, body.ToJsonString());
+
+			return Api(["-X", method, endpoint, "--input", file, "--jq", jq]);
+		}
+		finally
+		{
+			File.Delete(file);
+		}
+	}
+
 	public static ShellResult Api(IEnumerable<string> arguments)
 	{
 		List<string> command = ["api", .. arguments];
@@ -130,6 +146,8 @@ public sealed record GitHubRepository(string Owner, string Name, string Branch)
 
 	public string Slug => $"{Owner}/{Name}";
 	public string CloneUrl => $"https://github.com/{Slug}.git";
+
+	public string RawBase(string reference) => $"https://raw.githubusercontent.com/{Slug}/{reference}";
 
 	public static GitHubRepository? FromRegistry(string expandedLocation)
 	{

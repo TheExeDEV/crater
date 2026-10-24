@@ -32,42 +32,21 @@ public static class VsCodeSettings
 				prefixes.Any(prefix => text.StartsWith(prefix));
 		}
 
-		if (root[Key] is JsonObject map)
+		JsonObject map = AsObject(root[Key]);
+
+		foreach (string key in map.Where(pair => IsManaged(pair.Value)).Select(pair => pair.Key).ToList())
 		{
-			List<string> stale = map.Where(pair => IsManaged(pair.Value)).Select(pair => pair.Key).ToList();
-
-			foreach (string key in stale)
-			{
-				map.Remove(key);
-			}
-
-			foreach ((ResolvedPackage package, string file) in definitions)
-			{
-				string key = map.ContainsKey(package.Name) ? package.Id : package.Name;
-				map[key] = file;
-			}
-		}
-		else
-		{
-			JsonArray list = root[Key] as JsonArray ?? [];
-
-			for (int i = list.Count - 1; i >= 0; i--)
-			{
-				if (IsManaged(list[i]))
-				{
-					list.RemoveAt(i);
-				}
-			}
-
-			foreach ((_, string file) in definitions)
-			{
-				list.Add(file);
-			}
-
-			root[Key] = list;
+			map.Remove(key);
 		}
 
-		if (root[Key] is JsonArray { Count: 0 } or JsonObject { Count: 0 })
+		foreach ((ResolvedPackage package, string file) in definitions)
+		{
+			map[UniqueKey(map, package, file)] = file;
+		}
+
+		root[Key] = map;
+
+		if (map.Count == 0)
 		{
 			root.Remove(Key);
 		}
@@ -87,4 +66,63 @@ public static class VsCodeSettings
 			Json.WriteText(path, after);
 		}
 	}
+
+	static JsonObject AsObject(JsonNode? node)
+	{
+		if (node is JsonObject existing)
+		{
+			return existing;
+		}
+
+		JsonObject map = [];
+
+		if (node is JsonArray list)
+		{
+			foreach (string file in list.OfType<JsonValue>().Select(value => value.ToString()))
+			{
+				map[FreeKey(map, "@" + Stem(file))] = file;
+			}
+		}
+
+		return map;
+	}
+
+	static string UniqueKey(JsonObject map, ResolvedPackage package, string file)
+	{
+		string name = package.Name[(package.Name.IndexOf('/') + 1)..].Replace('-', '_');
+		string key = "@" + name;
+
+		if (map.ContainsKey(key))
+		{
+			key = "@" + package.Name.Replace('/', '_').Replace('-', '_');
+		}
+
+		if (map.ContainsKey(key))
+		{
+			key = $"{key}_{Stem(file)}";
+		}
+
+		return FreeKey(map, key);
+	}
+
+	static string FreeKey(JsonObject map, string key)
+	{
+		string candidate = key;
+
+		for (int index = 2; map.ContainsKey(candidate); index++)
+		{
+			candidate = $"{key}_{index}";
+		}
+
+		return candidate;
+	}
+
+	static string Stem(string file)
+	{
+		string name = Path.GetFileName(file);
+		int dot = name.IndexOf('.');
+
+		return (dot > 0 ? name[..dot] : name).Replace('-', '_');
+	}
 }
+

@@ -120,7 +120,7 @@ public static class SelfUpdateCommand
 	static async Task<Release> LatestReleaseAsync(string repository)
 	{
 		string url = $"https://api.github.com/repos/{repository}/releases/latest";
-		string? text = await HttpRegistry.GetTextOrNullAsync(url);
+		string? text = await Http.GetTextOrNullAsync(url);
 
 		if (text is null)
 		{
@@ -135,16 +135,12 @@ public static class SelfUpdateCommand
 		string downloaded = executable + ".new";
 		string previous = executable + ".old";
 
-		using (new Spinner("Downloading"))
+		using (Spinner spinner = new("Downloading"))
 		{
-			using HttpResponseMessage response = await HttpRegistry.SendAsync(downloadUrl);
+			byte[] data = await Http.GetBytesOrNullAsync(downloadUrl, (done, total) => spinner.Text = $"Downloading {Megabytes(done)}{(total is long size ? " / " + Megabytes(size) : "")}")
+				?? throw new CraterException($"Download failed: {Fmt.File(downloadUrl)} not found");
 
-			if (!response.IsSuccessStatusCode)
-			{
-				throw new CraterException($"Download failed: HTTP {(int)response.StatusCode}");
-			}
-
-			await File.WriteAllBytesAsync(downloaded, await response.Content.ReadAsByteArrayAsync());
+			await File.WriteAllBytesAsync(downloaded, data);
 		}
 
 		if (!OperatingSystem.IsWindows())
@@ -155,6 +151,8 @@ public static class SelfUpdateCommand
 		File.Move(executable, previous, overwrite: true);
 		File.Move(downloaded, executable);
 	}
+
+	static string Megabytes(long bytes) => $"{bytes / 1048576.0:0.0} MB";
 
 	static string AssetName()
 	{

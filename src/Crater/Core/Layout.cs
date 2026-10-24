@@ -4,7 +4,7 @@ namespace Crater.Core;
 
 public static class Layout
 {
-	public const string IndexFolder = "_Index";
+	public const string LegacyIndexFolder = "_Index";
 
 	public static string TreeIndent(int depth)
 	{
@@ -23,10 +23,11 @@ public static class Layout
 			}
 
 			string folder = project.Config.FolderFor(graph.Realm);
+			PackageLayout layout = PackageLayout.Plan(graph, folder);
 
 			foreach (ResolvedPackage package in graph.All)
 			{
-				string content = $"{folder}/{IndexFolder}/{package.IndexDirectory}/{package.ShortName}";
+				string content = $"{folder}/{layout.Folders[package]}";
 
 				foreach (string definition in DefinitionsOf(project, package, content))
 				{
@@ -48,6 +49,6 @@ public static class Layout
 
 	public static IEnumerable<string> ManagedPrefixes(Project project)
 	{
-		return project.Config.ConfiguredFolders().Select(pair => $"{pair.Folder}/{IndexFolder}/");
+		return project.Config.ConfiguredFolders().Select(pair => $"{pair.Folder}/");
 	}
 }

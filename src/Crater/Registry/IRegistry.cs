@@ -8,7 +8,7 @@ public interface IRegistry
 
 	Task<byte[]> DownloadAsync(string fullName, string version);
 
-	Task<Catalog?> GetCatalogAsync();
+	Task<Catalog?> GetCatalogAsync(string query);
 
 	Task PublishAsync(RegistryRelease release, byte[] archive);
 }
