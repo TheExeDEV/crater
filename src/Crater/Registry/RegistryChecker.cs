@@ -242,7 +242,10 @@ public sealed partial class RegistryChecker(string root)
 					$"To publish for the organization {Fmt.Val(segments[0])}, make your membership public at {Fmt.File(GitHubMembership.PeopleUrl(segments[0]))}");
 			}
 
-			CheckImmutable(baseRef, status, path, segments[2]);
+			if (!isMaintainer)
+			{
+				CheckImmutable(baseRef, status, path, segments[2]);
+			}
 
 			if (status == 'A' && segments[2].EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
 			{
