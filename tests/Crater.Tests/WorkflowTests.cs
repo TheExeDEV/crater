@@ -358,6 +358,30 @@ public sealed class LuauRcTests : IDisposable
 	}
 
 	[Fact]
+	public void WritesIntoTheLuaurcVsCodeAlreadyUses()
+	{
+		Assert.Equal(0, Crater(Project("t/lib", []), "publish", "-y"));
+
+		string game = Project("t/game", ["t/lib^1"]);
+
+		Directory.CreateDirectory(Path.Combine(game, ".vscode"));
+		Directory.CreateDirectory(Path.Combine(game, "conf"));
+		File.WriteAllText(Path.Combine(game, ".vscode", "settings.json"), "{ \"luau-lsp.server.baseLuaurc\": \"./conf/base.luaurc\" }");
+		File.WriteAllText(Path.Combine(game, "conf", "base.luaurc"), "{ \"languageMode\": \"strict\", \"aliases\": { \"Mine\": \"./x\" } }");
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		JsonObject luaurc = JsonNode.Parse(File.ReadAllText(Path.Combine(game, "conf", "base.luaurc")))!.AsObject();
+		JsonObject vscode = JsonNode.Parse(File.ReadAllText(Path.Combine(game, ".vscode", "settings.json")))!.AsObject();
+
+		Assert.Equal("../Packages", luaurc["aliases"]!["Packages"]!.GetValue<string>());
+		Assert.Equal("./x", luaurc["aliases"]!["Mine"]!.GetValue<string>());
+		Assert.Equal("strict", luaurc["languageMode"]!.GetValue<string>());
+		Assert.Equal("./conf/base.luaurc", vscode["luau-lsp.server.baseLuaurc"]!.GetValue<string>());
+		Assert.False(File.Exists(Path.Combine(game, ".luaurc")));
+	}
+
+	[Fact]
 	public void UsesAliasNamesFromSettings()
 	{
 		Assert.Equal(0, Crater(Project("t/lib", []), "publish", "-y"));

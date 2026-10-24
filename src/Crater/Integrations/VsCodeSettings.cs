@@ -17,7 +17,7 @@ public static class VsCodeSettings
 	{
 		string path = PathIn(project);
 		bool writeDefinitions = project.Config.OnInstallUpdateVscodeLuauDefinitionFiles;
-		bool writeBaseLuaurc = project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project);
+		bool writeBaseLuaurc = project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project) && LuauRc.FromVsCode(project) is null;
 		List<(ResolvedPackage Package, string Name, string Path)> definitions = writeDefinitions ? Layout.DefinitionFiles(project, graphs).ToList() : [];
 
 		if (!File.Exists(path) && definitions.Count == 0 && !writeBaseLuaurc)
