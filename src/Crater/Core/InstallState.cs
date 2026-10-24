@@ -15,6 +15,7 @@ public static class InstallState
 		builder.Append("crater ").Append(BuildInfo.Version).Append('\n');
 		builder.Append("registry ").Append(string.Join(' ', manifest.RegistryLocations)).Append('\n');
 		builder.Append("style ").Append(project.Config.LinkStyle).Append('\n');
+		builder.Append("luaurc ").Append(project.Config.LuaurcPath).Append(' ').Append(project.Config.OnInstallUpdateLuaurc).Append(' ').Append(project.Config.OnInstallUpdateVscodeLuauDefinitionFiles).Append('\n');
 
 		foreach ((string name, string location) in (manifest.Registries ?? []).OrderBy(pair => pair.Key, StringComparer.Ordinal))
 		{
@@ -23,7 +24,10 @@ public static class InstallState
 
 		foreach (Realm realm in Realms.All)
 		{
-			builder.Append("folder ").Append(realm.Key()).Append('=').Append(project.Config.TryFolderFor(realm) ?? "").Append('\n');
+			string folder = project.Config.TryFolderFor(realm) ?? "";
+
+			builder.Append("folder ").Append(realm.Key()).Append('=').Append(folder).Append('\n');
+			builder.Append("alias ").Append(realm.Key()).Append('=').Append(folder.Length > 0 ? project.Config.AliasFor(realm, folder) : "").Append('\n');
 
 			foreach (string dependency in manifest.DepsFor(realm))
 			{
