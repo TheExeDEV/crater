@@ -838,7 +838,7 @@ You do not have to download the archives to read them:
   crater review 7 --open
   ```
 
-  It works for private registries too, with your `crater login`.
+  Only maintainers of the registry (people who can merge there) can run it; it checks your `crater login`. It works for private registries too.
 
 
 To help with that, the check unpacks every new version and scans it. The report is shown in the log and in the **Summary** of the check run, with the file, the line and the code:
