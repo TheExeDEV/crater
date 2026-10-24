@@ -102,7 +102,7 @@ public sealed class Resolver
 		{
 			IRegistry? registry = request.Pinned(name) ?? edgeRegistries.GetValueOrDefault(name);
 
-			if (registry is HttpRegistry)
+			if (registry is HttpRegistry or RegistryChain)
 			{
 				_ = registry.GetIndexAsync(name).ContinueWith(task => task.Exception, TaskContinuationOptions.OnlyOnFaulted);
 			}
@@ -123,9 +123,15 @@ public sealed class Resolver
 			if (index is null)
 			{
 				string owners = string.Join(", ", requirements.Select(item => item.From).Distinct());
+				string where = registry is RegistryChain ? "any of the registries" : "registry";
 
 				throw new CraterException(
-					$"Package {Fmt.Pkg(name)} not found in registry {Fmt.File(registry.Location)} (required by {owners})");
+					$"Package {Fmt.Pkg(name)} not found in {where} {Fmt.File(registry.Location)} (required by {owners})");
+			}
+
+			if (registry is RegistryChain chain)
+			{
+				registry = await chain.OwnerOfAsync(name) ?? registry;
 			}
 
 			List<RegistryRelease> candidates = index.Versions
