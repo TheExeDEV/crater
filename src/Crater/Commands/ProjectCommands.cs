@@ -40,7 +40,7 @@ public static partial class ProjectCommands
 		}
 	}
 
-	static string ShortRegistry(string location)
+	public static string ShortRegistry(string location)
 	{
 		if (GitHubRepository.FromRegistry(location) is not GitHubRepository github)
 		{

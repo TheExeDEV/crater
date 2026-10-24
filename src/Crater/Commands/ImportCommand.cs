@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Crater.Cli;
 using Crater.Models;
+using Crater.Registry;
 using Crater.Util;
 using Crater.Versioning;
 
@@ -15,9 +16,9 @@ public static class ImportCommand
 		string directory = Environment.CurrentDirectory;
 		string source = args.First ?? DetectSource(directory);
 		string sourcePath = Path.GetFullPath(Path.Combine(directory, source));
-		string manifestPath = Path.Combine(directory, Manifest.FileName);
-		string settingsPath = ProjectConfig.PathIn(directory);
-		string registry = args.Value("registry") ?? BuildInfo.DefaultRegistry;
+		string projectDirectory = Path.GetDirectoryName(sourcePath)!;
+		string manifestPath = Path.Combine(projectDirectory, Manifest.FileName);
+		string settingsPath = ProjectConfig.PathIn(projectDirectory);
 
 		if (!File.Exists(sourcePath))
 		{
@@ -26,17 +27,18 @@ public static class ImportCommand
 
 		if (File.Exists(manifestPath) && !args.Has("force"))
 		{
-			throw new CraterException($"{Fmt.File(Manifest.FileName)} already exists. Pass {Fmt.Cmd("--force")} to overwrite it.");
+			throw new CraterException($"{Fmt.File(Path.GetRelativePath(directory, manifestPath))} already exists. Pass {Fmt.Cmd("--force")} to overwrite it.");
 		}
 
 		TomlTable toml = Toml.Parse(File.ReadAllText(sourcePath), source);
 		bool isPesde = Path.GetFileName(sourcePath).Equals("pesde.toml", StringComparison.OrdinalIgnoreCase);
-		Imported imported = isPesde ? FromPesde(toml, directory) : FromWally(toml, directory);
+		Imported imported = isPesde ? FromPesde(toml, projectDirectory) : FromWally(toml, projectDirectory);
+		JsonNode registry = RegistryFor(args, toml, isPesde);
 
 		imported.Manifest["registry"] = registry;
 
 		Json.WriteText(manifestPath, Json.Serialize(imported.Manifest));
-		Out.Ok($"Created {Fmt.File(Manifest.FileName)} from {Fmt.File(source)} (registry {Fmt.Val(registry)})");
+		Out.Ok($"Created {Fmt.File(Path.GetRelativePath(directory, manifestPath))} from {Fmt.File(source)}");
 
 		if (!File.Exists(settingsPath))
 		{
@@ -50,7 +52,27 @@ public static class ImportCommand
 		}
 
 		Out.Info("");
-		Out.Info($"Check the packages exist in {Fmt.Val(registry)}, then run {Fmt.Cmd("crater install")}.");
+		Out.Info($"Run {Fmt.Cmd("crater install")} in {Fmt.File(Path.GetRelativePath(directory, projectDirectory) is "." ? "this folder" : Path.GetRelativePath(directory, projectDirectory))}.");
+	}
+
+	static JsonNode RegistryFor(Args args, TomlTable toml, bool isPesde)
+	{
+		if (args.Value("registry") is string chosen)
+		{
+			return chosen;
+		}
+
+		string main = ProjectCommands.ShortRegistry(BuildInfo.DefaultRegistry);
+
+		if (isPesde)
+		{
+			return main;
+		}
+
+		string? declared = toml.Table("package")?.String("registry");
+		string wally = declared is { Length: > 0 } ? declared.TrimEnd('/') : NamedRegistries.WallyIndex;
+
+		return new JsonArray(main, wally);
 	}
 
 	static string DetectSource(string directory)
@@ -101,11 +123,6 @@ public static class ImportCommand
 			}
 
 			manifest[realm.ManifestField()] = list;
-		}
-
-		if (package.String("registry") is string registry && registry.Length > 0)
-		{
-			warnings.Add($"Wally registry {Fmt.Val(registry)} is not a crater registry. Packages must be published to a crater registry.");
 		}
 
 		return new Imported(manifest, warnings);
