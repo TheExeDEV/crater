@@ -11,6 +11,9 @@ public static class BuildInfo
 
 	public static string UpdateRepo => Metadata("UpdateRepo");
 
+	public static string GitHubClientId =>
+		Environment.GetEnvironmentVariable("CRATER_GITHUB_CLIENT_ID") is { Length: > 0 } custom ? custom : Metadata("GitHubClientId");
+
 	static string Metadata(string key)
 	{
 		AssemblyMetadataAttribute? attribute = typeof(BuildInfo).Assembly

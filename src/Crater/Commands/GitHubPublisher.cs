@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Crater.Models;
 using Crater.Registry;
@@ -11,11 +12,11 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 
 	public async Task PublishAsync(RegistryRelease release, byte[] archive, int fileCount)
 	{
-		string login = GitHubCli.RequireLogin();
+		string login = await GitHubApi.RequireLoginAsync();
 		string name = release.Manifest.Name;
 		string id = $"{name}@{release.Version}";
 
-		CheckScope(name, login);
+		await CheckScopeAsync(name, login);
 
 		if (!prompt.Confirm($"Send {Fmt.Pkg(id)} ({Fmt.Plural(fileCount, "file", "files")}) to {Fmt.Val(registry.Slug)} for review"))
 		{
@@ -27,7 +28,7 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 
 		using (new Spinner($"Preparing {id}"))
 		{
-			head = Read($"repos/{registry.Slug}/git/ref/heads/{registry.Branch}", ".object.sha");
+			head = await GitHubApi.RequireAsync(HttpMethod.Get, $"repos/{registry.Slug}/git/ref/heads/{registry.Branch}", null, "object.sha");
 			files = await BuildFilesAsync(release, archive, head);
 		}
 
@@ -37,8 +38,8 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			return;
 		}
 
-		bool isOwner = registry.Owner.Equals(login, StringComparison.OrdinalIgnoreCase) || GitHubCli.HasPermission(registry.Slug, "push");
-		string target = isOwner ? registry.Slug : EnsureCopy(login);
+		bool isOwner = registry.Owner.Equals(login, StringComparison.OrdinalIgnoreCase) || await GitHubApi.HasPermissionAsync(registry.Slug, "push");
+		string target = isOwner ? registry.Slug : await EnsureCopyAsync(login);
 		string branch = $"publish/{name.Replace('/', '-')}-{release.Version}";
 		string url;
 
@@ -46,13 +47,13 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 		{
 			if (!isOwner)
 			{
-				GitHubCli.Send("POST", $"repos/{target}/merge-upstream", new JsonObject { ["branch"] = registry.Branch }, ".message");
+				await GitHubApi.SendAsync(HttpMethod.Post, $"repos/{target}/merge-upstream", new JsonObject { ["branch"] = registry.Branch });
 			}
 
-			string commit = CreateCommit(target, head, files, $"Publish {id}");
+			string commit = await CreateCommitAsync(target, head, files, $"Publish {id}");
 
-			SetBranch(target, branch, commit);
-			url = OpenReview(isOwner ? branch : $"{login}:{branch}", id);
+			await SetBranchAsync(target, branch, commit);
+			url = await OpenReviewAsync(isOwner ? branch : $"{login}:{branch}", id);
 		}
 
 		Out.Ok($"Sent {Fmt.Pkg(id)} for review: {Fmt.File(url)}");
@@ -97,40 +98,40 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 		}
 	}
 
-	static string CreateCommit(string target, string head, List<PackageFile> files, string message)
+	static async Task<string> CreateCommitAsync(string target, string head, List<PackageFile> files, string message)
 	{
-		string baseTree = Read($"repos/{target}/git/commits/{head}", ".tree.sha");
+		string baseTree = await GitHubApi.RequireAsync(HttpMethod.Get, $"repos/{target}/git/commits/{head}", null, "tree.sha");
 		JsonArray entries = [];
 
 		foreach (PackageFile file in files)
 		{
 			JsonObject blob = new() { ["content"] = Convert.ToBase64String(file.Content), ["encoding"] = "base64" };
-			string sha = Write("POST", $"repos/{target}/git/blobs", blob, ".sha");
+			string sha = await GitHubApi.RequireAsync(HttpMethod.Post, $"repos/{target}/git/blobs", blob, "sha");
 
 			entries.Add(new JsonObject { ["path"] = file.Path, ["mode"] = "100644", ["type"] = "blob", ["sha"] = sha });
 		}
 
-		string tree = Write("POST", $"repos/{target}/git/trees", new JsonObject { ["base_tree"] = baseTree, ["tree"] = entries }, ".sha");
+		string tree = await GitHubApi.RequireAsync(HttpMethod.Post, $"repos/{target}/git/trees", new JsonObject { ["base_tree"] = baseTree, ["tree"] = entries }, "sha");
 		JsonObject commit = new() { ["message"] = message, ["tree"] = tree, ["parents"] = new JsonArray(head) };
 
-		return Write("POST", $"repos/{target}/git/commits", commit, ".sha");
+		return await GitHubApi.RequireAsync(HttpMethod.Post, $"repos/{target}/git/commits", commit, "sha");
 	}
 
-	static void SetBranch(string target, string branch, string commit)
+	static async Task SetBranchAsync(string target, string branch, string commit)
 	{
-		ShellResult updated = GitHubCli.Send("PATCH", $"repos/{target}/git/refs/heads/{branch}", new JsonObject { ["sha"] = commit, ["force"] = true }, ".ref");
+		GitHubApi.Result updated = await GitHubApi.SendAsync(HttpMethod.Patch, $"repos/{target}/git/refs/heads/{branch}", new JsonObject { ["sha"] = commit, ["force"] = true });
 
 		if (!updated.Success)
 		{
-			Write("POST", $"repos/{target}/git/refs", new JsonObject { ["ref"] = $"refs/heads/{branch}", ["sha"] = commit }, ".ref");
+			await GitHubApi.RequireAsync(HttpMethod.Post, $"repos/{target}/git/refs", new JsonObject { ["ref"] = $"refs/heads/{branch}", ["sha"] = commit }, "ref");
 		}
 	}
 
-	void CheckScope(string name, string login)
+	async Task CheckScopeAsync(string name, string login)
 	{
 		string scope = name[..name.IndexOf('/')];
 
-		if (scope.Equals(login, StringComparison.OrdinalIgnoreCase) || registry.Owner.Equals(login, StringComparison.OrdinalIgnoreCase) || GitHubCli.HasPermission(registry.Slug, "admin"))
+		if (scope.Equals(login, StringComparison.OrdinalIgnoreCase) || registry.Owner.Equals(login, StringComparison.OrdinalIgnoreCase) || await GitHubApi.HasPermissionAsync(registry.Slug, "admin"))
 		{
 			return;
 		}
@@ -140,9 +141,9 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			return;
 		}
 
-		if (GitHubCli.Api([$"orgs/{scope}/members/{login}"]).Success)
+		if ((await GitHubApi.SendAsync(HttpMethod.Get, $"orgs/{scope}/members/{login}")).Success)
 		{
-			MakeMembershipPublic(scope, login);
+			await MakeMembershipPublicAsync(scope, login);
 			return;
 		}
 
@@ -153,7 +154,7 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			$"or with the name of a GitHub organization you are a member of. In {Fmt.File(Manifest.FileName)} set {Fmt.Val($"\"name\": \"{expected}\"")}.");
 	}
 
-	void MakeMembershipPublic(string organization, string login)
+	async Task MakeMembershipPublicAsync(string organization, string login)
 	{
 		Out.Info($"You are a member of {Fmt.Val(organization)}, but your membership is hidden, so the registry check cannot see it.");
 
@@ -162,7 +163,7 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			throw new CraterException($"Make it public at {Fmt.File(GitHubMembership.PeopleUrl(organization))} and run {Fmt.Cmd("crater publish")} again.");
 		}
 
-		ShellResult result = GitHubCli.Api(["-X", "PUT", $"orgs/{organization}/public_members/{login}"]);
+		GitHubApi.Result result = await GitHubApi.SendAsync(HttpMethod.Put, $"orgs/{organization}/public_members/{login}");
 
 		if (!result.Success)
 		{
@@ -174,11 +175,10 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 		Out.Ok($"Your membership in {Fmt.Val(organization)} is public now");
 	}
 
-
-	string EnsureCopy(string login)
+	async Task<string> EnsureCopyAsync(string login)
 	{
 		string copy = $"{login}/{registry.Name}";
-		string? parent = GitHubCli.ParentOf(copy);
+		string? parent = await GitHubApi.ParentOfAsync(copy);
 
 		if (parent is not null && parent.Equals(registry.Slug, StringComparison.OrdinalIgnoreCase))
 		{
@@ -191,56 +191,44 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 				$"Your GitHub account already has a repository named {Fmt.Val(copy)}. crater needs that name for publishing. Rename yours on GitHub and try again.");
 		}
 
-		GitHubCli.Run(["repo", "fork", registry.Slug, "--clone=false", "--default-branch-only"]);
+		GitHubApi.Result fork = await GitHubApi.SendAsync(HttpMethod.Post, $"repos/{registry.Slug}/forks", new JsonObject { ["default_branch_only"] = true });
+
+		if (!fork.Success)
+		{
+			throw new CraterException($"GitHub could not set up publishing for your account: {fork.Message}");
+		}
 
 		for (int attempt = 0; attempt < 30; attempt++)
 		{
-			if (GitHubCli.ParentOf(copy) is { Length: > 0 })
+			if (await GitHubApi.ParentOfAsync(copy) is { Length: > 0 })
 			{
 				return copy;
 			}
 
-			Thread.Sleep(2000);
+			await Task.Delay(2000);
 		}
 
 		throw new CraterException($"GitHub is still setting up your account. Run {Fmt.Cmd("crater publish")} again in a minute.");
 	}
 
-	string OpenReview(string head, string id)
+	async Task<string> OpenReviewAsync(string head, string id)
 	{
-		ShellResult created = GitHubCli.Capture(
-			["pr", "create", "--repo", registry.Slug, "--base", registry.Branch, "--head", head, "--title", $"Publish {id}", "--body", $"Publishes `{id}`."]);
+		JsonObject request = new() { ["title"] = $"Publish {id}", ["head"] = head, ["base"] = registry.Branch, ["body"] = $"Publishes `{id}`." };
+		GitHubApi.Result created = await GitHubApi.SendAsync(HttpMethod.Post, $"repos/{registry.Slug}/pulls", request);
 
-		if (created.Success)
+		if (created.Success && created.Json is { } json)
 		{
-			return created.Output.Trim();
+			return json.GetProperty("html_url").GetString()!;
 		}
 
-		ShellResult existing = GitHubCli.Capture(["pr", "view", head, "--repo", registry.Slug, "--json", "url", "--jq", ".url"]);
+		string qualified = head.Contains(':') ? head : $"{registry.Owner}:{head}";
+		GitHubApi.Result open = await GitHubApi.SendAsync(HttpMethod.Get, $"repos/{registry.Slug}/pulls?state=open&head={Uri.EscapeDataString(qualified)}");
 
-		if (existing.Success && existing.Output.Length > 0)
+		if (open.Success && open.Json is { ValueKind: JsonValueKind.Array } list && list.GetArrayLength() > 0)
 		{
-			return existing.Output.Trim();
+			return list[0].GetProperty("html_url").GetString()!;
 		}
 
-		throw new CraterException($"GitHub did not accept the package: {created.Error}");
-	}
-
-	static string Read(string endpoint, string jq)
-	{
-		ShellResult result = GitHubCli.Api([endpoint, "--jq", jq]);
-
-		return result.Success && result.Output.Length > 0
-			? result.Output.Trim()
-			: throw new CraterException($"GitHub request failed ({endpoint}): {result.Error}");
-	}
-
-	static string Write(string method, string endpoint, JsonNode body, string jq)
-	{
-		ShellResult result = GitHubCli.Send(method, endpoint, body, jq);
-
-		return result.Success && result.Output.Length > 0
-			? result.Output.Trim()
-			: throw new CraterException($"GitHub request failed ({endpoint}): {result.Error}");
+		throw new CraterException($"GitHub did not accept the package: {created.Message}");
 	}
 }

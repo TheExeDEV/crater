@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Crater.Tools;
 using Crater.Util;
 
 namespace Crater.Registry;
@@ -228,7 +227,7 @@ public sealed partial class HttpRegistry : IRegistry
 			}
 		}
 
-		string who = GitHubCli.Login() is string login ? $"Your GitHub account {Fmt.Val(login)}" : "Your GitHub token";
+		string who = GitHubAuth.Login() is string login ? $"Your GitHub account {Fmt.Val(login)}" : "Your GitHub token";
 
 		throw new CraterException(
 			$"{who} has no access to the registry {Fmt.Val(slug)}, or it does not exist. Ask its owner to add you on GitHub " +

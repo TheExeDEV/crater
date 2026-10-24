@@ -34,7 +34,7 @@ public static class Help
 			new("licenses", "list the licenses of installed packages"),
 		]),
 		("Registry", [
-			new("login [--force]", "sign in with GitHub to publish packages"),
+			new("login [--private] [--force]", "sign in with GitHub, --private also for private registries"),
 			new("logout", "sign out"),
 			new("whoami", "show who you are signed in as"),
 			new("search [query]", "search packages in the registry"),
