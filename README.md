@@ -63,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/in
 
 Both lines run the same file. It downloads the latest release into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin` and adds that folder to `PATH`: the user `PATH` on Windows, `~/.bashrc`, `~/.zshrc`, `~/.profile` and fish on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
 
-Options, set before the command: `CRATER_VERSION=0.0.11` installs a specific version, `CRATER_INSTALL_DIR` changes the folder, `CRATER_NO_PATH=1` leaves `PATH` alone. In PowerShell: `$env:CRATER_VERSION = "0.0.11"`.
+Options, set before the command: `CRATER_VERSION=0.1.0` installs a specific version, `CRATER_INSTALL_DIR` changes the folder, `CRATER_NO_PATH=1` leaves `PATH` alone. In PowerShell: `$env:CRATER_VERSION = "0.1.0"`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
@@ -780,12 +780,14 @@ The crater repository has two workflows:
 
 Two MSBuild properties in `Crater.csproj` are baked into every build: `CraterDefaultRegistry` (`https://raw.githubusercontent.com/TheExeDEV/crater-registry/main`) and `CraterUpdateRepo` (`TheExeDEV/crater`, used by `self-update`). The release workflow sets `CraterUpdateRepo` to the repository it runs in, so a copy of the repository under another account updates from itself.
 
+Versions count from `0.0.1` to `0.0.9`, then `0.1.0` to `0.1.9`, then `0.2.0` and so on: the last number never goes above 9.
+
 ```bash
-git tag v0.0.5
+git tag v0.1.1
 ```
 
 ```bash
-git push origin v0.0.5
+git push origin v0.1.1
 ```
 
 The same properties work for local builds:
