@@ -1,0 +1,12 @@
+{
+	"name": "{{SHORT_NAME}}",
+	"tree": {
+		"$className": "Folder",
+		"Main": {
+			"$path": "src"
+		},
+		"Packages": {
+			"$path": { "optional": "Packages" }
+		}
+	}
+}

@@ -14,6 +14,8 @@ public sealed record UpdateCandidate(
 	IReadOnlyList<DependencySpec> Direct,
 	IReadOnlyList<string> Parents)
 {
+	public RegistryIndex? Index { get; init; }
+
 	public bool IsDirect => Direct.Count > 0;
 
 	public bool IsSource => Direct.Any(spec => spec.Source is not null);
@@ -122,28 +124,22 @@ public static class UpdatePlanner
 
 			nodes.TryGetValue(name, out ResolvedPackage? node);
 
-			string? latest = await LatestVersionAsync(context, name, node);
+			RegistryIndex? index = await IndexAsync(context, name, node);
+			string? latest = index?.Latest?.Version;
 			string? installed = locked.TryGetValue(name, out LockedPackage? lockedPackage) ? lockedPackage.Version : null;
 			List<string> parentNames = parents.TryGetValue(name, out SortedSet<string>? set) ? set.ToList() : [];
 
-			result.Add(new UpdateCandidate(realm, name, installed, node?.Version.ToString(), latest, direct, parentNames));
+			result.Add(new UpdateCandidate(realm, name, installed, node?.Version.ToString(), latest, direct, parentNames) { Index = index });
 		}
 
 		return result;
 	}
 
-	static async Task<string?> LatestVersionAsync(ResolutionContext context, string name, ResolvedPackage? node)
+	static async Task<RegistryIndex?> IndexAsync(ResolutionContext context, string name, ResolvedPackage? node)
 	{
 		IRegistry? registry = node?.Registry ?? context.RegistryFor(name);
 
-		if (registry is null)
-		{
-			return null;
-		}
-
-		RegistryIndex? index = await registry.GetIndexAsync(name);
-
-		return index?.Latest?.Version;
+		return registry is null ? null : await registry.GetIndexAsync(name);
 	}
 
 	static Dictionary<string, SortedSet<string>> CollectParents(IEnumerable<LockedPackage> locked, IEnumerable<ResolvedPackage> nodes)

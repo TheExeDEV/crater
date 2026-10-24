@@ -149,7 +149,7 @@ public sealed class Manifest
 		{
 			throw new CraterException(
 				$"{Fmt.Val(custom)} uses your own registry name {Fmt.Val(custom.RegistryName!)}. People who install this package do not have it (and may have no access to a private registry); " +
-				$"published packages can only use {Fmt.Val("wally#")} or {Fmt.Val("crater#")}.");
+				$"published packages can only use {Fmt.Val("crater#")}, {Fmt.Val("wally#")} or {Fmt.Val("pesde#")}.");
 		}
 
 		DependencySpec? local = AllDependencies().FirstOrDefault(spec => spec.Source is not null);

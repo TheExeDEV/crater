@@ -240,15 +240,16 @@ public static class ImportCommand
 		int hash = name.IndexOf('#');
 		string fullName = (hash >= 0 ? name[(hash + 1)..] : name).ToLowerInvariant();
 		string requirement = ConvertRequirement(version, alias, warnings);
+		string registry = table.String("wally") is not null ? "wally#" : table.String("workspace") is not null ? "" : "pesde#";
 
-		return Compose(alias, fullName, requirement);
+		return Compose(alias, fullName, requirement, registry);
 	}
 
-	static string? Compose(string alias, string fullName, string requirement)
+	static string? Compose(string alias, string fullName, string requirement, string registry = "")
 	{
 		string shortName = fullName[(fullName.IndexOf('/') + 1)..];
 		string prefix = alias == shortName ? "" : alias + ":";
-		string spec = prefix + fullName + requirement;
+		string spec = prefix + registry + fullName + requirement;
 
 		DependencySpec.Parse(spec);
 

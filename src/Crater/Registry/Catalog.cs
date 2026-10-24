@@ -96,6 +96,7 @@ public sealed class CatalogEntry
 	[JsonPropertyName("import_to")] public string ImportTo { get; set; } = "shared";
 	[JsonPropertyName("repository")] public string Repository { get; set; } = "";
 	[JsonPropertyName("updated_at")] public DateTimeOffset? UpdatedAt { get; set; }
+	[JsonPropertyName("deprecated")] public string? Deprecated { get; set; }
 
 	public static CatalogEntry From(RegistryIndex index, RegistryRelease latest)
 	{
@@ -111,6 +112,7 @@ public sealed class CatalogEntry
 			ImportTo = latest.Manifest.ImportTo,
 			Repository = latest.Manifest.Repository,
 			UpdatedAt = index.Versions.Max(release => release.PublishedAt),
+			Deprecated = index.Deprecated,
 		};
 	}
 

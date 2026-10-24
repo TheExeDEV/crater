@@ -10,11 +10,20 @@ namespace Crater.Commands;
 
 public static partial class ProjectCommands
 {
+	static readonly string[] ProjectTemplates = ["game", "library", "plugin"];
+
 	public static void Init(Args args)
 	{
 		string directory = Environment.CurrentDirectory;
 		string manifestPath = Path.Combine(directory, Manifest.FileName);
 		string settingsPath = ProjectConfig.PathIn(directory);
+		string? template = args.Value("template", "t")?.ToLowerInvariant();
+		string name = PackageNameFor(directory, args.Value("name"));
+
+		if (template is not null && !ProjectTemplates.Contains(template))
+		{
+			throw new CraterException($"Unknown template {Fmt.Val(template)}. Use {Fmt.Val("game")}, {Fmt.Val("library")} or {Fmt.Val("plugin")}.");
+		}
 
 		if (File.Exists(manifestPath))
 		{
@@ -22,12 +31,19 @@ public static partial class ProjectCommands
 		}
 		else
 		{
-			string name = PackageNameFor(directory, args.Value("name"));
 			string registry = args.Value("registry") ?? ShortRegistry(BuildInfo.DefaultRegistry);
+			JsonObject manifest = ManifestTemplate(name, registry);
 
-			Json.WriteText(manifestPath, Json.Serialize(ManifestTemplate(name, registry)));
+			if (template is "game" or "plugin")
+			{
+				manifest["can_publish"] = false;
+				manifest["path_to_main"] = "";
+			}
+
+			Json.WriteText(manifestPath, Json.Serialize(manifest));
 			Out.Ok($"Created {Fmt.File(Manifest.FileName)} ({Fmt.Pkg(name)}, registry {Fmt.Val(registry)})");
 		}
+
 
 		if (File.Exists(settingsPath))
 		{
@@ -37,6 +53,21 @@ public static partial class ProjectCommands
 		{
 			Json.WriteText(settingsPath, Json.Serialize(SettingsTemplate()));
 			Out.Ok($"Created {Fmt.File(ProjectConfig.FileName)}");
+		}
+
+		if (template is not null)
+		{
+			string shortName = name[(name.IndexOf('/') + 1)..];
+			Dictionary<string, string> values = new()
+			{
+				["NAME"] = name,
+				["SHORT_NAME"] = shortName,
+				["MODULE_NAME"] = ModuleName(shortName),
+				["REQUIRE_PATH"] = Regex.IsMatch(shortName, "^[A-Za-z_][A-Za-z0-9_]*$") ? $"Packages.{shortName}" : $"Packages[\"{shortName}\"]",
+			};
+
+			Templates.WriteTo($"init/{template}", directory, values, overwrite: false);
+			Out.Ok($"Created a {template} project");
 		}
 	}
 
@@ -91,7 +122,14 @@ public static partial class ProjectCommands
 		};
 	}
 
-	static string PackageNameFor(string directory, string? requested)
+	static string ModuleName(string shortName)
+	{
+		string joined = string.Concat(shortName.Split(['-', '_'], StringSplitOptions.RemoveEmptyEntries).Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
+
+		return joined.Length > 0 && char.IsAsciiLetter(joined[0]) ? joined : "Module" + joined;
+	}
+
+		static string PackageNameFor(string directory, string? requested)
 	{
 		if (requested is not null)
 		{

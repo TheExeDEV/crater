@@ -35,6 +35,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		}
 
 		RejectRepublished(graphs, oldLock);
+		await VersionNotices.PrintAsync(project, graphs.Values);
 
 		LockFile newLock = LockFile.From(graphs, project.Directory);
 		newLock.ManifestHash = InstallState.ManifestHash(project);
@@ -88,6 +89,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 
 		WriteLock(newLock);
 		InstallSummary.Print(oldLock, newLock, watch.Elapsed);
+		await VersionNotices.PrintChangesAsync(oldLock, graphs.Values);
 	}
 
 	static Dictionary<ResolvedPackage, string> Stage(Dictionary<ResolvedPackage, byte[]> archives, string staging)

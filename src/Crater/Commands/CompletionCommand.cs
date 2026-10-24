@@ -13,9 +13,9 @@ public static class CompletionCommand
 
 	static readonly string[] Commands =
 	[
-		"init", "import", "bump", "run", "dev", "test", "check", "lint", "fmt", "ci", "build", "doctor",
-		"install", "update", "add", "remove", "outdated", "list", "why", "patch", "unused", "size", "licenses",
-		"search", "info", "versions", "pack", "publish", "login", "logout", "whoami", "registry", "tool",
+		"init", "import", "bump", "run", "dev", "doctor",
+		"install", "update", "add", "remove", "outdated", "list", "graph", "why", "patch", "unused", "size", "licenses",
+		"search", "info", "versions", "pack", "publish", "deprecate", "login", "logout", "whoami", "registry", "tool",
 		"cache", "completion", "self-update", "version",
 	];
 
@@ -23,7 +23,7 @@ public static class CompletionCommand
 
 	static readonly Dictionary<string, string[]> Flags = new()
 	{
-		["init"] = ["--name", "--registry", "--force"],
+		["init"] = ["--name", "--registry", "--template"],
 		["import"] = ["--force", "--registry"],
 		["install"] = ["--workspace", "--locked"],
 		["update"] = ["--interactive", "--workspace"],
@@ -31,12 +31,10 @@ public static class CompletionCommand
 		["remove"] = ["--client", "--server", "--dev"],
 		["outdated"] = ["--all"],
 		["publish"] = ["--dry-run", "--workspace"],
+		["deprecate"] = ["--undo", "--registry", "--dry-run"],
 		["login"] = ["--private", "--force"],
-		["build"] = ["--output", "--minify"],
 		["dev"] = ["--no-serve"],
-		["lint"] = ["--strict"],
-		["fmt"] = ["--check"],
-		["test"] = ["--lune"],
+		["graph"] = ["--output", "--client", "--server", "--dev", "--depth"],
 		["search"] = ["--registry"],
 		["info"] = ["--registry"],
 		["versions"] = ["--registry"],
@@ -78,6 +76,11 @@ public static class CompletionCommand
 
 	static IEnumerable<string> Candidates(List<string> previous, string current)
 	{
+		if (previous.LastOrDefault() is "--template" or "-t")
+		{
+			return ["game", "library", "plugin"];
+		}
+
 		List<string> words = previous.Where(word => !word.StartsWith('-')).ToList();
 
 		if (words.Count == 0)

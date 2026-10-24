@@ -11,8 +11,11 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 - Workspaces for monorepos
 - Link files re-export `export type` declarations, so luau-lsp sees package types
 - Lock file with sha256 checks, parallel downloads, a summary of what changed
-- `outdated`, interactive `update -i`, `why`, `search`, `info`, `doctor`, `run`, `import` from Wally and pesde, `self-update`
-- `crater test` with Lune, `crater dev` (Rojo plus reinstall on save), Tab completion for PowerShell, bash, zsh and fish
+- Installs from the crater registry, Wally and pesde, also mixed in one project
+- `outdated`, interactive `update -i`, `why`, `graph`, `search`, `info`, `doctor`, `run`, `import` from Wally and pesde, `self-update`
+- Changelogs and deprecation messages from package authors, shown on install, update and the website
+- `crater init --template game|library|plugin`
+- `crater dev` (Rojo plus reinstall on save), Tab completion for PowerShell, bash, zsh and fish
 - A git registry with pull request checks and a static package website with search
 - Optional updates of `.luaurc` aliases and the luau-lsp definition files in VS Code
 - Optional confirmation before every action that changes files, colored output
@@ -37,17 +40,16 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 14. [Everyday commands](#everyday-commands)
 15. [Patching packages](#patching-packages)
 16. [Tools](#tools)
-17. [Type checking](#type-checking)
-18. [Code quality and builds](#code-quality-and-builds)
-19. [Package reports](#package-reports)
-20. [The registry](#the-registry)
-21. [Publishing](#publishing)
-22. [The package website](#the-package-website)
-23. [Releasing crater](#releasing-crater)
-24. [Command reference](#command-reference)
-25. [Environment variables](#environment-variables)
-26. [Limitations](#limitations)
-27. [Source layout](#source-layout)
+17. [Live development](#live-development)
+18. [Package reports](#package-reports)
+19. [The registry](#the-registry)
+20. [Publishing](#publishing)
+21. [The package website](#the-package-website)
+22. [Releasing crater](#releasing-crater)
+23. [Command reference](#command-reference)
+24. [Environment variables](#environment-variables)
+25. [Limitations](#limitations)
+26. [Source layout](#source-layout)
 
 ---
 
@@ -136,7 +138,17 @@ dotnet src/Crater/bin/Release/net10.0/crater.dll --help
 crater init
 ```
 
-This creates `crater.json` and `crater.settings.json` with everything filled in: the package name comes from your GitHub login (after `crater login`, otherwise from your computer user name) and the folder name, `"registry": "https://github.com/TheExeDEV/crater-registry"` is already set. Add packages and install:
+This creates `crater.json` and `crater.settings.json` with everything filled in: the package name comes from your GitHub login (after `crater login`, otherwise from your computer user name) and the folder name, `"registry": "https://github.com/TheExeDEV/crater-registry"` is already set.
+
+To start a whole project instead of only the config, pick a template:
+
+| Command | What you get |
+|---|---|
+| `crater init --template game` | `default.project.json` for a place (`ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayerScripts.Client`, the package folders), a server and a client script, a shared module, `.gitignore`. `can_publish` is `false`. |
+| `crater init --template library` | `src/init.luau`, `default.project.json`, `README.md` with install instructions, `CHANGELOG.md`, `.gitignore`. Ready for `crater publish`. |
+| `crater init --template plugin` | A Studio plugin script with a toolbar button, `default.project.json` for `rojo build -o plugin.rbxm`, `.gitignore`. |
+
+Existing files are never overwritten. Add packages and install:
 
 ```bash
 crater add evaera/promise^4 --client
@@ -244,7 +256,7 @@ Install settings of your project. The folder names live here and only here: crat
 | `import_client_path`, `import_server_path`, `import_develop_path` | Folder for each list. Required when the list has dependencies, otherwise crater stops and tells you which field to add. Nested paths work. |
 | `on_install_update_luaurc` | Keep folder aliases in `.luaurc` up to date. |
 | `import_client_alias`, `import_server_alias`, `import_develop_alias` | Alias names for the folders in `.luaurc`, so `"Shared"` gives `require("@Shared/promise")`. Empty or missing: the folder name (`@Packages`). |
-| `luaurc_path` | Which file gets the aliases. If `.vscode/settings.json` already has `"luau-lsp.server.baseLuaurc"`, that file is used instead and the setting is left as it is; `luaurc_path` only matters when it is missing. Default `.luaurc` in the project folder. Set another file, for example `"src/config.luaurc"`, and crater writes the aliases there (paths relative to that file, like `"../Packages"`) and sets `"luau-lsp.server.baseLuaurc"` in `.vscode/settings.json` so luau-lsp uses it. `crater check` uses it too. |
+| `luaurc_path` | Which file gets the aliases. If `.vscode/settings.json` already has `"luau-lsp.server.baseLuaurc"`, that file is used instead and the setting is left as it is; `luaurc_path` only matters when it is missing. Default `.luaurc` in the project folder. Set another file, for example `"src/config.luaurc"`, and crater writes the aliases there (paths relative to that file, like `"../Packages"`) and sets `"luau-lsp.server.baseLuaurc"` in `.vscode/settings.json` so luau-lsp uses it. |
 | `on_install_update_vscode_luau_definition_files` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date. |
 | `on_install_should_i_ask_your_permission_to_do_any_action` | Ask before every change. `-y` skips the questions for one run. |
 | `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
@@ -576,7 +588,39 @@ bebra/zxc  client  1.2.3      1.2.3   2.0.0   =1.2.3
 beta/adof  client  0.13.0     0.14.0  0.14.0  +0.12.44
 ```
 
-*Wanted* is what `update` installs (same resolver), *Latest* is the newest version in the registry. `--all` shows every dependency.
+*Wanted* is what `update` installs (same resolver), *Latest* is the newest version in the registry. `--all` shows every dependency. Below the table crater prints the changelog between your version and *Latest*, when the package has one (see [Changelog](#changelog)).
+
+**Newer versions.** When `install` or `add` resolves, crater looks at your direct dependencies and tells you when a newer version exists that your requirement does not allow, for example `^1` while `2.0.0` is out:
+
+```
+Newer versions exist outside the requirement in crater.json: evaera/promise 4.0.0 → 5.1.0
+  crater update -i can move to them. To keep a version on purpose, pin it with =, for example scope/name=1.2.3.
+```
+
+It stays quiet for versions pinned with `=` (you chose that version on purpose), for local and git dependencies, and for updates your requirement already allows (`crater update` takes those). Deprecated packages and versions are always reported, see [Deprecating](#deprecating).
+
+After an update that moves a direct dependency to a newer version, crater shows what changed:
+
+```
+  ↑ evaera/promise 4.0.0 → 4.1.0  client
+
+What changed in evaera/promise
+  4.1.0 (2026-10-24)
+    - Added Promise.each
+```
+
+**`crater graph`** prints the installed tree as a [Mermaid](https://mermaid.js.org) diagram from `crater.lock`, nothing is downloaded. `crater graph -o deps.md` writes it as a Markdown file that GitHub shows as a picture, so you can put it in a README or a pull request. `--client`, `--server` or `--dev` draws one folder, `--depth 1` only your direct dependencies. Aliases are written on the arrows.
+
+```mermaid
+graph LR
+  root["me/game"]
+  subgraph client["Packages"]
+    client_0["sleitnick/knit<br/>1.7.0"]
+    client_1["evaera/promise<br/>4.0.0"]
+  end
+  root --> client_0
+  client_0 -->|Promise| client_1
+```
 
 **`crater update -i`** lets you pick with the arrow keys:
 
@@ -602,7 +646,7 @@ Packages/ (import_client)
 
 **`crater doctor`** checks the config, registry access, lock vs manifest, package folders and links, `.luaurc`, VS Code definitions, Rojo mapping and git.
 
-**`crater import`** converts `wally.toml` or `pesde.toml`. Run it anywhere, for example `crater import ../wally.toml`: `crater.json` is written next to the file you import. A Wally project gets `"registry": ["https://github.com/TheExeDEV/crater-registry", "https://github.com/UpliftGames/wally-index"]`, so `crater install` works right away. `--force` overwrites an existing `crater.json`. Wally aliases are kept (so `require(Packages.Promise)` still works), `[server-dependencies]` go to `import_server`, `[dev-dependencies]` to `import_develop`, version ranges are converted. Anything without an equivalent is reported.
+**`crater import`** converts `wally.toml` or `pesde.toml`. Run it anywhere, for example `crater import ../wally.toml`: `crater.json` is written next to the file you import. A Wally project gets `"registry": ["https://github.com/TheExeDEV/crater-registry", "https://github.com/UpliftGames/wally-index"]`, a pesde project gets `pesde#` and `wally#` before its dependencies, so `crater install` works right away. `--force` overwrites an existing `crater.json`. Wally aliases are kept (so `require(Packages.Promise)` still works), `[server-dependencies]` go to `import_server`, `[dev-dependencies]` to `import_develop`, version ranges are converted. Anything without an equivalent is reported.
 
 **`crater self-update`** downloads the newest release for your platform and replaces the executable. `--check` only reports.
 
@@ -661,41 +705,7 @@ Tools live in `%LOCALAPPDATA%\crater\tools` or `~/.crater/tools`, one folder per
 
 ---
 
-## Type checking
-
-```bash
-crater check
-```
-
-Runs `luau-lsp analyze` over your code with everything set up: Roblox types (downloaded once a week), a fresh Rojo sourcemap so `require(ReplicatedStorage.Packages.x)` resolves, the definition files of your packages and your `.luaurc`. It checks the folders your `default.project.json` maps (or `src`), skips package folders and `patches/`, and exits with `1` when there are errors, so it works in CI. Pass paths to check something else: `crater check src/client`. luau-lsp and Rojo come from your [tools](#tools), or from `PATH`.
-
----
-
-## Code quality and builds
-
-All of these use the [tools](#tools) pinned in the project (or found on `PATH`) and work on the folders your `default.project.json` maps, skipping package folders.
-
-| Command | What it does |
-|---|---|
-| `crater lint` | Runs selene. Creates `selene.toml` with the Roblox standard library the first time. Warnings are shown but do not fail; `--strict` makes them fail too. |
-| `crater fmt` | Formats your code with StyLua. `crater fmt --check` only reports files that are not formatted. |
-| `crater ci` | Runs `check`, `lint` and `fmt --check` one after another and prints a table. Exits with `1` if anything failed, so one line in GitHub Actions checks everything. |
-| `crater unused` | Finds dependencies in `crater.json` that your code never requires, and requires of packages you did not declare (for example a package that only came as a dependency of another one). It understands `Packages.Name`, `Packages["Name"]`, `WaitForChild("Name")`, `"@Packages/Name"` and local variables that hold the folder; comments are ignored. |
-| `crater build` | Builds the place or model with Rojo into `build/<name>.rbxl` (or `.rbxm`), `-o file` to choose. |
-| `crater build --minify` | Copies the project, minifies every mapped folder with darklua (comments, spaces and types removed, constant expressions computed) and builds that. Your files are not touched. |
-
-### Tests
-
-```bash
-crater test
-crater test signal
-```
-
-Runs every `*.test.luau` and `*.spec.luau` file (and every file in a `tests/`, `test/`, `spec/` or `specs/` folder) with `lune run`, one after another. Each file is a test: it passes when it finishes and fails when it errors. Output is hidden for passing files and the first 20 lines are shown for failing ones. A word after `test` keeps only files whose path contains it. Exits with `1` if any file failed. Lune comes from your [tools](#tools) (`crater tool add lune`) or from `PATH`.
-
-If `crater.json` has a `"test"` script, `crater test` runs that script instead, so a project with its own test runner (TestEZ, Jest Lua in run-in-roblox) keeps working. `crater test --lune` skips the script.
-
-### Live development
+## Live development
 
 ```bash
 crater dev
@@ -706,6 +716,8 @@ Installs, then starts `rojo serve` (and `rojo sourcemap --watch` when `sourcemap
 ---
 
 ## Package reports
+
+**`crater unused`** finds dependencies in `crater.json` that your code never requires, and requires of packages you did not declare (for example a package that only came as a dependency of another one). It understands `Packages.Name`, `Packages["Name"]`, `WaitForChild("Name")`, `"@Packages/Name"` and local variables that hold the folder; comments are ignored.
 
 **`crater size`** shows how much Luau code each installed package adds, alone and together with its dependencies, largest first.
 
@@ -761,6 +773,21 @@ Then `crater add sleitnick/knit^1`, `install`, `update`, `outdated`, `info` and 
 
 Any other registry with the Wally layout (a git repository with `config.json` and an API) works the same way.
 
+### pesde packages
+
+pesde packages install the same way, from the pesde index:
+
+```json
+"import_client": [
+  "pesde#alicesaidhi/conch_ast^0.2",
+  "Jecs:pesde#marked/jecs^0.11"
+]
+```
+
+or with `"registry": "https://github.com/pesde-pkg/index"`. crater recognizes the pesde format by its `config.toml`, reads the index file of each package and downloads the archive from the pesde API. Only the Roblox builds are used: the `roblox` target, or `roblox_server` (installed into the server folder) when a version has no `roblox` build. The entry module is the `lib` of that target. Dependencies of pesde packages come from pesde, their Wally dependencies from Wally; `dev` dependencies are skipped. Yanked versions are treated as deprecated and package deprecation messages are shown.
+
+pesde code requires its dependencies with string requires like `require("../roblox_packages/types")`. crater writes those `roblox_packages/<alias>.luau` files inside each pesde package, pointing at the installed dependency, so the code runs unchanged. `crater search --registry pesde jecs`, `crater info pesde#marked/jecs` and `crater import pesde.toml` (which writes `pesde#` and `wally#` before the dependencies) work too. Publishing to pesde is done with `pesde publish`.
+
 ### Several registries
 
 `registry` can be one registry or a list:
@@ -784,7 +811,7 @@ A dependency can also name a registry before `#`, which skips the search:
 ]
 ```
 
-Built in names: `wally` (the Wally index) and `crater` (the default crater registry). Add your own in `crater.json`:
+Built in names: `crater` (the default crater registry), `wally` (the Wally index) and `pesde` (the pesde index). Add your own in `crater.json`:
 
 ```json
 "registries": {
@@ -951,6 +978,53 @@ The registry check runs on GitHub and can only see **public** members. If your m
 | `crater login --force` | Switches to another GitHub account. |
 | `crater logout` | Signs out. |
 
+### Changelog
+
+Keep a `CHANGELOG.md` in the package folder with a heading per version:
+
+```markdown
+# Changelog
+
+## 1.1.0
+
+- Added `Signal:Once`
+- Fixed a leak when disconnecting during a fire
+
+## 1.0.0
+
+- First release
+```
+
+`## 1.1.0`, `## [1.1.0] - 2026-10-24` and `## v1.1.0` all work. When you publish, crater copies the section of the version you publish into the registry index, and `crater publish` warns if `CHANGELOG.md` has no section for it. The notes then show up:
+
+- on the package website, in a Changelog block under the README with every version;
+- in `crater info` (the newest version);
+- in `crater outdated` and after `crater update`, for the versions between yours and the new one.
+
+`CHANGES.md` and `HISTORY.md` are read too. The changelog is not installed into your game.
+
+### Deprecating
+
+Mark a package that is no longer maintained, or one bad version:
+
+```bash
+crater deprecate theexedev/cool-lib "use theexedev/better-lib instead"
+crater deprecate theexedev/cool-lib@1.2.0 "breaks on mobile, use 1.2.1"
+```
+
+Nothing is deleted, projects that use it keep working.
+
+- A deprecated **version** is skipped when crater picks a version, as long as another version fits the requirement. A lock file that already has it, or a pin with `=`, still installs it, with a warning.
+- A deprecated **package** is still installed. `add`, `install`, `info` and `outdated` print the message, the website shows it on the package page and marks the package in the list.
+
+Without a message crater writes a short default one. `--undo` removes the mark:
+
+```bash
+crater deprecate theexedev/cool-lib --undo
+```
+
+On a GitHub registry this goes through review like a publish: crater opens a pull request that changes only `index.json`, and the check allows it for the owner of the package. `--registry` picks another registry, `--dry-run` shows the change without sending it. On a local folder registry the change is written directly.
+
 ### Common errors
 
 | Message | Fix |
@@ -996,7 +1070,7 @@ If `registry` in `crater.json` is a local folder (for example `"../my-registry"`
 crater registry site . --output _site
 ```
 
-Builds a static site (`index.html`, `assets/`, `data/`) from the registry: a searchable list of packages and a page per package with its README, install snippets with copy buttons, metadata, dependencies and versions. Light and dark themes follow the system. README files are rendered with marked and sanitized with DOMPurify; all other data is inserted as text.
+Builds a static site (`index.html`, `assets/`, `data/`) from the registry: a searchable list of packages and a page per package with its README, the [changelog](#changelog) of every version, install snippets with copy buttons, metadata, dependencies and versions. Deprecated packages and versions are marked with their message. Light and dark themes follow the system. README files are rendered with marked and sanitized with DOMPurify; all other data is inserted as text.
 
 Preview it locally:
 
@@ -1039,7 +1113,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 
 | Command | Description |
 |---|---|
-| `init [--name scope/name]` | Create `crater.json` (name from your GitHub login, registry filled in) and `crater.settings.json`. |
+| `init [--name scope/name] [--template game\|library\|plugin]` | Create `crater.json` (name from your GitHub login, registry filled in) and `crater.settings.json`, optionally a whole project, see [Quick start](#quick-start). |
 | `import [wally.toml\|pesde.toml] [--force]` | Convert a Wally or pesde project. |
 | `install [--workspace] [--locked]` (`i`) | Install, respecting `crater.lock`. `--locked` fails if the lock is out of date. |
 | `add <spec...> [--client\|--server\|--dev]` | Add or replace dependencies and install. Restores `crater.json` if the install fails. |
@@ -1048,6 +1122,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `outdated [--all]` | Show newer versions. |
 | `list` (`ls`) | Installed tree. |
 | `why <scope/name>` | Why a package is installed. |
+| `graph [-o file.md] [--client\|--server\|--dev] [--depth n]` | Mermaid diagram of the installed tree. |
 | `search [query]` | Search the registry catalog. |
 | `info <scope/name>` | Package details. |
 | `versions <scope/name>` | Published versions. |
@@ -1058,6 +1133,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `logout` | Sign out. |
 | `whoami` | Show the signed-in GitHub account. |
 | `publish [--dry-run] [--workspace]` | Send the package to the registry for review. See [Publishing](#publishing). |
+| `deprecate <scope/name>[@version] [message] [--undo]` | Mark a package or a version as deprecated, see [Deprecating](#deprecating). |
 | `registry init <folder> --repo Owner/Repo` | Create a registry repository from the template. |
 | `registry check [folder] [--base ref] [--author login]` | Validate a registry and pull request changes. |
 | `registry catalog [folder]` | Regenerate `packages.json`. |
@@ -1068,12 +1144,10 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `cache [clean]` | Show or clear the download cache. |
 | `patch [name] [--remove]` | Keep your edits to an installed package, see [Patching packages](#patching-packages). |
 | `tool add|list|remove|install|run` | Pinned tools, see [Tools](#tools). |
-| `check [paths...]` | Type check with luau-lsp, see [Type checking](#type-checking). |
-| `lint`, `fmt [--check]`, `ci`, `unused`, `build [--minify]` | See [Code quality and builds](#code-quality-and-builds). |
-| `test [filter] [--lune]` | Run test files with Lune, or the `test` script, see [Tests](#tests). |
+| `unused` | Dependencies your code never requires, see [Package reports](#package-reports). |
 | `dev [--no-serve] [-- rojo args]` | Rojo plus reinstall on save, see [Live development](#live-development). |
 | `completion [install\|powershell\|bash\|zsh\|fish]` | Turn on Tab completion, see [Tab completion](#tab-completion). |
-| `size`, `licenses` | [Package reports](#package-reports). |
+| `size`, `licenses` | See [Package reports](#package-reports). |
 | `version`, `--help` | Version and help. |
 
 `-y` / `--yes` skips confirmations. crater finds `crater.json` in the current folder or any parent. Exit codes: `0` success, `1` error, `2` internal error.
@@ -1106,6 +1180,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 - Type re-exports come only from the main module.
 - Publishing goes through git (a pull request or a local folder); there is no HTTP upload.
 - `import` does not convert pesde git dependencies or Wally version ranges with an upper bound.
+- From pesde only Roblox builds are installed (`roblox` and `roblox_server` targets). Inside pesde packages, `export type` from dependencies is not re-exported through `roblox_packages`, so luau-lsp may show those types as unknown in package code; your own code is not affected.
 
 ---
 

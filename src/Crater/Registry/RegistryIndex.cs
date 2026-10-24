@@ -10,11 +10,13 @@ public sealed class RegistryIndex
 	public const string FileName = "index.json";
 
 	[JsonPropertyName("name")] public string Name { get; set; } = "";
+	[JsonPropertyName("deprecated")] public string? Deprecated { get; set; }
 	[JsonPropertyName("versions")] public List<RegistryRelease> Versions { get; set; } = [];
 
 	[JsonIgnore]
 	public RegistryRelease? Latest =>
-		Versions.Where(release => !release.SemVer.IsPrerelease).MaxBy(release => release.SemVer)
+		Versions.Where(release => !release.SemVer.IsPrerelease && release.Deprecated is null).MaxBy(release => release.SemVer)
+		?? Versions.Where(release => release.Deprecated is null).MaxBy(release => release.SemVer)
 		?? Versions.MaxBy(release => release.SemVer);
 
 	public RegistryIndex Normalize(string source)
@@ -30,6 +32,7 @@ public sealed class RegistryIndex
 			}
 
 			release.SemVer = version;
+			release.PackageDeprecated = Deprecated;
 			release.Manifest ??= new Manifest();
 
 			if (string.IsNullOrEmpty(release.Manifest.Name))
@@ -53,6 +56,9 @@ public sealed class RegistryRelease
 	[JsonPropertyName("published_at")] public DateTimeOffset? PublishedAt { get; set; }
 	[JsonPropertyName("manifest")] public Manifest Manifest { get; set; } = new();
 	[JsonPropertyName("scripts")] public List<string>? Scripts { get; set; }
+	[JsonPropertyName("deprecated")] public string? Deprecated { get; set; }
+	[JsonPropertyName("notes")] public string? Notes { get; set; }
 
 	[JsonIgnore] public SemVer SemVer { get; set; } = new(0, 0, 0);
+	[JsonIgnore] public string? PackageDeprecated { get; set; }
 }

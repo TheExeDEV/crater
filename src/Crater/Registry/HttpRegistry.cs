@@ -18,6 +18,7 @@ public sealed partial class HttpRegistry : IRegistry
 	readonly GitHubRepository? github;
 	readonly ConcurrentDictionary<string, Lazy<Task<RegistryIndex?>>> indexes = new();
 	readonly Lazy<Task<WallyRegistry?>> wally;
+	readonly Lazy<Task<PesdeRegistry?>> pesde;
 	readonly Lazy<Task<Access>> access;
 
 	[GeneratedRegex(@"^[^./][^/]*/[^/]+/index\.json$")]
@@ -28,6 +29,7 @@ public sealed partial class HttpRegistry : IRegistry
 		this.baseUrl = baseUrl;
 		github = GitHubRepository.FromRegistry(baseUrl);
 		wally = new Lazy<Task<WallyRegistry?>>(() => WallyRegistry.DetectAsync(baseUrl));
+		pesde = new Lazy<Task<PesdeRegistry?>>(() => PesdeRegistry.DetectAsync(baseUrl));
 		access = new Lazy<Task<Access>>(ProbeAccessAsync);
 	}
 
@@ -35,11 +37,28 @@ public sealed partial class HttpRegistry : IRegistry
 
 	public bool IsWally => KnownWally() is not null;
 
+	public bool IsForeign => IsWally || KnownPesde() is not null;
+
 	public bool IsPrivate => access.IsValueCreated && access.Value.IsCompletedSuccessfully && access.Value.Result == Access.Private;
 
 	WallyRegistry? KnownWally()
 	{
 		return wally.IsValueCreated && wally.Value.IsCompletedSuccessfully ? wally.Value.Result : null;
+	}
+
+	PesdeRegistry? KnownPesde()
+	{
+		return pesde.IsValueCreated && pesde.Value.IsCompletedSuccessfully ? pesde.Value.Result : null;
+	}
+
+	async Task<IRegistry?> ForeignAsync()
+	{
+		if (IsPrivate)
+		{
+			return null;
+		}
+
+		return (IRegistry?)await wally.Value ?? await pesde.Value;
 	}
 
 	public Task<RegistryIndex?> GetIndexAsync(string fullName)
@@ -49,7 +68,7 @@ public sealed partial class HttpRegistry : IRegistry
 
 	async Task<RegistryIndex?> LoadIndexAsync(string fullName)
 	{
-		if (KnownWally() is WallyRegistry known)
+		if (((IRegistry?)KnownWally() ?? KnownPesde()) is IRegistry known)
 		{
 			return await known.GetIndexAsync(fullName);
 		}
@@ -62,12 +81,12 @@ public sealed partial class HttpRegistry : IRegistry
 			return Json.Parse<RegistryIndex>(text, url).Normalize(url);
 		}
 
-		return !IsPrivate && await wally.Value is WallyRegistry detected ? await detected.GetIndexAsync(fullName) : null;
+		return await ForeignAsync() is IRegistry detected ? await detected.GetIndexAsync(fullName) : null;
 	}
 
 	public async Task<byte[]> DownloadAsync(string fullName, string version)
 	{
-		if (KnownWally() is WallyRegistry known)
+		if (((IRegistry?)KnownWally() ?? KnownPesde()) is IRegistry known)
 		{
 			return await known.DownloadAsync(fullName, version);
 		}
@@ -96,7 +115,7 @@ public sealed partial class HttpRegistry : IRegistry
 			return tree;
 		}
 
-		return await wally.Value is WallyRegistry detected ? await detected.GetCatalogAsync(query) : null;
+		return await ForeignAsync() is IRegistry detected ? await detected.GetCatalogAsync(query) : null;
 	}
 
 	async Task<Catalog?> GetSiteCatalogAsync()
@@ -201,7 +220,7 @@ public sealed partial class HttpRegistry : IRegistry
 
 	async Task<Access> ProbeAccessAsync()
 	{
-		string[] markers = [RegistryInfo.FileName, WallyRegistry.ConfigFile];
+		string[] markers = [RegistryInfo.FileName, WallyRegistry.ConfigFile, PesdeRegistry.ConfigFile];
 
 		foreach (string marker in markers)
 		{

@@ -53,6 +53,19 @@ public static class InspectCommands
 		{
 			Out.Info($"Some packages are not installed yet. Run {Fmt.Cmd("crater install")}.");
 		}
+
+		foreach (UpdateCandidate candidate in shown.Where(candidate => candidate.IsDirect && candidate.Index is not null).DistinctBy(candidate => candidate.Name))
+		{
+			if (SemVer.TryParse(candidate.Installed ?? "", out SemVer from) && SemVer.TryParse(candidate.Latest ?? "", out SemVer to))
+			{
+				VersionNotices.PrintNotes(candidate.Name, Changelog.Between(candidate.Index!, from, to), 8);
+			}
+		}
+
+		foreach (UpdateCandidate candidate in shown.Where(candidate => candidate.Index?.Deprecated is not null).DistinctBy(candidate => candidate.Name))
+		{
+			Out.Warn($"{Fmt.Pkg(candidate.Name)} is deprecated: {candidate.Index!.Deprecated}");
+		}
 	}
 
 	static IReadOnlyList<string> OutdatedRow(UpdateCandidate candidate)
@@ -271,6 +284,11 @@ public static class InspectCommands
 
 		Out.Heading($"{name} {latest.Version}");
 
+		if (index.Deprecated is not null)
+		{
+			Out.Warn($"Deprecated: {index.Deprecated}");
+		}
+
 		if (latest.Scripts is { Count: > 0 } scripts)
 		{
 			Out.Warn($"Runs scripts in your game: {PackageScripts.Describe(scripts)}");
@@ -282,7 +300,7 @@ public static class InspectCommands
 		}
 
 		Out.Info("");
-		PrintField("install", Fmt.Cmd($"\"{name}^{latest.Version}\""));
+		PrintField("install", Fmt.Cmd($"\"{(spec.RegistryName is null ? "" : spec.RegistryName + "#")}{name}^{latest.Version}\""));
 		PrintField("realm", manifest.ImportTo);
 		PrintField("license", manifest.License);
 		PrintField("authors", string.Join(", ", manifest.Authors));
@@ -300,6 +318,17 @@ public static class InspectCommands
 				PrintField(realm.ManifestField(), string.Join(", ", dependencies.Select(dependency => Fmt.Pkg(dependency))));
 			}
 		}
+
+		if (!string.IsNullOrWhiteSpace(latest.Notes))
+		{
+			Out.Info("");
+			Out.Heading($"Changes in {latest.Version}");
+
+			foreach (string line in latest.Notes.Split('\n'))
+			{
+				Out.Dim("  " + line.TrimEnd());
+			}
+		}
 	}
 
 	public static async Task VersionsAsync(Args args)
@@ -314,7 +343,7 @@ public static class InspectCommands
 			.OrderByDescending(release => release.SemVer)
 			.Select(release => (IReadOnlyList<string>)
 			[
-				Fmt.Val(release.Version),
+				release.Deprecated is null ? Fmt.Val(release.Version) : $"{release.Version} {Fmt.Bad("deprecated")}",
 				release.Manifest.ImportTo,
 				release.PublishedAt?.ToString("yyyy-MM-dd") ?? "",
 				Truncate(release.Manifest.Description, 60),

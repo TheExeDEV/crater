@@ -9,18 +9,12 @@ public static class Help
 	static readonly (string Title, Entry[] Entries)[] Sections =
 	[
 		("Project", [
-			new("init [--name scope/name]", "create crater.json and crater.settings.json"),
+			new("init [--name scope/name] [--template game|library|plugin]", "create crater.json, optionally a whole project"),
 			new("import [wally.toml|pesde.toml]", "convert a Wally or pesde project"),
 			new("bump [patch|minor|major]", "raise the version: 0.0.9 becomes 0.1.0"),
 			new("run [script] [-- args]", "run a script from crater.json"),
 			new("doctor", "check the project for problems"),
-			new("check [paths...]", "type check the project with luau-lsp"),
-			new("test [filter]", "run *.test.luau files with Lune, or the test script"),
 			new("dev [--no-serve]", "rojo serve plus reinstall when crater.json changes"),
-			new("lint [paths...]", "find problems with selene"),
-			new("fmt [--check] [paths...]", "format code with StyLua"),
-			new("ci", "run check, lint and fmt --check together"),
-			new("build [-o file] [--minify]", "build the place or model with Rojo, --minify uses darklua"),
 		]),
 		("Dependencies", [
 			new("install [--workspace] [--locked]", "install dependencies, --locked fails if crater.lock is out of date"),
@@ -30,6 +24,7 @@ public static class Help
 			new("outdated [--all]", "show dependencies that have newer versions"),
 			new("list", "show the installed package tree"),
 			new("why <name>", "show why a package is installed"),
+			new("graph [-o file.md] [--client|--server|--dev] [--depth n]", "dependency diagram in Mermaid, GitHub draws it"),
 			new("patch [name] [--remove]", "keep your edits to an installed package"),
 			new("unused", "find dependencies your code never requires"),
 			new("size", "show how much code each package adds"),
@@ -44,6 +39,7 @@ public static class Help
 			new("versions <scope/name>", "list published versions"),
 			new("pack [-o file.zip]", "build the package archive"),
 			new("publish [--dry-run]", "send the package to the registry for review"),
+			new("deprecate <scope/name>[@version] [message] [--undo]", "mark a package or one version as deprecated"),
 			new("registry init|check|catalog|site", "manage a registry repository"),
 		]),
 		("Crater", [

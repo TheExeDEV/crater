@@ -75,7 +75,7 @@ public static class Toml
 		string name = line.Trim('[', ']').Trim();
 		TomlTable table = root;
 
-		foreach (string part in name.Split('.'))
+		foreach (string part in SplitKey(name))
 		{
 			string key = UnquoteKey(part.Trim());
 
@@ -89,6 +89,37 @@ public static class Toml
 		}
 
 		return table;
+	}
+
+	static List<string> SplitKey(string name)
+	{
+		List<string> parts = [];
+		StringBuilder current = new();
+		char? quote = null;
+
+		foreach (char character in name)
+		{
+			if (quote is null && character is '"' or '\'')
+			{
+				quote = character;
+			}
+			else if (quote == character)
+			{
+				quote = null;
+			}
+			else if (quote is null && character == '.')
+			{
+				parts.Add(current.ToString());
+				current.Clear();
+				continue;
+			}
+
+			current.Append(character);
+		}
+
+		parts.Add(current.ToString());
+
+		return parts;
 	}
 
 	static object ParseValue(string text, ref int position)

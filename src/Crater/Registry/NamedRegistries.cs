@@ -6,10 +6,12 @@ namespace Crater.Registry;
 public static class NamedRegistries
 {
 	public const string WallyIndex = "https://github.com/UpliftGames/wally-index";
+	public const string PesdeIndex = "https://github.com/pesde-pkg/index";
 
 	static Dictionary<string, string> Builtin => new(StringComparer.OrdinalIgnoreCase)
 	{
 		["wally"] = WallyIndex,
+		["pesde"] = PesdeIndex,
 		["crater"] = BuildInfo.DefaultRegistry,
 	};
 
@@ -38,7 +40,7 @@ public static class NamedRegistries
 		}
 
 		throw new CraterException(
-			$"Unknown registry {Fmt.Val(name)}. Built in: {Fmt.Val("wally")}, {Fmt.Val("crater")}. " +
+			$"Unknown registry {Fmt.Val(name)}. Built in: {Fmt.Val("crater")}, {Fmt.Val("wally")}, {Fmt.Val("pesde")}. " +
 			$"Add your own in {Fmt.File(Manifest.FileName)}: {Fmt.Cmd($"\"registries\": {{ \"{name}\": \"https://github.com/Owner/Repo\" }}")}");
 	}
 }

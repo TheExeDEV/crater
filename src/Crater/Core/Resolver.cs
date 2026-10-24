@@ -178,7 +178,8 @@ public sealed class Resolver
 				}
 			}
 
-			return candidates.MaxBy(release => release.SemVer)!;
+			return candidates.Where(release => release.Deprecated is null).MaxBy(release => release.SemVer)
+				?? candidates.MaxBy(release => release.SemVer)!;
 		}
 
 		IRegistry RegistryFor(string name, List<Constraint> requirements)

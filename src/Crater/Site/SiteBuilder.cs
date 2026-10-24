@@ -12,6 +12,7 @@ public static class SiteBuilder
 	{
 		[JsonPropertyName("name")] public string Name { get; set; } = "";
 		[JsonPropertyName("latest")] public string Latest { get; set; } = "";
+		[JsonPropertyName("deprecated")] public string? Deprecated { get; set; }
 		[JsonPropertyName("versions")] public List<RegistryRelease> Versions { get; set; } = [];
 		[JsonPropertyName("readme")] public string? Readme { get; set; }
 	}
@@ -89,6 +90,7 @@ public static class SiteBuilder
 		{
 			Name = index.Name,
 			Latest = latest?.Version ?? "",
+			Deprecated = index.Deprecated,
 			Versions = index.Versions.OrderByDescending(release => release.SemVer).ToList(),
 			Readme = readme,
 		};
