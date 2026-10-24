@@ -192,7 +192,7 @@ Every project and every package has a `crater.json`.
 | `name` | `scope/name`, lowercase letters, digits, `_` and `-`. In a GitHub registry the scope is your GitHub login in lowercase. |
 | `authors`, `description`, `license`, `keywords` | Shown by `info`, `search` and the website. |
 | `version` | Three numbers, `MAJOR.MINOR.PATCH`, for example `1.0.0` (not `1.0`), optional `-prerelease`. A project that is never published can keep any value. |
-| `registry` | Where dependencies come from and where `publish` goes. `crater init` fills in the default registry. See [Registry locations](#registry-locations). |
+| `registry` | Where dependencies come from and where `publish` goes. One registry or a list of them, see [Several registries](#several-registries). `crater init` fills in the default registry. See [Registry locations](#registry-locations). |
 | `repository` | Source code URL, shown on the website. |
 | `can_publish` | `true` lets `crater publish` send the package. `crater init` sets `true`; use `false` for games that are never published. |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
@@ -707,7 +707,18 @@ Any other registry with the Wally layout (a git repository with `config.json` an
 
 ### Several registries
 
-One project can take packages from several registries. `registry` stays the main one, and a dependency can name another one before `#`:
+`registry` can be one registry or a list:
+
+```json
+"registry": [
+  "https://github.com/TheExeDEV/crater-registry",
+  "https://github.com/UpliftGames/wally-index"
+]
+```
+
+A dependency without a prefix is looked up in the list from top to bottom and comes from the first registry that has it, so `"ifmnb/funny-core^0.1.0"` and `"sleitnick/knit^1"` work side by side. Dependencies of a package come from the registry the package came from, `crater.lock` remembers which one that was, `crater search` and `crater info` look in all of them, and `crater publish` sends to the first one. If two registries have a package with the same name, the one higher in the list wins; to take it from another one, name the registry explicitly as shown below.
+
+A dependency can also name a registry before `#`, which skips the search:
 
 ```json
 "import_client": [

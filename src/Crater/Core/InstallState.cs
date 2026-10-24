@@ -13,7 +13,7 @@ public static class InstallState
 		StringBuilder builder = new();
 
 		builder.Append("crater ").Append(BuildInfo.Version).Append('\n');
-		builder.Append("registry ").Append(manifest.RegistryLocation).Append('\n');
+		builder.Append("registry ").Append(string.Join(' ', manifest.RegistryLocations)).Append('\n');
 		builder.Append("style ").Append(project.Config.LinkStyle).Append('\n');
 
 		foreach ((string name, string location) in (manifest.Registries ?? []).OrderBy(pair => pair.Key, StringComparer.Ordinal))

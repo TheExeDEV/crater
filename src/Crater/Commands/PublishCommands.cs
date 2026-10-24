@@ -56,7 +56,7 @@ public static class PublishCommands
 
 		manifest.ValidateForPublish();
 
-		IRegistry registry = project.RequireRegistry();
+		IRegistry registry = project.OpenPublishRegistry() ?? project.RequireRegistry();
 		GitHubRepository? github = GitHubRepository.FromRegistry(Registries.Expand(project.RegistryLocation!));
 
 		if (github is null && registry is not LocalRegistry)

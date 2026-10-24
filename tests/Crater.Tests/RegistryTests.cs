@@ -45,3 +45,29 @@ public sealed class RegistryTests
 		Assert.Throws<CraterException>(() => NamedRegistries.Location("nope", null));
 	}
 }
+
+public sealed class RegistryListTests
+{
+	[Theory]
+	[InlineData("{\"registry\": \"https://github.com/A/r\"}", new[] { "https://github.com/A/r" })]
+	[InlineData("{\"registry\": [\"https://github.com/A/r\", \"https://github.com/B/s\"]}", new[] { "https://github.com/A/r", "https://github.com/B/s" })]
+	[InlineData("{\"registry\": \"\"}", new string[0])]
+	[InlineData("{}", new string[0])]
+	public void ReadsOneOrManyRegistries(string json, string[] expected)
+	{
+		Crater.Models.Manifest manifest = System.Text.Json.JsonSerializer.Deserialize<Crater.Models.Manifest>(json, Json.Options)!;
+
+		Assert.Equal(expected, manifest.RegistryLocations);
+		Assert.Equal(expected.FirstOrDefault() ?? "", manifest.RegistryLocation);
+	}
+
+	[Fact]
+	public void WritesASingleRegistryAsAString()
+	{
+		Crater.Models.Manifest single = new() { Registry = ["https://github.com/A/r"] };
+		Crater.Models.Manifest many = new() { Registry = ["https://github.com/A/r", "https://github.com/B/s"] };
+
+		Assert.Contains("\"registry\": \"https://github.com/A/r\"", Json.Serialize(single));
+		Assert.Contains("\"registry\": [", Json.Serialize(many));
+	}
+}

@@ -195,3 +195,78 @@ public sealed class WorkflowTests : IDisposable
 		};
 	}
 }
+
+[Collection("crater process")]
+public sealed class RegistryChainTests : IDisposable
+{
+	readonly string root = Path.Combine(Path.GetTempPath(), $"crater-chain-test-{Guid.NewGuid():N}");
+	readonly string previousDirectory = Environment.CurrentDirectory;
+
+	public RegistryChainTests()
+	{
+		Directory.CreateDirectory(Path.Combine(root, "first"));
+		Directory.CreateDirectory(Path.Combine(root, "second"));
+		Environment.SetEnvironmentVariable("CRATER_CACHE", Path.Combine(root, "cache"));
+		Environment.SetEnvironmentVariable("NO_COLOR", "1");
+	}
+
+	public void Dispose()
+	{
+		Environment.CurrentDirectory = previousDirectory;
+		Directory.Delete(root, recursive: true);
+	}
+
+	int Crater(string directory, params string[] arguments)
+	{
+		Environment.CurrentDirectory = directory;
+
+		return Program.Main(arguments).GetAwaiter().GetResult();
+	}
+
+	string Package(string name, string registry, string version, JsonNode registryValue, string[] dependencies)
+	{
+		string directory = Path.Combine(root, $"{registry}_{name.Replace('/', '_')}_{version}");
+		Directory.CreateDirectory(directory);
+
+		Assert.Equal(0, Crater(directory, "init", "--name", name, "-y"));
+
+		string manifestPath = Path.Combine(directory, "crater.json");
+		JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+
+		manifest["version"] = version;
+		manifest["registry"] = registryValue;
+		manifest["path_to_main"] = "init.luau";
+		manifest["import_client"] = new JsonArray(dependencies.Select(item => (JsonNode)item).ToArray());
+		File.WriteAllText(manifestPath, manifest.ToJsonString());
+		File.WriteAllText(Path.Combine(directory, "init.luau"), $"return \"{registry}\"\n");
+
+		return directory;
+	}
+
+	[Fact]
+	public void FindsEachPackageInTheFirstRegistryThatHasIt()
+	{
+		Assert.Equal(0, Crater(Package("t/shared", "first", "1.0.0", "../first", []), "publish", "-y"));
+		Assert.Equal(0, Crater(Package("t/shared", "second", "1.0.0", "../second", []), "publish", "-y"));
+		Assert.Equal(0, Crater(Package("t/helper", "second", "1.0.0", "../second", []), "publish", "-y"));
+		Assert.Equal(0, Crater(Package("t/tool", "second", "1.0.0", "../second", ["t/helper^1"]), "publish", "-y"));
+
+		string game = Package("t/game", "game", "0.1.0", new JsonArray("../first", "../second"), ["t/shared^1", "t/tool^1"]);
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		string packages = Path.Combine(game, "Packages");
+
+		Assert.Contains("first", File.ReadAllText(Path.Combine(packages, "shared", "init.luau")));
+		Assert.Contains("second", File.ReadAllText(Path.Combine(packages, "tool", "init.luau")));
+		Assert.True(Directory.Exists(Path.Combine(packages, "helper")));
+
+		string lockText = File.ReadAllText(Path.Combine(game, "crater.lock"));
+
+		Assert.Contains("\"registry\": \"../first\"", lockText);
+		Assert.Contains("\"registry\": \"../second\"", lockText);
+
+		Assert.Equal(1, Crater(game, "add", "t/missing^1", "-y"));
+		Assert.DoesNotContain("t/missing", File.ReadAllText(Path.Combine(game, "crater.json")));
+	}
+}

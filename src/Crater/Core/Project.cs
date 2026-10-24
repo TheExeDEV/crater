@@ -59,7 +59,23 @@ public sealed class Project
 		}
 	}
 
+	public List<string> RegistryLocations => Manifest.RegistryLocations.Count > 0
+		? Manifest.RegistryLocations
+		: BuildInfo.DefaultRegistry.Length > 0 ? [BuildInfo.DefaultRegistry] : [];
+
 	public IRegistry? OpenRegistry()
+	{
+		List<IRegistry> registries = RegistryLocations.Select(location => Registries.Open(location, Directory)).ToList();
+
+		return registries.Count switch
+		{
+			0 => null,
+			1 => registries[0],
+			_ => new RegistryChain(registries),
+		};
+	}
+
+	public IRegistry? OpenPublishRegistry()
 	{
 		string? location = RegistryLocation;
 
