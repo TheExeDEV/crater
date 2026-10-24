@@ -17,6 +17,29 @@ public static class NamedRegistries
 
 	public static bool IsBuiltin(string name) => Builtin.ContainsKey(name);
 
+	public static IEnumerable<string> BuiltinNames => ["crater", "wally", "pesde"];
+
+	public static string? NameOf(string location, Manifest? manifest)
+	{
+		string wanted = Registries.Expand(location).TrimEnd('/');
+
+		foreach ((string name, string candidate) in (manifest?.Registries ?? []).Concat(Builtin))
+		{
+			try
+			{
+				if (Registries.Expand(candidate).TrimEnd('/').Equals(wanted, StringComparison.OrdinalIgnoreCase))
+				{
+					return name;
+				}
+			}
+			catch (CraterException)
+			{
+			}
+		}
+
+		return null;
+	}
+
 	public static bool LooksLikeName(string value)
 	{
 		return value.Length > 0 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');

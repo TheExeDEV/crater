@@ -2,7 +2,7 @@
 
 ## Rules
 
-- Publish only into the folder named after your GitHub login in lowercase, or of a GitHub organization where you are a public member.
+- Publish only into the folder named after your GitHub login in lowercase, of a GitHub organization where you are a public member, or into a package that lists you in `owners` (`crater owner add`). Only the scope owner can change `owners`.
 - A published version never changes. To fix something, publish a new version.
 - Published versions are not deleted. To warn people about a bad version or an abandoned package, run `crater deprecate scope/name@1.2.3 "reason"` or `crater deprecate scope/name "reason"`. That pull request changes only the `deprecated` field in `index.json`.
 - Keep a `CHANGELOG.md` with a `## <version>` section; `crater publish` stores it in the index and the website shows it.

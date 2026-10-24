@@ -44,11 +44,11 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 		Out.Info("The registry owner checks it and adds it. GitHub notifies you when it is accepted.");
 	}
 
-	public async Task ChangeIndexAsync(string name, Func<JsonObject, string> edit)
+	public async Task ChangeIndexAsync(string name, Func<JsonObject, string> edit, bool scopeOnly = false)
 	{
 		string login = await GitHubApi.RequireLoginAsync();
 
-		await CheckScopeAsync(name, login);
+		await CheckScopeAsync(name, login, allowCoOwners: !scopeOnly);
 
 		string head = await GitHubApi.RequireAsync(HttpMethod.Get, $"repos/{registry.Slug}/git/ref/heads/{registry.Branch}", null, "object.sha");
 		string path = $"{name}/{RegistryIndex.FileName}";
@@ -232,7 +232,7 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 		}
 	}
 
-	async Task CheckScopeAsync(string name, string login)
+	async Task CheckScopeAsync(string name, string login, bool allowCoOwners = true)
 	{
 		string scope = name[..name.IndexOf('/')];
 
@@ -241,7 +241,7 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			return;
 		}
 
-		if (GitHubMembership.IsPublicMember(scope, login))
+		if (GitHubMembership.IsPublicMember(scope, login) || (allowCoOwners && await IsCoOwnerAsync(name, login)))
 		{
 			return;
 		}
@@ -256,7 +256,27 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 
 		throw new CraterException(
 			$"You are signed in as {Fmt.Val(login)}, so the package name must start with {Fmt.Pkg(login.ToLowerInvariant() + "/")} " +
-			$"or with the name of a GitHub organization you are a member of. In {Fmt.File(Manifest.FileName)} set {Fmt.Val($"\"name\": \"{expected}\"")}.");
+			$"or with the name of a GitHub organization you are a member of. In {Fmt.File(Manifest.FileName)} set {Fmt.Val($"\"name\": \"{expected}\"")}. " +
+			$"If this is a friend's package, ask them to run {Fmt.Cmd($"crater owner add {name} {login}")}.");
+	}
+
+	async Task<bool> IsCoOwnerAsync(string name, string login)
+	{
+		string? text = await Http.GetTextOrNullAsync($"{registry.RawBase(registry.Branch)}/{name}/{RegistryIndex.FileName}", GitHubAuth.Headers());
+
+		if (text is null)
+		{
+			return false;
+		}
+
+		try
+		{
+			return Json.Parse<RegistryIndex>(text, name).IsOwner(login);
+		}
+		catch (CraterException)
+		{
+			return false;
+		}
 	}
 
 	async Task MakeMembershipPublicAsync(string organization, string login)

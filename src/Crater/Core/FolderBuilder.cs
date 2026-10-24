@@ -145,6 +145,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, prepared, folder, layout, changed);
 
 		WriteAliases(layout, extracted, folder);
+		WritePesdeLinks(graph, layout, extracted, folder);
 		layout.WriteMarker(folder, Patches.Fingerprint(project, graph.All), project.Config.LinkStyle);
 		Report(graph.All.Where(changed.Contains), extracted, layout, folder);
 	}
@@ -276,6 +277,33 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			}
 
 			Out.Dim($"  {owner.Id}: its dependencies clash with other packages by name, so it gets its own links in {PackageLayout.IsolatedFolder}/{top}");
+		}
+	}
+
+	void WritePesdeLinks(ResolvedGraph graph, PackageLayout layout, Dictionary<ResolvedPackage, Extracted> extracted, string folder)
+	{
+		string style = project.Config.LinkStyle;
+
+		foreach (ResolvedPackage package in graph.All)
+		{
+			string links = Path.Combine(folder, layout.Folders[package], PackageFiles.PesdeLinkFolder);
+
+			if (!Directory.Exists(links))
+			{
+				continue;
+			}
+
+			foreach (ResolvedDependency dependency in package.Dependencies)
+			{
+				string file = Path.Combine(links, dependency.LinkName + ".luau");
+				Extracted target = extracted[dependency.Package];
+				List<TypeExport> types = target.Entry.Kind == EntryKind.Module ? target.Types : [];
+
+				if (File.Exists(file))
+				{
+					File.WriteAllText(file, Links.PrivateLink(dependency.LinkName, style, types));
+				}
+			}
 		}
 	}
 

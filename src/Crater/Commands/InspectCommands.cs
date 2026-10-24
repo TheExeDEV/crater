@@ -304,6 +304,7 @@ public static class InspectCommands
 		PrintField("realm", manifest.ImportTo);
 		PrintField("license", manifest.License);
 		PrintField("authors", string.Join(", ", manifest.Authors));
+		PrintField("owners", string.Join(", ", index.Owners ?? []));
 		PrintField("keywords", string.Join(", ", manifest.Keywords ?? []));
 		PrintField("repository", manifest.Repository);
 		PrintField("published", latest.PublishedAt?.ToString("yyyy-MM-dd") ?? "");

@@ -26,6 +26,8 @@ public sealed partial class RegistryChecker(string root)
 	public int ScannedVersions { get; private set; }
 	public List<string> Reviews { get; } = [];
 
+	readonly Dictionary<string, RegistryIndex?> baseIndexes = [];
+
 	public void CheckContents()
 	{
 		foreach (string entry in Directory.EnumerateFileSystemEntries(root).OrderBy(path => path, StringComparer.Ordinal))
@@ -283,7 +285,13 @@ public sealed partial class RegistryChecker(string root)
 				continue;
 			}
 
-			bool ownFolder = ownScope is null || isMaintainer || segments[0] == ownScope || GitHubMembership.IsPublicMember(segments[0], author!);
+			bool scopeOwner = ownScope is null || isMaintainer || segments[0] == ownScope || GitHubMembership.IsPublicMember(segments[0], author!);
+			bool ownFolder = scopeOwner || BaseIndex(baseRef, segments)?.IsOwner(author!) == true;
+
+			if (segments[2] == RegistryIndex.FileName && !scopeOwner && OwnersChanged(baseRef, segments))
+			{
+				Errors.Add($"{Fmt.File(path)}: only {Fmt.Val(segments[0])} can change the owners of {Fmt.Pkg($"{segments[0]}/{segments[1]}")}");
+			}
 
 			if (!ownFolder)
 			{
@@ -302,6 +310,43 @@ public sealed partial class RegistryChecker(string root)
 				ScanNewVersion(path, segments);
 			}
 		}
+	}
+
+	RegistryIndex? BaseIndex(string baseRef, string[] segments)
+	{
+		string key = $"{segments[0]}/{segments[1]}";
+
+		if (baseIndexes.TryGetValue(key, out RegistryIndex? cached))
+		{
+			return cached;
+		}
+
+		ShellResult result = Shell.Capture("git", ["show", $"{baseRef}:{key}/{RegistryIndex.FileName}"], root);
+		RegistryIndex? index = null;
+
+		if (result.Success)
+		{
+			try
+			{
+				index = Json.Parse<RegistryIndex>(result.Output, $"{baseRef}:{key}");
+			}
+			catch (CraterException)
+			{
+			}
+		}
+
+		baseIndexes[key] = index;
+
+		return index;
+	}
+
+	bool OwnersChanged(string baseRef, string[] segments)
+	{
+		string path = Path.Combine(root, segments[0], segments[1], RegistryIndex.FileName);
+		List<string> before = BaseIndex(baseRef, segments)?.Owners ?? [];
+		List<string> after = File.Exists(path) ? Try(() => Json.ReadFile<RegistryIndex>(path), path)?.Owners ?? [] : [];
+
+		return !before.Select(owner => owner.ToLowerInvariant()).Order().SequenceEqual(after.Select(owner => owner.ToLowerInvariant()).Order());
 	}
 
 	void ScanNewVersion(string path, string[] segments)
@@ -431,6 +476,19 @@ public sealed partial class RegistryChecker(string root)
 		Dictionary<string, RegistryRelease> current = newIndex.Versions
 			.GroupBy(release => release.Version)
 			.ToDictionary(group => group.Key, group => group.First());
+
+		bool publishes = newIndex.Versions.Any(release => oldIndex.Versions.All(old => old.Version != release.Version));
+		bool lostData = publishes && (
+			oldIndex.Deprecated != newIndex.Deprecated ||
+			!(oldIndex.Owners ?? []).SequenceEqual(newIndex.Owners ?? []) ||
+			oldIndex.Versions.Any(old => current.TryGetValue(old.Version, out RegistryRelease? now) && (now.Notes != old.Notes || now.Deprecated != old.Deprecated)));
+
+		if (lostData)
+		{
+			Errors.Add(
+				$"{Fmt.File(path)}: publishing a new version also changed the owners, deprecation or changelog of the package. " +
+				$"Update crater ({Fmt.Cmd("crater self-update")}) and publish again.");
+		}
 
 		foreach (RegistryRelease old in oldIndex.Versions)
 		{

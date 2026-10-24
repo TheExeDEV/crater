@@ -15,7 +15,7 @@ public static class CompletionCommand
 	[
 		"init", "import", "bump", "run", "dev", "doctor",
 		"install", "update", "add", "remove", "outdated", "list", "graph", "why", "patch", "unused", "size", "licenses",
-		"search", "info", "versions", "pack", "publish", "deprecate", "login", "logout", "whoami", "registry", "tool",
+		"search", "info", "versions", "pack", "publish", "deprecate", "owner", "login", "logout", "whoami", "registry", "tool",
 		"cache", "completion", "self-update", "version",
 	];
 
@@ -27,7 +27,7 @@ public static class CompletionCommand
 		["import"] = ["--force", "--registry"],
 		["install"] = ["--workspace", "--locked"],
 		["update"] = ["--interactive", "--workspace"],
-		["add"] = ["--client", "--server", "--dev"],
+		["add"] = ["--client", "--server", "--dev", "--packages-list"],
 		["remove"] = ["--client", "--server", "--dev"],
 		["outdated"] = ["--all"],
 		["publish"] = ["--dry-run", "--workspace"],
@@ -51,6 +51,7 @@ public static class CompletionCommand
 		["cache"] = ["clean"],
 		["bump"] = ["patch", "minor", "major"],
 		["completion"] = ["install", "powershell", "bash", "zsh", "fish"],
+		["owner"] = ["add", "remove", "list"],
 	};
 
 	static readonly Dictionary<string, string> Aliases = new()

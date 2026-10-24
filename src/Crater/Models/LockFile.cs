@@ -13,6 +13,8 @@ public sealed class LockFile
 	[JsonPropertyName("manifest_hash")] public string? ManifestHash { get; set; }
 	[JsonPropertyName("packages")] public List<LockedPackage> Packages { get; set; } = [];
 
+	[JsonIgnore] public bool HadConflicts { get; private set; }
+
 	public static LockFile Load(string path)
 	{
 		if (!File.Exists(path))
@@ -20,7 +22,90 @@ public sealed class LockFile
 			return new LockFile();
 		}
 
-		return Json.ReadFile<LockFile>(path);
+		string text = File.ReadAllText(path);
+
+		if (!HasConflictMarkers(text))
+		{
+			return Json.Parse<LockFile>(text, path);
+		}
+
+		Out.Warn($"{Fmt.File(FileName)} has git merge conflicts. crater keeps the versions from both sides and rebuilds it from {Fmt.File(Manifest.FileName)}.");
+
+		return Merge(text, path);
+	}
+
+	public static bool HasConflictMarkers(string text)
+	{
+		return text.Replace("\r\n", "\n").Split('\n').Any(line => line.StartsWith("<<<<<<<", StringComparison.Ordinal));
+	}
+
+	static LockFile Merge(string text, string path)
+	{
+		(string ours, string theirs) = Sides(text);
+		List<LockedPackage> packages = [];
+
+		foreach (string side in new[] { ours, theirs })
+		{
+			try
+			{
+				packages.AddRange(Json.Parse<LockFile>(side, path).Packages);
+			}
+			catch (CraterException)
+			{
+			}
+		}
+
+		return new LockFile
+		{
+			Packages = packages.DistinctBy(package => (package.Realm, package.Name)).ToList(),
+			HadConflicts = true,
+		};
+	}
+
+	static (string Ours, string Theirs) Sides(string text)
+	{
+		System.Text.StringBuilder ours = new();
+		System.Text.StringBuilder theirs = new();
+		int state = 0;
+
+		foreach (string line in text.Replace("\r\n", "\n").Split('\n'))
+		{
+			if (line.StartsWith("<<<<<<<", StringComparison.Ordinal))
+			{
+				state = 1;
+				continue;
+			}
+
+			if (line.StartsWith("|||||||", StringComparison.Ordinal) && state == 1)
+			{
+				state = 3;
+				continue;
+			}
+
+			if (line.StartsWith("=======", StringComparison.Ordinal) && state is 1 or 3)
+			{
+				state = 2;
+				continue;
+			}
+
+			if (line.StartsWith(">>>>>>>", StringComparison.Ordinal) && state == 2)
+			{
+				state = 0;
+				continue;
+			}
+
+			if (state is 0 or 1)
+			{
+				ours.Append(line).Append('\n');
+			}
+
+			if (state is 0 or 2)
+			{
+				theirs.Append(line).Append('\n');
+			}
+		}
+
+		return (ours.ToString(), theirs.ToString());
 	}
 
 	public IEnumerable<LockedPackage> For(Realm realm) => Packages.Where(package => package.Realm == realm.Key());
