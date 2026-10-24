@@ -51,6 +51,7 @@ public static class Help
 	static readonly Entry[] Flags =
 	[
 		new("-y, --yes", "do not ask for confirmation"),
+		new("--offline", "use only the cache, no internet"),
 		new("-h, --help", "show help"),
 	];
 

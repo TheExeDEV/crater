@@ -33,6 +33,11 @@ public static class Program
 
 		Args args = Args.Parse(argv);
 
+		if (args.Has("offline"))
+		{
+			Http.Offline = true;
+		}
+
 		if (args.Command is null || args.Command == "help" || args.Has("h", "help"))
 		{
 			Help.Print();

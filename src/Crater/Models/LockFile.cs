@@ -10,6 +10,7 @@ public sealed class LockFile
 	public const string FileName = "crater.lock";
 
 	[JsonPropertyName("lock_version")] public int LockVersion { get; set; } = 1;
+	[JsonPropertyName("manifest_hash")] public string? ManifestHash { get; set; }
 	[JsonPropertyName("packages")] public List<LockedPackage> Packages { get; set; } = [];
 
 	public static LockFile Load(string path)
