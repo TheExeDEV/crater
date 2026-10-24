@@ -743,13 +743,13 @@ Any other registry with the Wally layout (a git repository with `config.json` an
 ]
 ```
 
-A dependency without a prefix is looked up in the list from top to bottom and comes from the first registry that has it, so `"ifmnb/funny-core^0.1.0"` and `"sleitnick/knit^1"` work side by side. Dependencies of a package come from the registry the package came from, `crater.lock` remembers which one that was, `crater search` and `crater info` look in all of them, and `crater publish` sends to the first one. If two registries have a package with the same name, the one higher in the list wins; to take it from another one, name the registry explicitly as shown below.
+A dependency without a prefix is looked up in the list from top to bottom and comes from the first registry that has it, so `"funnydevz/funny-core^0.1.0"` and `"sleitnick/knit^1"` work side by side. Dependencies of a package come from the registry the package came from, `crater.lock` remembers which one that was, `crater search` and `crater info` look in all of them, and `crater publish` sends to the first one. If two registries have a package with the same name, the one higher in the list wins; to take it from another one, name the registry explicitly as shown below.
 
 A dependency can also name a registry before `#`, which skips the search:
 
 ```json
 "import_client": [
-  "ifmnb/funny-core^0.1.0",
+  "funnydevz/funny-core^0.1.0",
   "wally#sleitnick/knit^1",
   "Promise:wally#evaera/promise^4"
 ]
