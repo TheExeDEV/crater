@@ -26,6 +26,8 @@ public static partial class ReviewCommand
 		GitHubRepository registry = RegistryRepository(args, request);
 		int number = PullUrl().Match(request) is { Success: true } match ? int.Parse(match.Groups["number"].Value) : int.TryParse(request.TrimStart('#'), out int parsed) ? parsed : throw new CraterException($"{Fmt.Val(request)} is not a pull request number or link.");
 
+		await RequireMaintainerAsync(registry);
+
 		JsonElement pull = await GitHubApi.GetAsync($"repos/{registry.Slug}/pulls/{number}")
 			?? throw new CraterException($"Pull request #{number} not found in {Fmt.Val(registry.Slug)}.");
 
@@ -77,6 +79,19 @@ public static partial class ReviewCommand
 		}
 
 		return 0;
+	}
+
+	static async Task RequireMaintainerAsync(GitHubRepository registry)
+	{
+		string login = await GitHubApi.RequireLoginAsync();
+		bool isMaintainer = registry.Owner.Equals(login, StringComparison.OrdinalIgnoreCase)
+			|| await GitHubApi.HasPermissionAsync(registry.Slug, "push");
+
+		if (!isMaintainer)
+		{
+			throw new CraterException(
+				$"{Fmt.Cmd("crater review")} is for the maintainers of {Fmt.Val(registry.Slug)}, and {Fmt.Val(login)} cannot merge there.");
+		}
 	}
 
 	static GitHubRepository RegistryRepository(Args args, string request)
