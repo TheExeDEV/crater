@@ -98,7 +98,7 @@ public sealed class EndToEndTests : IDisposable
 		JsonObject settings = JsonNode.Parse(File.ReadAllText(Path.Combine(game, ".vscode", "settings.json")))!.AsObject();
 		JsonObject definitions = settings["luau-lsp.types.definitionFiles"]!.AsObject();
 
-		Assert.Equal("Packages/janitor/src/janitor.d.luau", definitions["@janitor"]!.GetValue<string>());
+		Assert.Equal("Packages/janitor/src/janitor.d.luau", definitions["@janitor@1.0.0"]!.GetValue<string>());
 
 		Assert.Equal(0, Crater(game, "install", "--locked", "-y"));
 		Assert.Equal(0, Crater(game, "doctor"));

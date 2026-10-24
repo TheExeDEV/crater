@@ -15,7 +15,7 @@ public static class Patches
 	public const string DeletedFile = ".deleted";
 	public const string MarkerKey = "#patches";
 
-	static readonly string[] Ignored = [PackageEntry.RojoProject, PackageLayout.MarkerFile];
+	static readonly string[] Ignored = [PackageEntry.RojoProject, PackageLayout.MarkerFile, PackageMeta.FileName];
 
 	public static string Root(Project project) => Path.Combine(project.Directory, FolderName);
 

@@ -42,21 +42,30 @@ public sealed class PackageContentTests : IDisposable
 	}
 
 	[Fact]
-	public void KeepsOnlyTheProjectPathLicenseAndManifest()
+	public void LiftsTheProjectPathAndKeepsOnlyCodeAndLicense()
 	{
-		Write("lib/init.lua", "lib/Sub/init.lua", "docs/intro.md", "modules/testez/init.lua", "runTests.server.lua");
+		Write("lib/init.lua", "lib/init.spec.lua", "lib/Sub/init.lua", "docs/intro.md", "modules/testez/init.lua", "runTests.server.lua");
 		File.WriteAllText(Path.Combine(root, "default.project.json"), "{\"name\":\"promise\",\"tree\":{\"$path\":\"lib\"}}");
 		File.WriteAllText(Path.Combine(root, "LICENSE"), "MIT");
 		File.WriteAllText(Path.Combine(root, "README.md"), "readme");
-		File.WriteAllText(Path.Combine(root, "wally.toml"), "[package]");
+		File.WriteAllText(Path.Combine(root, "wally.toml"), "[package]\nlicense = \"MIT\"\n");
 		File.WriteAllText(Path.Combine(root, "aftman.toml"), "[tools]");
 
-		PackageFiles.Prepare("evaera/promise@4.0.0", root, "Promise", new Manifest(), quiet: true);
+		Manifest manifest = new() { Name = "evaera/promise", Version = "4.0.0", ImportClient = ["Util:someone/util^1.0.0"] };
+
+		PackageFiles.Prepare("evaera/promise@4.0.0", root, "Promise", manifest, quiet: true);
 
 		string[] left = Directory.EnumerateFileSystemEntries(root).Select(Path.GetFileName).OfType<string>().Order(StringComparer.Ordinal).ToArray();
 
-		Assert.Equal(["LICENSE", "default.project.json", "lib", "wally.toml"], left);
-		Assert.True(File.Exists(Path.Combine(root, "lib", "Sub", "init.lua")));
+		Assert.Equal([".crater-package", "LICENSE", "Sub", "init.lua"], left);
+
+		PackageMeta meta = PackageMeta.Read(root)!;
+
+		Assert.Equal("evaera/promise", meta.Name);
+		Assert.Equal("MIT", meta.License);
+		Assert.Equal("external", meta.Source);
+		Assert.Equal(["Util:someone/util^1.0.0"], meta.ImportClient);
+		Assert.Equal(EntryKind.Module, PackageEntry.Analyze(root, "", "evaera/promise").Kind);
 		Assert.Empty(PackageScripts.InDirectory(root));
 	}
 
