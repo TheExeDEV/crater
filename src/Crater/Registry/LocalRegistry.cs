@@ -7,6 +7,8 @@ public sealed class LocalRegistry(string root) : IRegistry
 {
 	readonly Dictionary<string, RegistryIndex?> indexes = [];
 
+	public const string SourceFolder = "source";
+
 	public string Location => root;
 
 	public bool IsGitRepository => Directory.Exists(Path.Combine(root, ".git"));
@@ -77,6 +79,15 @@ public sealed class LocalRegistry(string root) : IRegistry
 
 		Json.WriteText(indexPath, Json.Serialize(index));
 		indexes.Remove(fullName);
+
+		string source = Path.Combine(directory, SourceFolder);
+
+		if (Directory.Exists(source))
+		{
+			Directory.Delete(source, recursive: true);
+		}
+
+		Crater.Core.Packer.Extract(archive, source, $"{fullName}@{release.Version}");
 
 		if (!IsGitRepository)
 		{

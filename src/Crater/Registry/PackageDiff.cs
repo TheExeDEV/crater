@@ -88,7 +88,7 @@ public static class PackageDiff
 		{
 			if (markdown.Length > budget)
 			{
-				markdown.AppendLine("_The rest is cut to keep this summary small. Run `crater review` locally to see everything._");
+				markdown.AppendLine("_The rest is cut to keep this summary small. The Files changed tab of the pull request has every file under `source/`._");
 				break;
 			}
 

@@ -127,12 +127,61 @@ public sealed partial class RegistryChecker(string root)
 			CheckRelease(directory, fullName, release, label);
 		}
 
+		expectedFiles.Add(LocalRegistry.SourceFolder);
+
 		foreach (string file in Directory.EnumerateFileSystemEntries(directory))
 		{
 			if (!expectedFiles.Contains(Path.GetFileName(file)))
 			{
 				Errors.Add($"Unexpected {Fmt.File(Relative(file))}, it is not listed in {Fmt.File(RegistryIndex.FileName)}");
 			}
+		}
+
+		CheckSource(directory, fullName, index);
+	}
+
+	void CheckSource(string directory, string fullName, RegistryIndex index)
+	{
+		string source = Path.Combine(directory, LocalRegistry.SourceFolder);
+
+		if (!Directory.Exists(source))
+		{
+			return;
+		}
+
+		RegistryRelease? newest = index.Versions
+			.Where(release => SemVer.TryParse(release.Version, out _))
+			.OrderBy(release => release.PublishedAt ?? DateTimeOffset.MinValue)
+			.ThenBy(release => SemVer.Parse(release.Version))
+			.LastOrDefault();
+
+		string archivePath = newest is null ? "" : Path.Combine(directory, newest.Version + ".zip");
+
+		if (newest is null || !File.Exists(archivePath))
+		{
+			return;
+		}
+
+		Dictionary<string, byte[]>? packed = Try(() => PackageDiff.Read(File.ReadAllBytes(archivePath)), Relative(archivePath));
+
+		if (packed is null)
+		{
+			return;
+		}
+
+		Dictionary<string, byte[]> shown = Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)
+			.ToDictionary(file => Path.GetRelativePath(source, file).Replace('\\', '/'), File.ReadAllBytes, StringComparer.Ordinal);
+
+		List<string> problems = packed.Keys.Union(shown.Keys)
+			.Order(StringComparer.Ordinal)
+			.Where(path => !packed.TryGetValue(path, out byte[]? inArchive) || !shown.TryGetValue(path, out byte[]? inSource) || !inArchive.AsSpan().SequenceEqual(inSource))
+			.ToList();
+
+		if (problems.Count > 0)
+		{
+			Errors.Add(
+				$"{Fmt.File(Relative(source))} does not match {Fmt.File(Relative(archivePath))} ({fullName}@{newest.Version}): " +
+				$"{string.Join(", ", problems.Take(5))}{(problems.Count > 5 ? $" and {problems.Count - 5} more" : "")}. Publish again with {Fmt.Cmd("crater publish")}.");
 		}
 	}
 
@@ -222,7 +271,7 @@ public sealed partial class RegistryChecker(string root)
 			char status = parts[0][0];
 			string path = parts[1].Replace('\\', '/');
 			string[] segments = path.Split('/');
-			bool isPackageFile = segments.Length == 3 && !segments[0].StartsWith('.');
+			bool isPackageFile = (segments.Length == 3 || (segments.Length > 3 && segments[2] == LocalRegistry.SourceFolder)) && !segments[0].StartsWith('.');
 
 			if (!isPackageFile)
 			{
@@ -276,6 +325,11 @@ public sealed partial class RegistryChecker(string root)
 		}
 
 		CheckScriptsList(archivePath, segments, packageId);
+
+		if (!Directory.Exists(Path.Combine(root, segments[0], segments[1], LocalRegistry.SourceFolder)))
+		{
+			Errors.Add($"{Fmt.Pkg(packageId)}: the pull request has no {LocalRegistry.SourceFolder}/ folder with the unpacked code. Publish it with a current crater ({Fmt.Cmd("crater self-update")}).");
+		}
 		DescribeChanges(archivePath, segments, packageId);
 	}
 
