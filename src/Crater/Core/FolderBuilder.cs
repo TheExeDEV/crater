@@ -82,7 +82,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 		WriteAliases(layout, extracted, folder);
 		layout.WriteMarker(folder);
-		Report(graph, extracted);
+		Report(graph, extracted, layout, folder);
 	}
 
 	sealed record Extracted(PackageEntry Entry, List<TypeExport> Types);
@@ -144,7 +144,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			Directory.CreateDirectory(content);
 			Packer.Extract(archives[package], content, package.Id);
 
-			RenameRojoProject(content, layout.Folders[package]);
+			PrepareRojoProject(package, content, layout.Folders[package]);
 
 			PackageEntry entry = PackageEntry.Analyze(content, package.Manifest.PathToMain);
 			List<TypeExport> types = entry.MainFile is null ? [] : TypeExports.Parse(File.ReadAllText(entry.MainFile));
@@ -160,7 +160,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		return extracted;
 	}
 
-	static void RenameRojoProject(string content, string name)
+	static void PrepareRojoProject(ResolvedPackage package, string content, string name)
 	{
 		string path = Path.Combine(content, PackageEntry.RojoProject);
 
@@ -172,15 +172,28 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		try
 		{
 			JsonObject project = Json.ReadObject(path);
+			JsonObject? tree = project["tree"] as JsonObject;
+			string? className = tree?["$className"]?.GetValue<string>();
+			string? target = tree?["$path"]?.GetValue<string>();
+			bool targetExists = target is not null && (Directory.Exists(Path.Combine(content, target)) || File.Exists(Path.Combine(content, target)));
+
+			if (className == "DataModel" || !targetExists)
+			{
+				File.Delete(path);
+				Out.Dim($"  {package.Id}: ignored its {PackageEntry.RojoProject}, it does not describe the package");
+				return;
+			}
 
 			project["name"] = name;
 			Json.WriteText(path, Json.Serialize(project));
 		}
-		catch (Exception exception) when (exception is System.Text.Json.JsonException or CraterException)
+		catch (Exception exception) when (exception is System.Text.Json.JsonException or InvalidOperationException or CraterException)
 		{
-			Out.Warn($"{PackageEntry.RojoProject} in {Fmt.File(name)} could not be read, Rojo may name it differently");
+			File.Delete(path);
+			Out.Dim($"  {package.Id}: ignored its {PackageEntry.RojoProject}, it could not be read");
 		}
 	}
+
 
 	static void WriteInit(ResolvedPackage package, string content, string text)
 	{
@@ -208,7 +221,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		}
 	}
 
-	static void Report(ResolvedGraph graph, Dictionary<ResolvedPackage, Extracted> extracted)
+	static void Report(ResolvedGraph graph, Dictionary<ResolvedPackage, Extracted> extracted, PackageLayout layout, string folder)
 	{
 		foreach (ResolvedPackage package in graph.All)
 		{
@@ -216,9 +229,13 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 			if (item.Entry.Kind == EntryKind.Missing)
 			{
-				Out.Warn(
-					$"{Fmt.Pkg(package.Id)} has no main module and no modules to expose " +
-					$"(path_to_main = {Fmt.File(package.Manifest.PathToMain.Length == 0 ? "\"\"" : package.Manifest.PathToMain)}), require will fail");
+				string name = layout.Folders[package];
+				string? example = ExampleModule(Path.Combine(folder, name));
+				string hint = example is null
+					? "it has no Luau modules"
+					: $"require its modules by path, for example {Fmt.Cmd($"require(Packages[\"{name}\"]{example})")}";
+
+				Out.Info($"  {Fmt.Pkg(package.Id)} has no main module: {hint}");
 			}
 
 			foreach (TypeExport type in item.Types.Where(type => type.Approximated))
@@ -227,4 +244,25 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			}
 		}
 	}
+
+	static string? ExampleModule(string content)
+	{
+		string? file = Directory.EnumerateFiles(content, "*", SearchOption.AllDirectories)
+			.Where(path => Path.GetExtension(path) is ".luau" or ".lua")
+			.Where(path => !Path.GetFileNameWithoutExtension(path).Contains('.'))
+			.Select(path => Path.GetRelativePath(content, path).Replace('\\', '/'))
+			.OrderBy(path => path.Count(character => character == '/'))
+			.ThenBy(path => path, StringComparer.Ordinal)
+			.FirstOrDefault(path => path.Contains('/'));
+
+		if (file is null)
+		{
+			return null;
+		}
+
+		List<string> segments = Links.MainSegments(file);
+
+		return string.Concat(segments.Select(segment => $"[\"{segment}\"]"));
+	}
 }
+

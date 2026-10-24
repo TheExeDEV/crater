@@ -52,6 +52,7 @@ public static class Help
 		new("scope/name=1.2.3", "exactly 1.2.3"),
 		new("scope/name+1.2.3", "1.2.3 or newer"),
 		new("scope/name^1.2.3", "compatible (>=1.2.3 <2.0.0)"),
+		new("scope/name@1.2.3", "the same, safe in the Windows terminal"),
 		new("scope/name~1.2.3", "patch updates only (>=1.2.3 <1.3.0)"),
 		new("Alias:scope/name^", "install under another link name"),
 		new("scope/name@path:../lib", "use a local folder"),

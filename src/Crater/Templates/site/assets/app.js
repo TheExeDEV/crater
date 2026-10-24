@@ -443,7 +443,7 @@ async function renderPackage(fullName, requestedVersion) {
       element("aside", { className: "side" },
         element("div", { className: "panel" },
           element("h3", { className: "label", text: "Install" }),
-          snippet(`crater add ${fullName}^${release.version}`),
+          snippet(`crater add ${fullName}@${release.version}`),
           snippet(`"${fullName}^${release.version}"`),
           configValue ? snippet(`"registry": "${configValue}"`) : null,
         ),
