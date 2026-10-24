@@ -74,10 +74,13 @@ public static class ToolCommand
 			return;
 		}
 
+		bool anyNew = false;
+
 		foreach ((string name, string text) in tools)
 		{
 			ToolSpec spec = ToolSpec.Parse(name, text);
 			bool installed = ToolStore.IsInstalled(name, spec);
+			anyNew |= !installed;
 
 			await ToolStore.InstallAsync(name, spec);
 			ToolStore.WriteShim(name);
@@ -88,7 +91,10 @@ public static class ToolCommand
 			}
 		}
 
-		WarnIfShimsHidden(tools.Keys);
+		if (announce || anyNew)
+		{
+			WarnIfShimsHidden(tools.Keys);
+		}
 	}
 
 	static async Task AddAsync(Args args)
