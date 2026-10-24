@@ -203,7 +203,7 @@ Every project and every package has a `crater.json`.
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
 | `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
 | `scripts` | Commands for `crater run`. |
-| `exclude` | Extra glob patterns left out of the published archive. |
+| `exclude` | Extra glob patterns left out of the published archive, on top of `.gitignore` and `.craterignore`. |
 
 ---
 
@@ -934,7 +934,19 @@ crater does not download the registry for this: it reads the index of your packa
 
 ### What goes into the package
 
-Everything in the package folder except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the installed package folders and the patterns in `exclude`. Archives use fixed timestamps, so the same files always give the same sha256. Before sending, crater scans the files like the registry check does; an executable stops the publish.
+Everything in the package folder except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the installed package folders, whatever your `.gitignore` and `.craterignore` files ignore, and the patterns in `exclude`. Archives use fixed timestamps, so the same files always give the same sha256. Before sending, crater scans the files like the registry check does; an executable stops the publish.
+
+`.gitignore` and `.craterignore` follow git's rules: `*`, `**`, `?`, `[...]`, a leading `/` to anchor to the file's folder, a trailing `/` for folders only, `!` to bring a file back and `#` for comments. Files in subfolders apply to that subfolder. `.craterignore` is read after `.gitignore` in the same folder, so it can add rules just for packages or bring back something git ignores:
+
+```
+# .craterignore
+tests/
+*.story.luau
+!build/types.d.luau
+```
+
+As in git, a file inside an ignored folder cannot be brought back; un-ignore the folder first. Neither file goes into the package. Run `crater pack` to see the exact list of files.
+
 
 ### Local folder registries
 
