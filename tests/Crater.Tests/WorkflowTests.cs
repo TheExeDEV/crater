@@ -358,6 +358,29 @@ public sealed class LuauRcTests : IDisposable
 	}
 
 	[Fact]
+	public void UsesAliasNamesFromSettings()
+	{
+		Assert.Equal(0, Crater(Project("t/lib", []), "publish", "-y"));
+
+		string game = Project("t/game", ["t/lib^1"]);
+		string settingsPath = Path.Combine(game, "crater.settings.json");
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		JsonObject settings = JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
+		settings["import_client_alias"] = "@Shared";
+		File.WriteAllText(settingsPath, settings.ToJsonString());
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		JsonObject aliases = JsonNode.Parse(File.ReadAllText(Path.Combine(game, ".luaurc")))!["aliases"]!.AsObject();
+
+		Assert.Equal("./Packages", aliases["Shared"]!.GetValue<string>());
+		Assert.False(aliases.ContainsKey("Packages"));
+		Assert.Equal(0, Crater(game, "doctor"));
+	}
+
+	[Fact]
 	public void DefaultLuaurcStaysInTheProjectRoot()
 	{
 		Assert.Equal(0, Crater(Project("t/lib", []), "publish", "-y"));
