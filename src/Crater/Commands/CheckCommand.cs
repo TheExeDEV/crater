@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Crater.Cli;
 using Crater.Core;
+using Crater.Integrations;
 using Crater.Models;
 using Crater.Util;
 
@@ -28,6 +29,11 @@ public static class CheckCommand
 		try
 		{
 			List<string> arguments = ["analyze", "--platform=roblox", $"--definitions=@roblox={await RobloxTypesAsync()}"];
+
+			if (LuauRc.IsCustom(project) && File.Exists(LuauRc.PathIn(project)))
+			{
+				arguments.Add($"--base-luaurc={LuauRc.PathIn(project)}");
+			}
 
 			string? sourcemap = await SourcemapAsync(project, temporary);
 

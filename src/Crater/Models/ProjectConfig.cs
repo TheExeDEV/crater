@@ -14,6 +14,7 @@ public sealed class ProjectConfig
 	[JsonPropertyName("import_develop_path")] public string ImportDevelopPath { get; set; } = "";
 
 	[JsonPropertyName("on_install_update_luaurc")] public bool OnInstallUpdateLuaurc { get; set; } = true;
+	[JsonPropertyName("luaurc_path")] public string LuaurcPath { get; set; } = ".luaurc";
 	[JsonPropertyName("on_install_update_vscode_luau_definition_files")] public bool OnInstallUpdateVscodeLuauDefinitionFiles { get; set; } = true;
 	[JsonPropertyName("on_install_should_i_ask_your_permission_to_do_any_action")] public bool OnInstallShouldIAskYourPermissionToDoAnyAction { get; set; } = true;
 

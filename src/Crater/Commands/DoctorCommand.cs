@@ -247,7 +247,8 @@ public static class DoctorCommand
 			return;
 		}
 
-		JsonObject root = Json.ReadObject(Path.Combine(project.Directory, LuauRc.FileName));
+		string shown = LuauRc.RelativePath(project);
+		JsonObject root = Json.ReadObject(LuauRc.PathIn(project));
 		JsonObject? aliases = root["aliases"] as JsonObject;
 
 		foreach ((Realm realm, string folder) in project.Config.ConfiguredFolders())
@@ -260,13 +261,13 @@ public static class DoctorCommand
 			string alias = LuauRc.AliasFor(folder);
 			string? value = aliases?[alias]?.GetValue<string>();
 
-			if (value == "./" + folder)
+			if (value == LuauRc.AliasValue(project, folder))
 			{
-				report.Pass($"{Fmt.File(LuauRc.FileName)} alias {Fmt.Val("@" + alias)} points to {Fmt.File(folder)}");
+				report.Pass($"{Fmt.File(shown)} alias {Fmt.Val("@" + alias)} points to {Fmt.File(folder)}");
 			}
 			else
 			{
-				report.Warn($"{Fmt.File(LuauRc.FileName)} has no alias {Fmt.Val("@" + alias)} for {Fmt.File(folder)}. Run {Fmt.Cmd("crater install")}.");
+				report.Warn($"{Fmt.File(shown)} has no alias {Fmt.Val("@" + alias)} for {Fmt.File(folder)}. Run {Fmt.Cmd("crater install")}.");
 			}
 		}
 	}

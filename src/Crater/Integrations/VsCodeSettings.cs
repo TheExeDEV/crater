@@ -11,18 +11,33 @@ public static class VsCodeSettings
 
 	public static string PathIn(Project project) => Path.Combine(project.Directory, ".vscode", "settings.json");
 
+	public const string BaseLuaurcKey = "luau-lsp.server.baseLuaurc";
+
 	public static void Update(Project project, IReadOnlyDictionary<Realm, ResolvedGraph> graphs, Prompter prompt)
 	{
 		string path = PathIn(project);
-		List<(ResolvedPackage Package, string Path)> definitions = Layout.DefinitionFiles(project, graphs).ToList();
+		bool writeDefinitions = project.Config.OnInstallUpdateVscodeLuauDefinitionFiles;
+		bool writeBaseLuaurc = project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project);
+		List<(ResolvedPackage Package, string Path)> definitions = writeDefinitions ? Layout.DefinitionFiles(project, graphs).ToList() : [];
 
-		if (!File.Exists(path) && definitions.Count == 0)
+		if (!File.Exists(path) && definitions.Count == 0 && !writeBaseLuaurc)
 		{
 			return;
 		}
 
 		JsonObject root = Json.ReadObject(path);
 		string before = Json.Serialize(root);
+
+		if (writeBaseLuaurc)
+		{
+			root[BaseLuaurcKey] = LuauRc.RelativePath(project);
+		}
+
+		if (!writeDefinitions)
+		{
+			Save(path, root, before, prompt, $"Set {Fmt.Val(BaseLuaurcKey)} to {Fmt.File(LuauRc.RelativePath(project))}");
+			return;
+		}
 		List<string> prefixes = Layout.ManagedPrefixes(project).ToList();
 
 		bool IsManaged(JsonNode? node)
@@ -51,6 +66,14 @@ public static class VsCodeSettings
 			root.Remove(Key);
 		}
 
+		string count = Fmt.Plural(definitions.Count, "file", "files");
+		string extra = writeBaseLuaurc ? $" and {Fmt.Val(BaseLuaurcKey)}" : "";
+
+		Save(path, root, before, prompt, $"Update {Fmt.Val(Key)} ({count}){extra}");
+	}
+
+	static void Save(string path, JsonObject root, string before, Prompter prompt, string action)
+	{
 		string after = Json.Serialize(root);
 
 		if (after == before)
@@ -58,11 +81,9 @@ public static class VsCodeSettings
 			return;
 		}
 
-		string shown = Fmt.File(".vscode/settings.json");
-		string count = Fmt.Plural(definitions.Count, "file", "files");
-
-		if (prompt.Confirm($"Update {Fmt.Val(Key)} in {shown} ({count}){LuauRc.CommentsNote(path)}"))
+		if (prompt.Confirm($"{action} in {Fmt.File(".vscode/settings.json")}{LuauRc.CommentsNote(path)}"))
 		{
+			Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 			Json.WriteText(path, after);
 		}
 	}

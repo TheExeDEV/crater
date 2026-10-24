@@ -270,3 +270,94 @@ public sealed class RegistryChainTests : IDisposable
 		Assert.DoesNotContain("t/missing", File.ReadAllText(Path.Combine(game, "crater.json")));
 	}
 }
+
+[Collection("crater process")]
+public sealed class LuauRcTests : IDisposable
+{
+	readonly string root = Path.Combine(Path.GetTempPath(), $"crater-luaurc-test-{Guid.NewGuid():N}");
+	readonly string previousDirectory = Environment.CurrentDirectory;
+
+	public LuauRcTests()
+	{
+		Directory.CreateDirectory(Path.Combine(root, "registry"));
+		Environment.SetEnvironmentVariable("CRATER_CACHE", Path.Combine(root, "cache"));
+		Environment.SetEnvironmentVariable("NO_COLOR", "1");
+	}
+
+	public void Dispose()
+	{
+		Environment.CurrentDirectory = previousDirectory;
+		Directory.Delete(root, recursive: true);
+	}
+
+	int Crater(string directory, params string[] arguments)
+	{
+		Environment.CurrentDirectory = directory;
+
+		return Program.Main(arguments).GetAwaiter().GetResult();
+	}
+
+	string Project(string name, string[] dependencies)
+	{
+		string directory = Path.Combine(root, name.Replace('/', '_'));
+		Directory.CreateDirectory(directory);
+
+		Assert.Equal(0, Crater(directory, "init", "--name", name, "-y"));
+
+		string manifestPath = Path.Combine(directory, "crater.json");
+		JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+
+		manifest["version"] = "1.0.0";
+		manifest["registry"] = "../registry";
+		manifest["path_to_main"] = "init.luau";
+		manifest["import_client"] = new JsonArray(dependencies.Select(item => (JsonNode)item).ToArray());
+		File.WriteAllText(manifestPath, manifest.ToJsonString());
+		File.WriteAllText(Path.Combine(directory, "init.luau"), "return {}\n");
+
+		return directory;
+	}
+
+	[Fact]
+	public void WritesAliasesIntoACustomLuaurcAndPointsVsCodeAtIt()
+	{
+		Assert.Equal(0, Crater(Project("t/lib", []), "publish", "-y"));
+
+		string game = Project("t/game", ["t/lib^1"]);
+		string settingsPath = Path.Combine(game, "crater.settings.json");
+		JsonObject settings = JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
+
+		settings["luaurc_path"] = "src/config.luaurc";
+		File.WriteAllText(settingsPath, settings.ToJsonString());
+		Directory.CreateDirectory(Path.Combine(game, "src"));
+		File.WriteAllText(Path.Combine(game, "src", "config.luaurc"), "{ \"languageMode\": \"strict\" }");
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		JsonObject luaurc = JsonNode.Parse(File.ReadAllText(Path.Combine(game, "src", "config.luaurc")))!.AsObject();
+		JsonObject vscode = JsonNode.Parse(File.ReadAllText(Path.Combine(game, ".vscode", "settings.json")))!.AsObject();
+
+		Assert.Equal("strict", luaurc["languageMode"]!.GetValue<string>());
+		Assert.Equal("../Packages", luaurc["aliases"]!["Packages"]!.GetValue<string>());
+		Assert.Equal("src/config.luaurc", vscode["luau-lsp.server.baseLuaurc"]!.GetValue<string>());
+		Assert.False(File.Exists(Path.Combine(game, ".luaurc")));
+		Assert.Equal(0, Crater(game, "doctor"));
+	}
+
+	[Fact]
+	public void DefaultLuaurcStaysInTheProjectRoot()
+	{
+		Assert.Equal(0, Crater(Project("t/lib", []), "publish", "-y"));
+
+		string game = Project("t/game", ["t/lib^1"]);
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		JsonObject luaurc = JsonNode.Parse(File.ReadAllText(Path.Combine(game, ".luaurc")))!.AsObject();
+
+		Assert.Equal("./Packages", luaurc["aliases"]!["Packages"]!.GetValue<string>());
+
+		string vscodePath = Path.Combine(game, ".vscode", "settings.json");
+
+		Assert.True(!File.Exists(vscodePath) || !File.ReadAllText(vscodePath).Contains("baseLuaurc"));
+	}
+}

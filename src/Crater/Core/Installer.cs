@@ -59,7 +59,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 			LuauRc.Update(project, graphs, prompt);
 		}
 
-		if (project.Config.OnInstallUpdateVscodeLuauDefinitionFiles)
+		if (project.Config.OnInstallUpdateVscodeLuauDefinitionFiles || (project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project)))
 		{
 			VsCodeSettings.Update(project, graphs, prompt);
 		}
