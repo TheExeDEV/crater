@@ -1,0 +1,162 @@
+#!/bin/sh
+set `# <#` >/dev/null 2>&1
+
+set -eu
+
+repository="TheExeDEV/crater"
+script_url="https://raw.githubusercontent.com/$repository/main/installers/install"
+version="${CRATER_VERSION:-latest}"
+install_dir="${CRATER_INSTALL_DIR:-$HOME/.crater/bin}"
+
+case "$(uname -s)" in
+	Linux) system="linux" ;;
+	Darwin) system="osx" ;;
+	MINGW* | MSYS* | CYGWIN*)
+		powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm $script_url | iex"
+		exit $?
+		;;
+	*) echo "crater does not support $(uname -s) yet." >&2; exit 1 ;;
+esac
+
+case "$(uname -m)" in
+	x86_64 | amd64) architecture="x64" ;;
+	arm64 | aarch64) architecture="arm64" ;;
+	*) echo "crater does not support the $(uname -m) processor yet." >&2; exit 1 ;;
+esac
+
+asset="crater-$system-$architecture"
+
+if [ "$version" = "latest" ]; then
+	url="https://github.com/$repository/releases/latest/download/$asset"
+else
+	url="https://github.com/$repository/releases/download/v${version#v}/$asset"
+fi
+
+mkdir -p "$install_dir"
+download="$install_dir/crater.download"
+
+echo "Downloading crater for $system $architecture"
+
+if command -v curl >/dev/null 2>&1; then
+	curl --fail --location --progress-bar --retry 3 --connect-timeout 15 "$url" --output "$download"
+elif command -v wget >/dev/null 2>&1; then
+	wget --quiet --show-progress --tries=3 --timeout=15 "$url" --output-document="$download"
+else
+	echo "Install curl or wget first." >&2
+	exit 1
+fi
+
+chmod +x "$download"
+mv "$download" "$install_dir/crater"
+
+path_line="export PATH=\"$install_dir:\$PATH\""
+
+add_to_path() {
+	file="$1"
+
+	if [ -f "$file" ] && grep -qF "$install_dir" "$file"; then
+		return
+	fi
+
+	printf '\n# crater\n%s\n' "$path_line" >> "$file"
+	echo "Added crater to PATH in $file"
+}
+
+case ":$PATH:" in
+	*":$install_dir:"*) ;;
+	*)
+		if [ -z "${CRATER_NO_PATH:-}" ]; then
+			shell_name="$(basename "${SHELL:-sh}")"
+
+			if [ -f "$HOME/.bashrc" ] || [ "$shell_name" = "bash" ]; then
+				add_to_path "$HOME/.bashrc"
+			fi
+
+			if [ -f "$HOME/.zshrc" ] || [ "$shell_name" = "zsh" ]; then
+				add_to_path "$HOME/.zshrc"
+			fi
+
+			add_to_path "$HOME/.profile"
+
+			if [ -d "$HOME/.config/fish" ]; then
+				mkdir -p "$HOME/.config/fish/conf.d"
+				echo "fish_add_path $install_dir" > "$HOME/.config/fish/conf.d/crater.fish"
+			fi
+
+			echo "Open a new terminal, or run this to use crater right now:"
+			echo "  $path_line"
+		fi
+		;;
+esac
+
+"$install_dir/crater" --version
+exit 0
+#>
+
+& {
+	$ErrorActionPreference = "Stop"
+	$ProgressPreference = "SilentlyContinue"
+
+	$repository = "TheExeDEV/crater"
+	$scriptUrl = "https://raw.githubusercontent.com/$repository/main/installers/install"
+
+	if ($PSVersionTable.PSEdition -eq "Core" -and -not $IsWindows) {
+		& sh -c "curl -fsSL $scriptUrl | sh"
+		return
+	}
+
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+	$version = if ($env:CRATER_VERSION) { $env:CRATER_VERSION } else { "latest" }
+	$installDir = if ($env:CRATER_INSTALL_DIR) { $env:CRATER_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "crater\bin" }
+	$architecture = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") { "arm64" } else { "x64" }
+	$asset = "crater-win-$architecture.exe"
+
+	if ($version -eq "latest") {
+		$url = "https://github.com/$repository/releases/latest/download/$asset"
+	} else {
+		$url = "https://github.com/$repository/releases/download/v$($version.TrimStart('v'))/$asset"
+	}
+
+	New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+
+	$target = Join-Path $installDir "crater.exe"
+	$download = "$target.download"
+
+	Write-Host "Downloading crater for windows $architecture"
+
+	for ($attempt = 1; $attempt -le 3; $attempt++) {
+		try {
+			Invoke-WebRequest -Uri $url -OutFile $download -UseBasicParsing -TimeoutSec 120
+			break
+		} catch {
+			if ($attempt -eq 3) {
+				throw "Could not download $url. Check your internet connection and try again."
+			}
+
+			Start-Sleep -Seconds (2 * $attempt)
+		}
+	}
+
+	Move-Item -Path $download -Destination $target -Force
+
+	if (-not $env:CRATER_NO_PATH) {
+		$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+		$entries = @()
+
+		if ($userPath) {
+			$entries = @($userPath.Split(";") | Where-Object { $_ -ne "" })
+		}
+
+		if ($entries -notcontains $installDir) {
+			[Environment]::SetEnvironmentVariable("Path", (@($entries) + $installDir) -join ";", "User")
+			Write-Host "Added crater to PATH. Other open terminals need a restart to see it."
+		}
+
+		if (($env:Path.Split(";")) -notcontains $installDir) {
+			$env:Path = "$env:Path;$installDir"
+		}
+	}
+
+	& $target --version
+}

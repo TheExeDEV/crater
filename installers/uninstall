@@ -1,0 +1,163 @@
+#!/bin/sh
+set `# <#` >/dev/null 2>&1
+
+set -eu
+
+script_url="https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall"
+install_dir="${CRATER_INSTALL_DIR:-$HOME/.crater/bin}"
+cache_dir="${CRATER_CACHE:-${XDG_DATA_HOME:-$HOME/.local/share}/crater/cache}"
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/crater"
+purge="${CRATER_PURGE:-}"
+
+for argument in "$@"; do
+	case "$argument" in
+		--purge) purge=1 ;;
+		*) echo "Unknown option: $argument (use --purge)" >&2; exit 1 ;;
+	esac
+done
+
+case "$(uname -s)" in
+	MINGW* | MSYS* | CYGWIN*)
+		CRATER_PURGE="$purge" powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm $script_url | iex"
+		exit $?
+		;;
+esac
+
+removed=0
+
+for file in crater crater.old crater.new crater.download; do
+	if [ -e "$install_dir/$file" ]; then
+		rm -f "$install_dir/$file"
+		echo "Removed $install_dir/$file"
+		removed=$((removed + 1))
+	fi
+done
+
+remove_if_empty() {
+	if [ -d "$1" ] && [ -z "$(ls -A "$1")" ]; then
+		rmdir "$1"
+	fi
+}
+
+remove_from_path() {
+	file="$1"
+
+	if [ ! -f "$file" ] || ! grep -qF "$install_dir" "$file"; then
+		return
+	fi
+
+	temporary="$file.crater-tmp"
+	grep -vF "$install_dir" "$file" | grep -vx "# crater" > "$temporary" || true
+	cat "$temporary" > "$file"
+	rm -f "$temporary"
+	echo "Removed crater from PATH in $file"
+}
+
+remove_if_empty "$install_dir"
+remove_if_empty "$(dirname "$install_dir")"
+
+for file in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+	remove_from_path "$file"
+done
+
+rm -f "$HOME/.config/fish/conf.d/crater.fish"
+
+if [ -n "$purge" ]; then
+	for directory in "$cache_dir" "$config_dir"; do
+		if [ -d "$directory" ]; then
+			rm -rf "$directory"
+			echo "Removed $directory"
+		fi
+	done
+
+	remove_if_empty "$(dirname "$cache_dir")"
+fi
+
+if [ "$removed" -eq 0 ]; then
+	echo "crater was not found in $install_dir"
+	exit 0
+fi
+
+echo "crater is uninstalled. Open a new terminal to refresh PATH."
+
+if [ -z "$purge" ]; then
+	echo "The download cache and settings were kept. Add --purge to remove them too."
+fi
+
+exit 0
+#>
+
+& {
+	$ErrorActionPreference = "Stop"
+
+	$scriptUrl = "https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall"
+
+	if ($PSVersionTable.PSEdition -eq "Core" -and -not $IsWindows) {
+		$flag = if ($env:CRATER_PURGE) { " --purge" } else { "" }
+		& sh -c "curl -fsSL $scriptUrl | sh -s --$flag"
+		return
+	}
+
+	$installDir = if ($env:CRATER_INSTALL_DIR) { $env:CRATER_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "crater\bin" }
+	$cacheDir = if ($env:CRATER_CACHE) { $env:CRATER_CACHE } else { Join-Path $env:LOCALAPPDATA "crater\cache" }
+	$configDir = Join-Path $env:APPDATA "crater"
+	$purge = [bool]$env:CRATER_PURGE
+	$removed = 0
+
+	foreach ($file in @("crater.exe", "crater.exe.old", "crater.exe.new", "crater.exe.download")) {
+		$path = Join-Path $installDir $file
+
+		if (Test-Path -LiteralPath $path) {
+			try {
+				Remove-Item -LiteralPath $path -Force
+			} catch {
+				throw "Could not remove $path. Close every running crater and try again."
+			}
+
+			Write-Host "Removed $path"
+			$removed++
+		}
+	}
+
+	if ((Test-Path -LiteralPath $installDir) -and -not (Get-ChildItem -LiteralPath $installDir -Force | Select-Object -First 1)) {
+		Remove-Item -LiteralPath $installDir -Force
+	}
+
+	$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+
+	if ($userPath) {
+		$entries = @($userPath.Split(";") | Where-Object { $_ -ne "" })
+		$kept = @($entries | Where-Object { $_.TrimEnd("\") -ne $installDir.TrimEnd("\") })
+
+		if ($kept.Count -ne $entries.Count) {
+			[Environment]::SetEnvironmentVariable("Path", $kept -join ";", "User")
+			Write-Host "Removed crater from PATH"
+		}
+	}
+
+	if ($purge) {
+		foreach ($directory in @($cacheDir, $configDir)) {
+			if (Test-Path -LiteralPath $directory) {
+				Remove-Item -LiteralPath $directory -Recurse -Force
+				Write-Host "Removed $directory"
+			}
+		}
+
+		$root = Join-Path $env:LOCALAPPDATA "crater"
+
+		if ((Test-Path -LiteralPath $root) -and -not (Get-ChildItem -LiteralPath $root -Force | Select-Object -First 1)) {
+			Remove-Item -LiteralPath $root -Force
+		}
+	}
+
+	if ($removed -eq 0) {
+		Write-Host "crater was not found in $installDir"
+		return
+	}
+
+	Write-Host "crater is uninstalled. Open a new terminal to refresh PATH."
+
+	if (-not $purge) {
+		Write-Host 'The download cache and settings were kept. Run $env:CRATER_PURGE=1 before the command to remove them too.'
+	}
+}
