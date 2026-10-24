@@ -14,6 +14,7 @@ public static class Help
 			new("bump [patch|minor|major]", "raise the version: 0.0.9 becomes 0.1.0"),
 			new("run [script] [-- args]", "run a script from crater.json"),
 			new("doctor", "check the project for problems"),
+			new("check [paths...]", "type check the project with luau-lsp"),
 		]),
 		("Dependencies", [
 			new("install [--workspace] [--locked]", "install dependencies, --locked fails if crater.lock is out of date"),
@@ -23,6 +24,9 @@ public static class Help
 			new("outdated [--all]", "show dependencies that have newer versions"),
 			new("list", "show the installed package tree"),
 			new("why <name>", "show why a package is installed"),
+			new("patch [name] [--remove]", "keep your edits to an installed package"),
+			new("size", "show how much code each package adds"),
+			new("licenses", "list the licenses of installed packages"),
 		]),
 		("Registry", [
 			new("login [--force]", "sign in with GitHub to publish packages"),
@@ -37,6 +41,8 @@ public static class Help
 		]),
 		("Crater", [
 			new("self-update [--check]", "update crater itself"),
+			new("tool add <name>[@version] [--global]", "pin a tool like rojo or luau-lsp to the project"),
+			new("tool list|remove|install", "manage pinned tools"),
 			new("cache [clean]", "show or clear the download cache"),
 			new("version", "show version"),
 		]),

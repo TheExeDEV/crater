@@ -16,6 +16,21 @@ public static class Program
 
 		SelfUpdateCommand.CleanupPreviousVersion();
 
+		if (argv.Length >= 3 && argv[0] == "tool" && argv[1] == "run")
+		{
+			try
+			{
+				return await ToolCommand.ExecAsync(argv[2], argv[3..]);
+			}
+			catch (CraterException exception)
+			{
+				LiveLine.Set(null);
+				Out.Error(exception.Message);
+
+				return 1;
+			}
+		}
+
 		Args args = Args.Parse(argv);
 
 		if (args.Command is null || args.Command == "help" || args.Has("h", "help"))
@@ -67,6 +82,9 @@ public static class Program
 			case "run":
 				return ProjectCommands.Run(args);
 
+			case "check":
+				return await CheckCommand.RunAsync(args);
+
 			case "doctor":
 				return await DoctorCommand.RunAsync();
 
@@ -96,6 +114,18 @@ public static class Program
 
 			case "why":
 				InspectCommands.Why(args);
+				return 0;
+
+			case "patch":
+				await PatchCommand.RunAsync(args);
+				return 0;
+
+			case "size":
+				ReportCommands.Size();
+				return 0;
+
+			case "licenses":
+				ReportCommands.Licenses();
 				return 0;
 
 			case "search":
@@ -129,6 +159,9 @@ public static class Program
 
 			case "registry":
 				return await RegistryCommands.RunAsync(args);
+
+			case "tool":
+				return await ToolCommand.RunAsync(args);
 
 			case "cache":
 				return CacheCommand.Run(args);

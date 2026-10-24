@@ -18,6 +18,7 @@ public static class InstallCommands
 			Common.Heading(project, projects.Count);
 
 			await new Installer(project, Common.PrompterFor(project, args), args.Has("locked")).InstallAsync(update: null);
+			await ToolCommand.InstallAllAsync(project.Manifest, announce: false);
 		}
 	}
 

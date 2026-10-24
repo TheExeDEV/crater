@@ -40,6 +40,13 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			return false;
 		}
 
+		string patches = Patches.Fingerprint(project, graph.All);
+
+		if (PackageLayout.ReadMarker(folder).GetValueOrDefault(Patches.MarkerKey, "") != patches)
+		{
+			return false;
+		}
+
 		PackageLayout layout = PackageLayout.Plan(graph, folderName);
 
 		bool packagesPresent = layout.Folders.Values.All(name => Directory.Exists(Path.Combine(folder, name)));
@@ -81,7 +88,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, archives, folder, layout);
 
 		WriteAliases(layout, extracted, folder);
-		layout.WriteMarker(folder);
+		layout.WriteMarker(folder, Patches.Fingerprint(project, graph.All));
 		Report(graph, extracted, layout, folder);
 	}
 
@@ -143,6 +150,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 			Directory.CreateDirectory(content);
 			Packer.Extract(archives[package], content, package.Id);
+			Patches.Apply(project, package, content);
 
 			PrepareRojoProject(package, content, layout.Folders[package]);
 

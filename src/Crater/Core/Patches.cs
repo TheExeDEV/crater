@@ -1,0 +1,178 @@
+using System.Security.Cryptography;
+using System.Text;
+using Crater.Util;
+
+namespace Crater.Core;
+
+public sealed record PatchChanges(List<string> Changed, List<string> Deleted)
+{
+	public bool IsEmpty => Changed.Count == 0 && Deleted.Count == 0;
+}
+
+public static class Patches
+{
+	public const string FolderName = "patches";
+	public const string DeletedFile = ".deleted";
+	public const string MarkerKey = "#patches";
+
+	static readonly string[] Ignored = [PackageEntry.RojoProject, PackageLayout.MarkerFile];
+
+	public static string Root(Project project) => Path.Combine(project.Directory, FolderName);
+
+	public static string DirectoryFor(Project project, string id) => Path.Combine(Root(project), id.Replace('/', '_'));
+
+	public static bool Apply(Project project, ResolvedPackage package, string content)
+	{
+		string directory = DirectoryFor(project, package.Id);
+
+		if (!Directory.Exists(directory))
+		{
+			WarnAboutOtherVersions(project, package);
+			return false;
+		}
+
+		foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+		{
+			string relative = Path.GetRelativePath(directory, file);
+
+			if (relative == DeletedFile)
+			{
+				continue;
+			}
+
+			string target = Path.Combine(content, relative);
+			Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+			File.Copy(file, target, overwrite: true);
+		}
+
+		string deletedList = Path.Combine(directory, DeletedFile);
+
+		if (File.Exists(deletedList))
+		{
+			foreach (string relative in File.ReadAllLines(deletedList).Where(line => line.Trim().Length > 0))
+			{
+				string target = Path.Combine(content, relative.Trim());
+
+				if (File.Exists(target))
+				{
+					File.Delete(target);
+				}
+			}
+		}
+
+		Out.Dim($"  {package.Id}: applied your patch from {FolderName}/{Path.GetFileName(directory)}");
+
+		return true;
+	}
+
+	public static string Fingerprint(Project project, IEnumerable<ResolvedPackage> packages)
+	{
+		StringBuilder builder = new();
+
+		foreach (ResolvedPackage package in packages.OrderBy(item => item.Id, StringComparer.Ordinal))
+		{
+			string directory = DirectoryFor(project, package.Id);
+
+			if (!Directory.Exists(directory))
+			{
+				continue;
+			}
+
+			foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).OrderBy(path => path, StringComparer.Ordinal))
+			{
+				builder.Append(Path.GetRelativePath(Root(project), file).Replace('\\', '/')).Append('\n');
+				builder.Append(Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(file)))).Append('\n');
+			}
+		}
+
+		return builder.Length == 0 ? "" : Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+	}
+
+	public static PatchChanges Compare(string original, string edited)
+	{
+		HashSet<string> originalFiles = RelativeFiles(original);
+		HashSet<string> editedFiles = RelativeFiles(edited);
+
+		List<string> changed = editedFiles
+			.Where(path => !IsGenerated(edited, path))
+			.Where(path => !originalFiles.Contains(path) || !SameContent(Path.Combine(original, path), Path.Combine(edited, path)))
+			.OrderBy(path => path, StringComparer.Ordinal)
+			.ToList();
+
+		List<string> deleted = originalFiles
+			.Where(path => !editedFiles.Contains(path))
+			.OrderBy(path => path, StringComparer.Ordinal)
+			.ToList();
+
+		return new PatchChanges(changed, deleted);
+	}
+
+	public static void Write(string directory, string edited, PatchChanges changes)
+	{
+		if (Directory.Exists(directory))
+		{
+			Directory.Delete(directory, recursive: true);
+		}
+
+		Directory.CreateDirectory(directory);
+
+		foreach (string relative in changes.Changed)
+		{
+			string target = Path.Combine(directory, relative);
+			Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+			File.Copy(Path.Combine(edited, relative), target);
+		}
+
+		if (changes.Deleted.Count > 0)
+		{
+			File.WriteAllText(Path.Combine(directory, DeletedFile), string.Join('\n', changes.Deleted) + "\n");
+		}
+	}
+
+	static void WarnAboutOtherVersions(Project project, ResolvedPackage package)
+	{
+		string prefix = package.Name.Replace('/', '_') + "@";
+
+		if (!Directory.Exists(Root(project)))
+		{
+			return;
+		}
+
+		foreach (string other in Directory.EnumerateDirectories(Root(project), prefix + "*"))
+		{
+			Out.Warn(
+				$"{FolderName}/{Path.GetFileName(other)} was not applied: {Fmt.Pkg(package.Id)} is installed now. " +
+				$"Make the change again in the new version and run {Fmt.Cmd($"crater patch {package.ShortName}")}.");
+		}
+	}
+
+	static HashSet<string> RelativeFiles(string directory)
+	{
+		return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+			.Select(file => Path.GetRelativePath(directory, file).Replace('\\', '/'))
+			.Where(path => !Ignored.Contains(path))
+			.ToHashSet(StringComparer.Ordinal);
+	}
+
+	static bool IsGenerated(string directory, string relative)
+	{
+		if (!relative.Equals("init.luau", StringComparison.Ordinal))
+		{
+			return false;
+		}
+
+		using StreamReader reader = new(Path.Combine(directory, relative));
+
+		return reader.ReadLine()?.StartsWith("-- Generated by crater", StringComparison.Ordinal) == true;
+	}
+
+	static bool SameContent(string left, string right)
+	{
+		return Normalize(File.ReadAllBytes(left)).AsSpan().SequenceEqual(Normalize(File.ReadAllBytes(right)));
+	}
+
+	static byte[] Normalize(byte[] data)
+	{
+		return Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(data).Replace("\r\n", "\n"));
+	}
+}
