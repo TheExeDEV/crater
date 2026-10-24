@@ -30,7 +30,31 @@ public static class PackageFiles
 			Packer.Extract(zip, content, id, ExtractFilter(zip));
 		}
 
+		bool fromPesde = File.Exists(Path.Combine(content, "pesde.toml"));
+
 		Prepare(id, content, folderName, manifest, quiet);
+
+		if (fromPesde)
+		{
+			WritePesdeLinks(content, manifest);
+		}
+	}
+
+	static void WritePesdeLinks(string content, Manifest manifest)
+	{
+		List<string> aliases = manifest.ImportClient
+			.Concat(manifest.ImportServer)
+			.Select(raw => Versioning.DependencySpec.Parse(raw).LinkName)
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToList();
+
+		string folder = Path.Combine(content, "roblox_packages");
+
+		foreach (string alias in aliases)
+		{
+			Directory.CreateDirectory(folder);
+			File.WriteAllText(Path.Combine(folder, alias + ".luau"), $"return require(script.Parent.Parent.Parent[\"{alias}\"])\n");
+		}
 	}
 
 	public static void NameRojoProject(string content, string name)

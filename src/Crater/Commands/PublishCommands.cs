@@ -80,6 +80,16 @@ public static class PublishCommands
 		};
 
 		release.Scripts = PackageScripts.InArchive(archive, release.Manifest, $"{manifest.Name}@{release.Version}");
+		release.Notes = Changelog.NotesFor(project.Directory, release.Version);
+
+		if (release.Notes is not null)
+		{
+			Out.Dim($"  changelog: {Fmt.Plural(release.Notes.Split('\n').Length, "line", "lines")} for {release.Version}");
+		}
+		else if (Changelog.FindFile(project.Directory) is string changelog)
+		{
+			Out.Warn($"{Fmt.File(Path.GetFileName(changelog))} has no section for {Fmt.Val(release.Version)}. Add {Fmt.Val($"## {release.Version}")} with the changes so people see them.");
+		}
 
 		if (release.Scripts.Count > 0)
 		{

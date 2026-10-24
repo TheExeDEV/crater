@@ -9,6 +9,7 @@
   --surface: #070707;
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.18);
+  --warn: #f5c451;
   --gutter: clamp(16px, 4vw, 56px);
   --ease: cubic-bezier(0.2, 0.9, 0.2, 1);
 }
@@ -602,6 +603,50 @@ a {
 
 .list .dim {
   color: var(--muted);
+}
+
+.main-column {
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  min-width: 0;
+}
+
+.notice {
+  margin: 32px 0 0;
+  padding: 14px 18px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+  overflow-wrap: anywhere;
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.changelog-entry + .changelog-entry {
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.changelog-entry h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.changelog-entry h4 a {
+  text-decoration: none;
+}
+
+.changelog-entry .current {
+  text-decoration: underline;
+}
+
+.changelog-entry .dim {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .readme {

@@ -198,6 +198,7 @@ function tile(entry, index) {
     element("p", { className: "tile-desc", text: entry.description || "No description." }),
     element("div", { className: "tile-meta" },
       element("span", { className: "version", text: entry.latest }),
+      entry.deprecated ? element("span", { className: "warn", text: "deprecated" }) : null,
       entry.license ? element("span", { text: entry.license }) : null,
       updated ? element("span", { text: updated }) : null,
     ),
@@ -342,6 +343,40 @@ function renderResults(query) {
   );
 }
 
+function renderMarkdown(container, markdown) {
+  if (window.marked && window.DOMPurify) {
+    container.innerHTML = window.DOMPurify.sanitize(window.marked.parse(markdown));
+    return;
+  }
+
+  container.append(element("pre", {}, element("code", { text: markdown })));
+}
+
+function changelogPanel(fullName, versions, current) {
+  const entries = versions.filter((item) => item.notes).slice(0, 20);
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return element("article", { className: "panel changelog" },
+    element("h3", { className: "label", text: "Changelog" }),
+    ...entries.map((item) => {
+      const body = element("div", { className: "readme" });
+      renderMarkdown(body, item.notes);
+
+      return element("section", { className: "changelog-entry" },
+        element("h4", {},
+          element("a", { href: `#/pkg/${fullName}/${item.version}`, className: item.version === current ? "current" : null, text: item.version }),
+          element("span", { className: "dim", text: ` ${formatDate(item.published_at) || ""}` }),
+          item.deprecated ? element("span", { className: "warn", text: " deprecated" }) : null,
+        ),
+        body,
+      );
+    }),
+  );
+}
+
 function renderReadme(container, markdown) {
   if (!markdown) {
     container.append(element("p", { text: "This package has no README." }));
@@ -425,12 +460,18 @@ async function renderPackage(fullName, requestedVersion) {
       className: item.version === release.version ? "current" : null,
       text: item.version,
     }),
-    element("span", { className: "dim", text: formatDate(item.published_at) }),
+    element("span", { className: item.deprecated ? "warn" : "dim", text: item.deprecated ? "deprecated" : formatDate(item.published_at) }),
   ));
+
+  const notices = [
+    data.deprecated ? element("p", { className: "notice", text: `This package is deprecated: ${data.deprecated}` }) : null,
+    release.deprecated ? element("p", { className: "notice", text: `Version ${release.version} is deprecated: ${release.deprecated}` }) : null,
+  ].filter(Boolean);
 
   view.replaceChildren(
     eyebrow(`${scope} / ${release.version}`),
     display(name, true),
+    ...notices,
     element("div", { className: "hero-row" },
       element("p", { className: "lead", text: manifest.description || "No description." }),
       element("div", { className: "hero-actions" },
@@ -439,7 +480,7 @@ async function renderPackage(fullName, requestedVersion) {
       ),
     ),
     element("div", { className: "package-layout" },
-      readme,
+      element("div", { className: "main-column" }, readme, changelogPanel(fullName, versions, release.version)),
       element("aside", { className: "side" },
         element("div", { className: "panel" },
           element("h3", { className: "label", text: "Install" }),

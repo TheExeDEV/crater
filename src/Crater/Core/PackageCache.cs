@@ -58,7 +58,7 @@ public static partial class PackageCache
 
 		byte[] data = await package.Registry.DownloadAsync(package.Name, package.Release.Version);
 
-		if (!hasSha && package.Registry is not HttpRegistry { IsWally: true })
+		if (!hasSha && package.Registry is not HttpRegistry { IsForeign: true })
 		{
 			Out.Warn($"{Fmt.Pkg(package.Id)}: registry has no sha256, integrity not verified");
 		}
