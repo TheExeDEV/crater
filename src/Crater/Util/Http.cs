@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Sockets;
 
 namespace Crater.Util;
@@ -25,19 +24,12 @@ public static class Http
 		HttpClient client = new(handler) { Timeout = Timeout.InfiniteTimeSpan };
 		client.DefaultRequestHeaders.UserAgent.ParseAdd($"crater/{BuildInfo.Version}");
 
-		string? token = Environment.GetEnvironmentVariable("CRATER_REGISTRY_TOKEN");
-
-		if (!string.IsNullOrWhiteSpace(token))
-		{
-			client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-		}
-
 		return client;
 	}
 
-	public static async Task<string?> GetTextOrNullAsync(string url)
+	public static async Task<string?> GetTextOrNullAsync(string url, IReadOnlyDictionary<string, string>? headers = null)
 	{
-		byte[]? data = await GetBytesOrNullAsync(url);
+		byte[]? data = await GetBytesOrNullAsync(url, null, headers);
 
 		return data is null ? null : System.Text.Encoding.UTF8.GetString(data);
 	}

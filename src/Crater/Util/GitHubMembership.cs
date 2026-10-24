@@ -15,14 +15,7 @@ public static class GitHubMembership
 
 	static bool Check(string organization, string login)
 	{
-		Dictionary<string, string> headers = new() { ["Accept"] = "application/vnd.github+json" };
-		string? token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
-
-		if (!string.IsNullOrWhiteSpace(token))
-		{
-			headers["Authorization"] = $"Bearer {token}";
-		}
-
+		Dictionary<string, string> headers = GitHubAuth.Headers("application/vnd.github+json");
 		string url = $"https://api.github.com/orgs/{organization}/public_members/{login}";
 
 		return Http.GetBytesOrNullAsync(url, null, headers).GetAwaiter().GetResult() is not null;
