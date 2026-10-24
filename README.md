@@ -47,49 +47,50 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 
 ## Installation
 
+One script for every system. It detects Windows, Linux or macOS and the processor (x64 or arm64) by itself.
+
 **Windows** (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/install.ps1 | iex
+irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/install | iex
 ```
 
-**Linux and macOS:**
+**Linux, macOS, Git Bash:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/install | sh
 ```
 
-The installer downloads the latest release for your system into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin`, adds it to your user `PATH` on Windows and prints the line to add on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
+Both lines run the same file. It downloads the latest release into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin` and adds that folder to `PATH`: the user `PATH` on Windows, `~/.bashrc`, `~/.zshrc`, `~/.profile` and fish on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
 
-Options: `installers/install.ps1 -Version 0.0.4 -InstallDir D:\tools -NoPath`, or `CRATER_VERSION` and `CRATER_INSTALL_DIR` for `installers/install.sh`.
+Options, set before the command: `CRATER_VERSION=0.0.11` installs a specific version, `CRATER_INSTALL_DIR` changes the folder, `CRATER_NO_PATH=1` leaves `PATH` alone. In PowerShell: `$env:CRATER_VERSION = "0.0.11"`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
 
 ### Uninstall
 
-**Windows** (PowerShell):
+Also one script for every system:
 
 ```powershell
-irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall.ps1 | iex
-```
-
-**Linux and macOS:**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall.sh | sh
-```
-
-This removes the crater executable and, on Windows, its `PATH` entry. Only crater's own files are deleted, other files in the install folder stay. The download cache and the global config are kept; add `-Purge` (Windows) or `--purge` (Linux and macOS) to remove them too:
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall.ps1))) -Purge
+irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall | iex
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall.sh | sh -s -- --purge
+curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall | sh
+```
+
+It removes the crater executable and the `PATH` entries the installer added. Other files in the install folder stay. The download cache and settings are kept; to remove them too:
+
+```powershell
+$env:CRATER_PURGE = 1; irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/uninstall | sh -s -- --purge
 ```
 
 Installed as a .NET tool instead? Run `dotnet tool uninstall -g crater`.
+
 
 The default registry is [TheExeDEV/crater-registry](https://github.com/TheExeDEV/crater-registry), browse it at [theexedev.github.io/crater-registry](https://theexedev.github.io/crater-registry/). It works without any config.
 
