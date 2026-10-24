@@ -52,25 +52,28 @@ public static partial class Links
 		return segments;
 	}
 
-	public static string TopLevel(ResolvedPackage package, string style, PackageEntry entry, IReadOnlyList<TypeExport> types)
+	public static bool NeedsInit(PackageEntry entry)
 	{
-		return Build(package, style, entry, types, nested: false);
+		return entry.Kind != EntryKind.Module || entry.Segments.Count > 0;
 	}
 
-	public static string Nested(ResolvedPackage package, string style, PackageEntry entry, IReadOnlyList<TypeExport> types)
-	{
-		return Build(package, style, entry, types, nested: true);
-	}
-
-	static string Build(ResolvedPackage package, string style, PackageEntry entry, IReadOnlyList<TypeExport> types, bool nested)
+	public static string PackageInit(ResolvedPackage package, string style, PackageEntry entry, IReadOnlyList<TypeExport> types)
 	{
 		return entry.Kind switch
 		{
-			EntryKind.Module => ModuleLink(Target(package, style, entry.Segments, nested), types),
-			EntryKind.Collection => CollectionLink(package, style, entry, nested),
+			EntryKind.Module => ModuleLink(Inside(style, entry.Segments), types),
+			EntryKind.Collection => CollectionLink(package, style, entry),
 			_ => MissingLink(package),
 		};
 	}
+
+	public static string Alias(string folderName, string style, IReadOnlyList<TypeExport> types)
+	{
+		string target = style == "string" ? $"\"./{Escape(folderName)}\"" : $"script.Parent[\"{Escape(folderName)}\"]";
+
+		return ModuleLink(target, types);
+	}
+
 
 	static string ModuleLink(string target, IReadOnlyList<TypeExport> types)
 	{
@@ -93,7 +96,7 @@ public static partial class Links
 		return builder.ToString();
 	}
 
-	static string CollectionLink(ResolvedPackage package, string style, PackageEntry entry, bool nested)
+	static string CollectionLink(ResolvedPackage package, string style, PackageEntry entry)
 	{
 		StringBuilder builder = new(Header);
 
@@ -101,7 +104,7 @@ public static partial class Links
 
 		foreach (CollectionMember member in entry.Members)
 		{
-			string target = Target(package, style, [.. entry.Segments, member.Name], nested);
+			string target = Inside(style, [.. entry.Segments, member.Name]);
 
 			builder.Append($"\t{Key(member.Name)} = function()\n");
 			builder.Append($"\t\treturn require({target})\n");
@@ -113,7 +116,7 @@ public static partial class Links
 
 		foreach (CollectionMember member in entry.Members)
 		{
-			string target = Target(package, style, [.. entry.Segments, member.Name], nested);
+			string target = Inside(style, [.. entry.Segments, member.Name]);
 
 			builder.Append($"\t{Key(member.Name)}: typeof(require({target})),\n");
 		}
@@ -141,20 +144,16 @@ public static partial class Links
 			$"error(\"{package.Id} has no main module. Set path_to_main in its crater.json or add init.luau.\", 2)\n";
 	}
 
-	static string Target(ResolvedPackage package, string style, IEnumerable<string> extra, bool nested)
+	static string Inside(string style, IEnumerable<string> segments)
 	{
-		List<string> segments = [package.IndexDirectory, package.ShortName, .. extra];
+		List<string> parts = segments.ToList();
 
 		if (style == "string")
 		{
-			string path = string.Join('/', segments);
-
-			return nested ? $"\"../{path}\"" : $"\"./{Layout.IndexFolder}/{path}\"";
+			return parts.Count == 0 ? "\"@self\"" : $"\"@self/{string.Join('/', parts.Select(Escape))}\"";
 		}
 
-		string instancePath = string.Concat(segments.Select(segment => $"[\"{Escape(segment)}\"]"));
-
-		return nested ? $"script.Parent.Parent{instancePath}" : $"script.Parent.{Layout.IndexFolder}{instancePath}";
+		return "script" + string.Concat(parts.Select(segment => $"[\"{Escape(segment)}\"]"));
 	}
 
 	static bool IsIdentifier(string name) => IdentifierRegex().IsMatch(name) && !LuauKeywords.Contains(name);

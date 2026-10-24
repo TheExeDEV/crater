@@ -204,12 +204,13 @@ public static class DoctorCommand
 
 			string folder = project.Abs(folderName);
 			List<string> missing = [];
+			Dictionary<string, string> installed = PackageLayout.ReadMarker(folder);
 
 			foreach (LockedPackage package in packages)
 			{
-				string packageDirectory = Path.Combine(folder, Layout.IndexFolder, $"{package.Name.Replace('/', '_')}@{package.Version}", package.ShortName);
+				bool present = installed.TryGetValue(package.Id, out string? packageFolder) && Directory.Exists(Path.Combine(folder, packageFolder));
 
-				if (!Directory.Exists(packageDirectory))
+				if (!present)
 				{
 					missing.Add(package.Id);
 				}
@@ -221,9 +222,9 @@ public static class DoctorCommand
 
 				foreach (string link in package.Links ?? [package.ShortName])
 				{
-					if (!File.Exists(Path.Combine(folder, link + ".luau")))
+					if (!File.Exists(Path.Combine(folder, link + ".luau")) && !Directory.Exists(Path.Combine(folder, link)))
 					{
-						missing.Add($"{link}.luau");
+						missing.Add(link);
 					}
 				}
 			}

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Crater.Core;
 
 public enum EntryKind
@@ -14,8 +16,17 @@ public sealed record PackageEntry(EntryKind Kind, List<string> Segments, List<Co
 	static readonly string[] LuauExtensions = [".luau", ".lua"];
 	static readonly string[] InitFiles = ["init.luau", "init.lua"];
 
+	public const string RojoProject = "default.project.json";
+
+	public static bool HasRojoProject(string contentDirectory) => File.Exists(Path.Combine(contentDirectory, RojoProject));
+
 	public static PackageEntry Analyze(string contentDirectory, string pathToMain)
 	{
+		if (pathToMain.Length == 0 && ProjectMain(contentDirectory) is string projectMain)
+		{
+			pathToMain = projectMain;
+		}
+
 		string? mainFile = TypeExports.FindMainFile(contentDirectory, pathToMain);
 		List<string> segments = Links.MainSegments(pathToMain);
 
@@ -36,6 +47,29 @@ public sealed record PackageEntry(EntryKind Kind, List<string> Segments, List<Co
 		EntryKind kind = members.Count > 0 ? EntryKind.Collection : EntryKind.Missing;
 
 		return new PackageEntry(kind, segments, members, null);
+	}
+
+	static string? ProjectMain(string contentDirectory)
+	{
+		if (!HasRojoProject(contentDirectory))
+		{
+			return null;
+		}
+
+		try
+		{
+			using JsonDocument project = JsonDocument.Parse(File.ReadAllText(Path.Combine(contentDirectory, RojoProject)));
+
+			return project.RootElement.TryGetProperty("tree", out JsonElement tree) &&
+				tree.TryGetProperty("$path", out JsonElement path) &&
+				path.ValueKind == JsonValueKind.String
+				? path.GetString()
+				: null;
+		}
+		catch (JsonException)
+		{
+			return null;
+		}
 	}
 
 	static List<CollectionMember> CollectMembers(string folder)

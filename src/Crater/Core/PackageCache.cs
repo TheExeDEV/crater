@@ -29,6 +29,13 @@ public static partial class PackageCache
 
 	public static string Sha256(byte[] data) => Convert.ToHexStringLower(SHA256.HashData(data));
 
+	static string UnverifiedPath(ResolvedPackage package)
+	{
+		string source = Sha256(System.Text.Encoding.UTF8.GetBytes(package.Registry.Location))[..12];
+
+		return Path.Combine(Root, "unverified", $"{source}_{package.Name.Replace('/', '_')}@{package.Release.Version}.zip");
+	}
+
 	public static bool IsCached(ResolvedPackage package)
 	{
 		if (package.Registry is SourceRegistry)
@@ -38,7 +45,7 @@ public static partial class PackageCache
 
 		string expected = package.Release.Sha256.ToLowerInvariant();
 
-		return ShaRegex().IsMatch(expected) && File.Exists(Path.Combine(Root, expected + ".zip"));
+		return File.Exists(ShaRegex().IsMatch(expected) ? Path.Combine(Root, expected + ".zip") : UnverifiedPath(package));
 	}
 
 	public static async Task<byte[]> GetAsync(ResolvedPackage package)
@@ -50,13 +57,13 @@ public static partial class PackageCache
 
 		string expected = package.Release.Sha256.ToLowerInvariant();
 		bool hasSha = ShaRegex().IsMatch(expected);
-		string? cachePath = hasSha ? Path.Combine(Root, expected + ".zip") : null;
+		string cachePath = hasSha ? Path.Combine(Root, expected + ".zip") : UnverifiedPath(package);
 
-		if (cachePath is not null && File.Exists(cachePath))
+		if (File.Exists(cachePath))
 		{
 			byte[] cached = await File.ReadAllBytesAsync(cachePath);
 
-			if (Sha256(cached) == expected)
+			if (!hasSha || Sha256(cached) == expected)
 			{
 				return cached;
 			}
@@ -66,26 +73,25 @@ public static partial class PackageCache
 
 		byte[] data = await package.Registry.DownloadAsync(package.Name, package.Release.Version);
 
-		if (!hasSha)
+		if (!hasSha && package.Registry is not HttpRegistry { IsWally: true })
 		{
 			Out.Warn($"{Fmt.Pkg(package.Id)}: registry has no sha256, integrity not verified");
-			return data;
 		}
 
 		string actual = Sha256(data);
 
-		if (actual != expected)
+		if (hasSha && actual != expected)
 		{
 			throw new CraterException(
 				$"{Fmt.Pkg(package.Id)}: checksum mismatch (expected {Fmt.Val(expected)}, got {Fmt.Val(actual)})");
 		}
 
-		Directory.CreateDirectory(Root);
+		Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
 
 		string temporary = $"{cachePath}.{Guid.NewGuid():N}.tmp";
 
 		await File.WriteAllBytesAsync(temporary, data);
-		File.Move(temporary, cachePath!, overwrite: true);
+		File.Move(temporary, cachePath, overwrite: true);
 
 		return data;
 	}

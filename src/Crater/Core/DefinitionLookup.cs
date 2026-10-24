@@ -68,7 +68,7 @@ public static class DefinitionLookup
 
 		return Directory.EnumerateFiles(directory, "*" + Extension, SearchOption.AllDirectories)
 			.Select(path => Path.GetRelativePath(directory, path).Replace('\\', '/'))
-			.Where(path => !path.Split('/').Any(segment => segment.StartsWith('.') || segment == Layout.IndexFolder))
+			.Where(path => !path.Split('/').Any(segment => segment.StartsWith('.') || segment == Layout.LegacyIndexFolder))
 			.OrderBy(path => path, StringComparer.Ordinal)
 			.ToList();
 	}

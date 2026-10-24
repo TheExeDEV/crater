@@ -45,7 +45,7 @@ public sealed class LocalRegistry(string root) : IRegistry
 		return await File.ReadAllBytesAsync(path);
 	}
 
-	public Task<Catalog?> GetCatalogAsync()
+	public Task<Catalog?> GetCatalogAsync(string query)
 	{
 		string path = Path.Combine(root, Catalog.FileName);
 		Catalog catalog = File.Exists(path) ? Json.ReadFile<Catalog>(path) : Catalog.Build(root);

@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Crater.Models;
 using Crater.Util;
 
@@ -5,6 +6,8 @@ namespace Crater.Core;
 
 public sealed class FolderBuilder(Project project, Prompter prompt)
 {
+	static readonly string[] InitFiles = ["init.luau", "init.lua"];
+
 	public bool IsUpToDate(ResolvedGraph graph, LockFile oldLock)
 	{
 		List<LockedPackage> current = graph.All
@@ -29,16 +32,20 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 		if (graph.All.Count == 0)
 		{
-			return !Directory.Exists(Path.Combine(folder, Layout.IndexFolder));
+			return !PackageLayout.IsManaged(folder);
 		}
 
-		bool packagesPresent = graph.All.All(
-			package => Directory.Exists(Path.Combine(folder, Layout.IndexFolder, package.IndexDirectory, package.ShortName)));
+		if (!File.Exists(Path.Combine(folder, PackageLayout.MarkerFile)))
+		{
+			return false;
+		}
 
-		bool linksPresent = graph.Roots.All(
-			edge => File.Exists(Path.Combine(folder, edge.LinkName + ".luau")));
+		PackageLayout layout = PackageLayout.Plan(graph, folderName);
 
-		return packagesPresent && linksPresent;
+		bool packagesPresent = layout.Folders.Values.All(name => Directory.Exists(Path.Combine(folder, name)));
+		bool aliasesPresent = layout.Aliases.Keys.All(name => File.Exists(Path.Combine(folder, name + ".luau")));
+
+		return packagesPresent && aliasesPresent;
 	}
 
 	public void Build(ResolvedGraph graph, IReadOnlyDictionary<ResolvedPackage, byte[]> archives)
@@ -51,6 +58,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 		string folderName = project.Config.FolderFor(graph.Realm);
 		string folder = project.Abs(folderName);
+		PackageLayout layout = PackageLayout.Plan(graph, folderName);
 
 		EnsureManaged(graph.Realm, folderName, folder);
 
@@ -68,12 +76,12 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			Directory.Delete(folder, recursive: true);
 		}
 
-		string index = Path.Combine(folder, Layout.IndexFolder);
-		Directory.CreateDirectory(index);
+		Directory.CreateDirectory(folder);
 
-		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, archives, index);
+		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, archives, folder, layout);
 
-		WriteLinks(graph, extracted, folder, index);
+		WriteAliases(layout, extracted, folder);
+		layout.WriteMarker(folder);
 		Report(graph, extracted);
 	}
 
@@ -89,9 +97,8 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		}
 
 		string folder = project.Abs(folderName);
-		bool managed = Directory.Exists(Path.Combine(folder, Layout.IndexFolder));
 
-		if (!managed)
+		if (!PackageLayout.IsManaged(folder))
 		{
 			return;
 		}
@@ -102,42 +109,50 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		}
 	}
 
-	void EnsureManaged(Realm realm, string folderName, string folder)
+	static void EnsureManaged(Realm realm, string folderName, string folder)
 	{
 		if (!Directory.Exists(folder))
 		{
 			return;
 		}
 
-		bool managed = Directory.Exists(Path.Combine(folder, Layout.IndexFolder));
 		bool empty = !Directory.EnumerateFileSystemEntries(folder).Any();
 
-		if (managed || empty)
+		if (PackageLayout.IsManaged(folder) || empty)
 		{
 			return;
 		}
 
 		throw new CraterException(
-			$"Folder {Fmt.File(folderName)} exists, is not empty and is not managed by crater (no {Layout.IndexFolder}). " +
+			$"Folder {Fmt.File(folderName)} exists, is not empty and was not created by crater. " +
 			$"Rename it or set a different {ProjectConfig.FolderField(realm)} in {Fmt.File(ProjectConfig.FileName)}.");
 	}
 
-	static Dictionary<ResolvedPackage, Extracted> ExtractPackages(
+	Dictionary<ResolvedPackage, Extracted> ExtractPackages(
 		ResolvedGraph graph,
 		IReadOnlyDictionary<ResolvedPackage, byte[]> archives,
-		string index)
+		string folder,
+		PackageLayout layout)
 	{
 		Dictionary<ResolvedPackage, Extracted> extracted = [];
+		string style = project.Config.LinkStyle;
 
 		foreach (ResolvedPackage package in graph.All)
 		{
-			string content = Path.Combine(index, package.IndexDirectory, package.ShortName);
+			string content = Path.Combine(folder, layout.Folders[package]);
 
 			Directory.CreateDirectory(content);
 			Packer.Extract(archives[package], content, package.Id);
 
+			RenameRojoProject(content, layout.Folders[package]);
+
 			PackageEntry entry = PackageEntry.Analyze(content, package.Manifest.PathToMain);
 			List<TypeExport> types = entry.MainFile is null ? [] : TypeExports.Parse(File.ReadAllText(entry.MainFile));
+
+			if (Links.NeedsInit(entry) && !PackageEntry.HasRojoProject(content))
+			{
+				WriteInit(package, content, Links.PackageInit(package, style, entry, types));
+			}
 
 			extracted[package] = new Extracted(entry, types);
 		}
@@ -145,27 +160,51 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		return extracted;
 	}
 
-	void WriteLinks(ResolvedGraph graph, Dictionary<ResolvedPackage, Extracted> extracted, string folder, string index)
+	static void RenameRojoProject(string content, string name)
+	{
+		string path = Path.Combine(content, PackageEntry.RojoProject);
+
+		if (!File.Exists(path))
+		{
+			return;
+		}
+
+		try
+		{
+			JsonObject project = Json.ReadObject(path);
+
+			project["name"] = name;
+			Json.WriteText(path, Json.Serialize(project));
+		}
+		catch (Exception exception) when (exception is System.Text.Json.JsonException or CraterException)
+		{
+			Out.Warn($"{PackageEntry.RojoProject} in {Fmt.File(name)} could not be read, Rojo may name it differently");
+		}
+	}
+
+	static void WriteInit(ResolvedPackage package, string content, string text)
+	{
+		string? existing = InitFiles.FirstOrDefault(name => File.Exists(Path.Combine(content, name)));
+
+		if (existing is not null)
+		{
+			Out.Warn($"{Fmt.Pkg(package.Id)} has its own {existing} that is not its main module, require uses that file");
+			return;
+		}
+
+		File.WriteAllText(Path.Combine(content, "init.luau"), text);
+	}
+
+	void WriteAliases(PackageLayout layout, Dictionary<ResolvedPackage, Extracted> extracted, string folder)
 	{
 		string style = project.Config.LinkStyle;
 
-		foreach (ResolvedPackage package in graph.All)
+		foreach ((string alias, ResolvedPackage package) in layout.Aliases)
 		{
-			foreach (ResolvedDependency edge in package.Dependencies)
-			{
-				Extracted target = extracted[edge.Package];
-				string path = Path.Combine(index, package.IndexDirectory, edge.LinkName + ".luau");
+			Extracted target = extracted[package];
+			List<TypeExport> types = target.Entry.Kind == EntryKind.Module ? target.Types : [];
 
-				File.WriteAllText(path, Links.Nested(edge.Package, style, target.Entry, target.Types));
-			}
-		}
-
-		foreach (ResolvedDependency edge in graph.Roots)
-		{
-			Extracted target = extracted[edge.Package];
-			string path = Path.Combine(folder, edge.LinkName + ".luau");
-
-			File.WriteAllText(path, Links.TopLevel(edge.Package, style, target.Entry, target.Types));
+			File.WriteAllText(Path.Combine(folder, alias + ".luau"), Links.Alias(layout.Folders[package], style, types));
 		}
 	}
 

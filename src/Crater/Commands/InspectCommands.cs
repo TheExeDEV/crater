@@ -222,7 +222,7 @@ public static class InspectCommands
 
 		using (new Spinner("Searching"))
 		{
-			catalog = await registry.GetCatalogAsync();
+			catalog = await registry.GetCatalogAsync(query);
 		}
 
 		if (catalog is null)

@@ -16,7 +16,6 @@ public sealed class ResolvedPackage
 	public string Scope => Name[..Name.IndexOf('/')];
 	public string ShortName => Name[(Name.IndexOf('/') + 1)..];
 	public string Id => $"{Name}@{Version}";
-	public string IndexDirectory => $"{Scope}_{ShortName}@{Version}";
 	public bool IsSource => Registry is SourceRegistry;
 
 	public override string ToString() => Id;
