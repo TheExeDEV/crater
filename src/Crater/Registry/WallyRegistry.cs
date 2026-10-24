@@ -19,7 +19,8 @@ public sealed class WallyRegistry(string indexUrl, string apiUrl) : IRegistry
 
 	public static async Task<WallyRegistry?> DetectAsync(string indexUrl)
 	{
-		string? text = await Http.GetTextOrNullAsync($"{indexUrl}/{ConfigFile}");
+		byte[]? data = await Http.GetCachedAsync($"{indexUrl}/{ConfigFile}");
+		string? text = data is null ? null : System.Text.Encoding.UTF8.GetString(data);
 
 		if (text is null)
 		{
@@ -39,7 +40,8 @@ public sealed class WallyRegistry(string indexUrl, string apiUrl) : IRegistry
 	async Task<RegistryIndex?> LoadIndexAsync(string fullName)
 	{
 		string url = $"{indexUrl}/{fullName}";
-		string? text = await Http.GetTextOrNullAsync(url);
+		byte[]? data = await Http.GetCachedAsync(url);
+		string? text = data is null ? null : System.Text.Encoding.UTF8.GetString(data);
 
 		if (text is null)
 		{

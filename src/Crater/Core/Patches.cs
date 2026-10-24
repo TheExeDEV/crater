@@ -67,11 +67,16 @@ public static class Patches
 
 	public static string Fingerprint(Project project, IEnumerable<ResolvedPackage> packages)
 	{
+		return Fingerprint(project, packages.Select(package => package.Id));
+	}
+
+	public static string Fingerprint(Project project, IEnumerable<string> ids)
+	{
 		StringBuilder builder = new();
 
-		foreach (ResolvedPackage package in packages.OrderBy(item => item.Id, StringComparer.Ordinal))
+		foreach (string id in ids.Distinct().OrderBy(item => item, StringComparer.Ordinal))
 		{
-			string directory = DirectoryFor(project, package.Id);
+			string directory = DirectoryFor(project, id);
 
 			if (!Directory.Exists(directory))
 			{

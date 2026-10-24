@@ -166,26 +166,31 @@ public sealed partial class HttpRegistry : IRegistry
 
 	async Task<string?> TextAsync(string url)
 	{
-		byte[]? data = await BytesAsync(url);
+		byte[]? data = await BytesAsync(url, cached: true);
 
 		return data is null ? null : Encoding.UTF8.GetString(data);
 	}
 
-	async Task<byte[]?> BytesAsync(string url)
+	async Task<byte[]?> BytesAsync(string url, bool cached = false)
 	{
-		if (IsPrivate)
+		Task<byte[]?> Fetch(IReadOnlyDictionary<string, string>? headers)
 		{
-			return await Http.GetBytesOrNullAsync(url, null, GitHubAuth.Headers());
+			return cached ? Http.GetCachedAsync(url, headers) : Http.GetBytesOrNullAsync(url, null, headers);
 		}
 
-		byte[]? data = await Http.GetBytesOrNullAsync(url, null, OwnHeaders());
+		if (IsPrivate)
+		{
+			return await Fetch(GitHubAuth.Headers());
+		}
+
+		byte[]? data = await Fetch(OwnHeaders());
 
 		if (data is not null || github is null)
 		{
 			return data;
 		}
 
-		return await access.Value == Access.Private ? await Http.GetBytesOrNullAsync(url, null, GitHubAuth.Headers()) : null;
+		return await access.Value == Access.Private ? await Fetch(GitHubAuth.Headers()) : null;
 	}
 
 	static Dictionary<string, string>? OwnHeaders()
@@ -201,7 +206,7 @@ public sealed partial class HttpRegistry : IRegistry
 
 		foreach (string marker in markers)
 		{
-			if (await Http.GetBytesOrNullAsync($"{baseUrl}/{marker}") is not null)
+			if (await Http.GetCachedAsync($"{baseUrl}/{marker}") is not null)
 			{
 				return Access.Public;
 			}
@@ -217,7 +222,7 @@ public sealed partial class HttpRegistry : IRegistry
 
 		foreach (string marker in markers)
 		{
-			if (await Http.GetBytesOrNullAsync($"{baseUrl}/{marker}", null, GitHubAuth.Headers()) is not null)
+			if (await Http.GetCachedAsync($"{baseUrl}/{marker}", GitHubAuth.Headers()) is not null)
 			{
 				return Access.Private;
 			}

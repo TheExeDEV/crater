@@ -39,13 +39,92 @@ public static class Http
 		return await GetBytesOrNullAsync(url) ?? throw new CraterException($"{Fmt.File(url)}: HTTP 404 Not Found");
 	}
 
+	public static bool Offline { get; set; } = Environment.GetEnvironmentVariable("CRATER_OFFLINE") is { Length: > 0 };
+
+	sealed record Response(byte[]? Data, string? ETag, bool NotModified);
+
 	public static async Task<byte[]?> GetBytesOrNullAsync(string url, Action<long, long?>? progress = null, IReadOnlyDictionary<string, string>? headers = null)
 	{
+		return (await SendWithRetriesAsync(url, progress, headers, null)).Data;
+	}
+
+	public static async Task<byte[]?> GetCachedAsync(string url, IReadOnlyDictionary<string, string>? headers = null)
+	{
+		string directory = Path.Combine(CraterPaths.Cache, "http");
+		string key = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(url)));
+		string bodyPath = Path.Combine(directory, key + ".body");
+		string tagPath = Path.Combine(directory, key + ".etag");
+		string missingPath = Path.Combine(directory, key + ".missing");
+		bool hasBody = File.Exists(bodyPath);
+
+		if (Offline)
+		{
+			if (hasBody)
+			{
+				return await File.ReadAllBytesAsync(bodyPath);
+			}
+
+			if (File.Exists(missingPath))
+			{
+				return null;
+			}
+
+			throw new CraterException($"{Fmt.File(url)} is not in the cache yet. Run the command once with internet, then {Fmt.Cmd("--offline")} works.");
+		}
+
+		string? etag = hasBody && File.Exists(tagPath) ? await File.ReadAllTextAsync(tagPath) : null;
+		Response response = await SendWithRetriesAsync(url, null, headers, etag);
+
+		Directory.CreateDirectory(directory);
+
+		if (response.NotModified)
+		{
+			return await File.ReadAllBytesAsync(bodyPath);
+		}
+
+		if (response.Data is null)
+		{
+			File.Delete(bodyPath);
+			File.Delete(tagPath);
+			await File.WriteAllTextAsync(missingPath, "");
+			return null;
+		}
+
+		await WriteAtomicallyAsync(bodyPath, response.Data);
+		File.Delete(missingPath);
+
+		if (response.ETag is not null)
+		{
+			await WriteAtomicallyAsync(tagPath, System.Text.Encoding.UTF8.GetBytes(response.ETag));
+		}
+		else
+		{
+			File.Delete(tagPath);
+		}
+
+		return response.Data;
+	}
+
+	static async Task WriteAtomicallyAsync(string path, byte[] data)
+	{
+		string temporary = $"{path}.{Guid.NewGuid():N}.tmp";
+
+		await File.WriteAllBytesAsync(temporary, data);
+		File.Move(temporary, path, overwrite: true);
+	}
+
+	static async Task<Response> SendWithRetriesAsync(string url, Action<long, long?>? progress, IReadOnlyDictionary<string, string>? headers, string? etag)
+	{
+		if (Offline)
+		{
+			throw new CraterException($"{Fmt.File(url)} needs the internet, but crater runs with {Fmt.Cmd("--offline")}.");
+		}
+
 		for (int attempt = 1; ; attempt++)
 		{
 			try
 			{
-				return await TryGetAsync(url, progress, headers);
+				return await TryGetAsync(url, progress, headers, etag);
 			}
 			catch (Exception exception) when (IsTransient(exception) && attempt < Attempts)
 			{
@@ -58,7 +137,7 @@ public static class Http
 		}
 	}
 
-	static async Task<byte[]?> TryGetAsync(string url, Action<long, long?>? progress, IReadOnlyDictionary<string, string>? headers)
+	static async Task<Response> TryGetAsync(string url, Action<long, long?>? progress, IReadOnlyDictionary<string, string>? headers, string? etag)
 	{
 		using CancellationTokenSource stall = new(StallTimeout);
 		using HttpRequestMessage request = new(HttpMethod.Get, url);
@@ -68,12 +147,23 @@ public static class Http
 			request.Headers.TryAddWithoutValidation(name, value);
 		}
 
+		if (etag is not null)
+		{
+			request.Headers.TryAddWithoutValidation("If-None-Match", etag);
+		}
+
 		using HttpResponseMessage response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, stall.Token);
+
+		if (response.StatusCode == HttpStatusCode.NotModified)
+		{
+			return new Response(null, etag, true);
+		}
 
 		if (response.StatusCode == HttpStatusCode.NotFound)
 		{
-			return null;
+			return new Response(null, null, false);
 		}
+
 
 		if ((int)response.StatusCode is 429 or 500 or 502 or 503 or 504)
 		{
@@ -105,7 +195,7 @@ public static class Http
 			progress?.Invoke(buffer.Length, total);
 		}
 
-		return buffer.ToArray();
+		return new Response(buffer.ToArray(), response.Headers.ETag?.ToString(), false);
 	}
 
 	static bool IsTransient(Exception exception)

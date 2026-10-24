@@ -55,6 +55,35 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		return packagesPresent && aliasesPresent;
 	}
 
+	public const string StyleKey = "#style";
+
+	public HashSet<ResolvedPackage> PackagesToExtract(ResolvedGraph graph)
+	{
+		string? folderName = project.Config.TryFolderFor(graph.Realm);
+
+		if (folderName is null || graph.All.Count == 0)
+		{
+			return [.. graph.All];
+		}
+
+		string folder = project.Abs(folderName);
+		PackageLayout layout = PackageLayout.Plan(graph, folderName);
+		Dictionary<string, string> previous = PackageLayout.ReadMarker(folder);
+		bool reusable = File.Exists(Path.Combine(folder, PackageLayout.MarkerFile)) &&
+			!Directory.Exists(Path.Combine(folder, Layout.LegacyIndexFolder)) &&
+			previous.GetValueOrDefault(StyleKey) == project.Config.LinkStyle &&
+			previous.GetValueOrDefault(Patches.MarkerKey, "") == Patches.Fingerprint(project, graph.All);
+
+		if (!reusable)
+		{
+			return [.. graph.All];
+		}
+
+		return graph.All
+			.Where(package => previous.GetValueOrDefault(package.Id) != layout.Folders[package] || !Directory.Exists(Path.Combine(folder, layout.Folders[package])))
+			.ToHashSet();
+	}
+
 	public void Build(ResolvedGraph graph, IReadOnlyDictionary<ResolvedPackage, byte[]> archives)
 	{
 		if (graph.All.Count == 0)
@@ -69,28 +98,55 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 		EnsureManaged(graph.Realm, folderName, folder);
 
-		string verb = Directory.Exists(folder) ? "Rebuild" : "Create";
-		string list = string.Join(", ", graph.All.Select(package => Fmt.Pkg(package.Id)));
-		string count = Fmt.Plural(graph.All.Count, "package", "packages");
+		HashSet<ResolvedPackage> changed = PackagesToExtract(graph);
+		bool full = changed.Count == graph.All.Count;
+		HashSet<string> keptFolders = graph.All.Where(package => !changed.Contains(package)).Select(package => layout.Folders[package]).ToHashSet(OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
+		int removed = PackageLayout.ReadMarker(folder).Keys.Count(key => !key.StartsWith('#') && graph.All.All(package => package.Id != key));
 
-		if (!prompt.Confirm($"{verb} folder {Fmt.File(folderName)} ({count}: {list})"))
+		string action = !Directory.Exists(folder) ? "Create" : full ? "Rebuild" : "Update";
+		string list = string.Join(", ", changed.Select(package => Fmt.Pkg(package.Id)));
+		string summary = full
+			? $"{Fmt.Plural(graph.All.Count, "package", "packages")}: {list}"
+			: $"{(changed.Count > 0 ? $"add {list}, " : "")}{(removed > 0 ? $"remove {removed}, " : "")}keep {keptFolders.Count}";
+
+		if (!prompt.Confirm($"{action} folder {Fmt.File(folderName)} ({summary})"))
 		{
 			throw new CraterException("Installation cancelled.");
 		}
 
-		if (Directory.Exists(folder))
+		if (full && Directory.Exists(folder))
 		{
 			Directory.Delete(folder, recursive: true);
 		}
 
 		Directory.CreateDirectory(folder);
 
-		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, archives, folder, layout);
+		foreach (string entry in Directory.EnumerateFileSystemEntries(folder))
+		{
+			string name = Path.GetFileName(entry);
+
+			if (name == PackageLayout.MarkerFile || keptFolders.Contains(name))
+			{
+				continue;
+			}
+
+			if (Directory.Exists(entry))
+			{
+				Directory.Delete(entry, recursive: true);
+			}
+			else
+			{
+				File.Delete(entry);
+			}
+		}
+
+		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, archives, folder, layout, changed);
 
 		WriteAliases(layout, extracted, folder);
-		layout.WriteMarker(folder, Patches.Fingerprint(project, graph.All));
-		Report(graph, extracted, layout, folder);
+		layout.WriteMarker(folder, Patches.Fingerprint(project, graph.All), project.Config.LinkStyle);
+		Report(graph.All.Where(changed.Contains), extracted, layout, folder);
 	}
+
 
 	sealed record Extracted(PackageEntry Entry, List<TypeExport> Types);
 
@@ -139,7 +195,8 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		ResolvedGraph graph,
 		IReadOnlyDictionary<ResolvedPackage, byte[]> archives,
 		string folder,
-		PackageLayout layout)
+		PackageLayout layout,
+		HashSet<ResolvedPackage> changed)
 	{
 		Dictionary<ResolvedPackage, Extracted> extracted = [];
 		string style = project.Config.LinkStyle;
@@ -147,6 +204,14 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		foreach (ResolvedPackage package in graph.All)
 		{
 			string content = Path.Combine(folder, layout.Folders[package]);
+
+			if (!changed.Contains(package))
+			{
+				PackageEntry kept = PackageEntry.Analyze(content, package.Manifest.PathToMain);
+
+				extracted[package] = new Extracted(kept, kept.MainFile is null ? [] : TypeExports.Parse(File.ReadAllText(kept.MainFile)));
+				continue;
+			}
 
 			Directory.CreateDirectory(content);
 			Packer.Extract(archives[package], content, package.Id);
@@ -229,9 +294,9 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		}
 	}
 
-	static void Report(ResolvedGraph graph, Dictionary<ResolvedPackage, Extracted> extracted, PackageLayout layout, string folder)
+	static void Report(IEnumerable<ResolvedPackage> packages, Dictionary<ResolvedPackage, Extracted> extracted, PackageLayout layout, string folder)
 	{
-		foreach (ResolvedPackage package in graph.All)
+		foreach (ResolvedPackage package in packages)
 		{
 			Extracted item = extracted[package];
 

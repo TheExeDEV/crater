@@ -90,7 +90,8 @@ public static class InstallCommands
 		Prompter prompt = Common.PrompterFor(project, args);
 		Realm? only = Common.RealmFlag(args);
 
-		List<string> names = args.Positional.Select(name => name.Trim()).ToList();
+		List<DependencySpec> declared = project.Manifest.AllDependencies().ToList();
+		List<string> names = args.Positional.Select(name => ByShortName(declared, name.Trim())).ToList();
 		string shown = string.Join(", ", names.Select(name => Fmt.Pkg(name)));
 		JsonObject manifest = Json.ReadObject(project.ManifestPath);
 		int removed = 0;
@@ -128,7 +129,8 @@ public static class InstallCommands
 
 		foreach (string argument in arguments)
 		{
-			List<string> matched = specs.Where(spec => spec.Matches(argument)).Select(spec => spec.FullName).ToList();
+			string wanted = ByShortName(specs, argument);
+			List<string> matched = specs.Where(spec => spec.Matches(wanted)).Select(spec => spec.FullName).ToList();
 
 			if (matched.Count > 0)
 			{
@@ -145,6 +147,27 @@ public static class InstallCommands
 		}
 
 		return names;
+	}
+
+	static string ByShortName(List<DependencySpec> specs, string name)
+	{
+		if (specs.Any(spec => spec.Matches(name)))
+		{
+			return name;
+		}
+
+		List<string> found = specs
+			.Where(spec => spec.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+			.Select(spec => spec.FullName)
+			.Distinct()
+			.ToList();
+
+		if (found.Count > 1)
+		{
+			throw new CraterException($"{Fmt.Pkg(name)} matches {string.Join(", ", found.Select(item => Fmt.Pkg(item)))}. Use the full name.");
+		}
+
+		return found.Count == 1 ? found[0] : name;
 	}
 
 	static Realm DefaultRealm(Project project)

@@ -7,22 +7,7 @@ namespace Crater.Core;
 
 public static partial class PackageCache
 {
-	public static string Root
-	{
-		get
-		{
-			string? custom = Environment.GetEnvironmentVariable("CRATER_CACHE");
-
-			if (!string.IsNullOrWhiteSpace(custom))
-			{
-				return custom;
-			}
-
-			string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-
-			return Path.Combine(local, "crater", "cache");
-		}
-	}
+	public static string Root => CraterPaths.Cache;
 
 	[GeneratedRegex("^[0-9a-f]{64}$")]
 	private static partial Regex ShaRegex();

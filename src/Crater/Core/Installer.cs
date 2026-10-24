@@ -15,6 +15,13 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 	{
 		Stopwatch watch = Stopwatch.StartNew();
 		LockFile oldLock = LockFile.Load(project.LockPath);
+
+		if (update is null && InstallState.IsCurrent(project, oldLock))
+		{
+			InstallSummary.Print(oldLock, oldLock, watch.Elapsed);
+			return;
+		}
+
 		Dictionary<Realm, ResolvedGraph> graphs;
 
 		using (new Spinner("Resolving dependencies"))
@@ -30,8 +37,9 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		RejectRepublished(graphs, oldLock);
 
 		LockFile newLock = LockFile.From(graphs, project.Directory);
+		newLock.ManifestHash = InstallState.ManifestHash(project);
 
-		if (locked && (!File.Exists(project.LockPath) || Json.Serialize(newLock) != Json.Serialize(oldLock)))
+		if (locked && (!File.Exists(project.LockPath) || Json.Serialize(newLock.Packages) != Json.Serialize(oldLock.Packages)))
 		{
 			throw new CraterException(
 				$"{Fmt.File(LockFile.FileName)} does not match {Fmt.File(Manifest.FileName)}. Run {Fmt.Cmd("crater install")} and commit {Fmt.File(LockFile.FileName)}.");
@@ -39,7 +47,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 
 		FolderBuilder builder = new(project, prompt);
 		List<ResolvedGraph> stale = graphs.Values.Where(graph => !builder.IsUpToDate(graph, oldLock)).ToList();
-		Dictionary<ResolvedPackage, byte[]> archives = await DownloadAsync(stale.SelectMany(graph => graph.All).ToList());
+		Dictionary<ResolvedPackage, byte[]> archives = await DownloadAsync(stale.SelectMany(builder.PackagesToExtract).ToList());
 
 		foreach (ResolvedGraph graph in stale)
 		{
