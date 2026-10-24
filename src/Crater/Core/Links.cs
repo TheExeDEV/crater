@@ -54,7 +54,7 @@ public static partial class Links
 
 	public static bool NeedsInit(PackageEntry entry)
 	{
-		return entry.Kind != EntryKind.Module || entry.Segments.Count > 0;
+		return entry.Kind == EntryKind.Collection || (entry.Kind == EntryKind.Module && entry.Segments.Count > 0);
 	}
 
 	public static string PackageInit(ResolvedPackage package, string style, PackageEntry entry, IReadOnlyList<TypeExport> types)

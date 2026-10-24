@@ -125,6 +125,15 @@ public static class PublishCommands
 
 	static void DescribeEntry(Project project)
 	{
+		string rojoProject = Path.Combine(project.Directory, PackageEntry.RojoProject);
+
+		if (File.Exists(rojoProject) && File.ReadAllText(rojoProject).Contains("\"DataModel\""))
+		{
+			Out.Warn(
+				$"{Fmt.File(PackageEntry.RojoProject)} describes a whole game, not this package, and is ignored when installed. " +
+				$"Add it to {Fmt.Val("exclude")} in {Fmt.File(Manifest.FileName)}.");
+		}
+
 		PackageEntry entry = PackageEntry.Analyze(project.Directory, project.Manifest.PathToMain);
 
 		switch (entry.Kind)

@@ -261,6 +261,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
 | `beta/adof+0.12.44` | 0.12.44 or newer |
 | `a/b^1.2.3` | compatible: `>=1.2.3 <2.0.0` (for 0.x: `^0.2.3` is `<0.3.0`) |
 | `a/b^1` | `>=1.0.0 <2.0.0` |
+| `a/b@1.2.3` | the same as `a/b^1.2.3`, handy in the Windows terminal (see below) |
 | `a/b~1.2.3` | patch updates only: `>=1.2.3 <1.3.0` |
 | `Promise:evaera/promise^4` | any of the above with an [alias](#aliases) |
 | `me/lib@path:../lib` | a [local folder](#local-and-git-dependencies) |
@@ -269,6 +270,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
 - `=` needs a full `MAJOR.MINOR.PATCH`.
 - Prereleases are picked only by `=` or by a requirement that names a prerelease of the same version.
 - Names are case insensitive and stored in lowercase.
+- In the Windows `cmd` terminal `^` is a special character and disappears from commands. Type `crater add a/b@1.2.3` or put the spec in quotes: `crater add "a/b^1.2.3"`. PowerShell, Git Bash and `crater.json` are not affected. If the sign gets lost, crater says so and suggests the `@` form.
 
 ---
 

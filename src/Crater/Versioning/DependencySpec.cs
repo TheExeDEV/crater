@@ -76,6 +76,12 @@ public sealed partial class DependencySpec
 	[GeneratedRegex(@"^[a-z0-9_\-]+/[a-z0-9_\-]+$")]
 	private static partial Regex PackageNameRegex();
 
+	[GeneratedRegex(@"^(?<head>[^@\s]+/[A-Za-z0-9_\-]+)@(?<op>[=+^~]?)(?<ver>\d\S*)$")]
+	private static partial Regex AtVersionRegex();
+
+	[GeneratedRegex(@"^(?<name>[A-Za-z0-9_\-]+/[A-Za-z0-9_\-]*?[A-Za-z_\-])(?<ver>\d+(\.\d+){1,2})$")]
+	private static partial Regex EatenCaretRegex();
+
 	public static bool IsValidPackageName(string name)
 	{
 		return PackageNameRegex().IsMatch(name) && !name.Split('/')[1].StartsWith('_');
@@ -84,14 +90,32 @@ public sealed partial class DependencySpec
 	public static DependencySpec Parse(string raw, string? where = null)
 	{
 		string context = where is null ? "" : $" ({where})";
-		Match match = SpecRegex().Match(raw.Trim());
+		string text = raw.Trim();
+		Match atVersion = AtVersionRegex().Match(text);
+
+		if (atVersion.Success)
+		{
+			string op = atVersion.Groups["op"].Value;
+
+			text = atVersion.Groups["head"].Value + (op.Length == 0 ? "^" : op) + atVersion.Groups["ver"].Value;
+		}
+
+		Match match = SpecRegex().Match(text);
+
+		if (!match.Success && EatenCaretRegex().Match(text) is { Success: true } eaten)
+		{
+			string fixedSpec = $"{eaten.Groups["name"].Value}@{eaten.Groups["ver"].Value}";
+
+			throw new CraterException(
+				$"Got {Fmt.Val(raw)}: the Windows terminal removed the {Fmt.Val("^")} sign. Write {Fmt.Cmd(fixedSpec)} instead, it means the same.");
+		}
 
 		if (!match.Success)
 		{
 			throw new CraterException(
 				$"Invalid dependency {Fmt.Val(raw)}{context}. Expected " +
 				$"{Fmt.Cmd("scope/name^")}, {Fmt.Cmd("scope/name=1.2.3")}, {Fmt.Cmd("scope/name+1.2.3")}, " +
-				$"{Fmt.Cmd("scope/name^1.2.3")}, {Fmt.Cmd("scope/name~1.2.3")} or {Fmt.Cmd("scope/name@path:../folder")}, " +
+				$"{Fmt.Cmd("scope/name@1.2.3")}, {Fmt.Cmd("scope/name~1.2.3")} or {Fmt.Cmd("scope/name@path:../folder")}, " +
 				$"optionally with an alias: {Fmt.Cmd("Alias:scope/name^")}");
 		}
 
