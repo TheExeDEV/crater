@@ -28,7 +28,7 @@ Maintainers listed in `registry.json` may change any file.
 
 ## Review
 
-Nothing is merged automatically. Maintainers read the "What changed" section in the check's Summary, or run `crater review <number>` to get the files locally. A maintainer reads the code of every pull request, looks at the scan report and decides. Explain anything the scanner flags (for example why your package needs `HttpService`) in the pull request description.
+Nothing is merged automatically. Maintainers read the code in the **Files changed** tab: the unpacked package is in `<scope>/<package>/source/`, and the check makes sure it matches the archive. A maintainer reads the code of every pull request, looks at the scan report and decides. Explain anything the scanner flags (for example why your package needs `HttpService`) in the pull request description.
 
 ## Pull requests
 

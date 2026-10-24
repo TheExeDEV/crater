@@ -76,6 +76,33 @@ public sealed class IsolationAndScriptTests : IDisposable
 	}
 
 	[Fact]
+	public void PublishesReadableSourceThatMustMatchTheArchive()
+	{
+		string lib = Package("t/readable", [], new() { ["init.luau"] = "return 1\n", ["old.luau"] = "return 0\n" });
+
+		Assert.Equal(0, Crater(lib, "publish", "-y"));
+
+		string package = Path.Combine(root, "registry", "t", "readable");
+
+		File.Delete(Path.Combine(lib, "old.luau"));
+		File.WriteAllText(Path.Combine(lib, "crater.json"), File.ReadAllText(Path.Combine(lib, "crater.json")).Replace("\"1.0.0\"", "\"1.1.0\""));
+		Assert.Equal(0, Crater(lib, "publish", "-y"));
+
+		Assert.True(File.Exists(Path.Combine(package, "source", "init.luau")));
+		Assert.False(File.Exists(Path.Combine(package, "source", "old.luau")));
+
+		Crater.Registry.RegistryChecker valid = new(Path.Combine(root, "registry"));
+		valid.CheckContents();
+		Assert.Empty(valid.Errors);
+
+		File.WriteAllText(Path.Combine(package, "source", "init.luau"), "return \"changed\"\n");
+
+		Crater.Registry.RegistryChecker tampered = new(Path.Combine(root, "registry"));
+		tampered.CheckContents();
+		Assert.Contains(tampered.Errors, error => error.Contains("does not match"));
+	}
+
+	[Fact]
 	public void WarnsAboutScriptsAndBlocksThemWhenAsked()
 	{
 		string lib = Package("t/boot", [], new() { ["init.luau"] = "return {}\n", ["Boot.server.luau"] = "print(1)\n" });

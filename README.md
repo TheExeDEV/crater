@@ -697,6 +697,7 @@ crater-registry/
       index.json             versions, sha256, manifests
       1.4.0.zip
       1.5.0.zip
+      source/                the unpacked code of the latest version, for reading on GitHub
     cool-lib/
       index.json
       1.0.0.zip
@@ -829,16 +830,11 @@ After merge `publish.yml` builds the website, including the catalog (`data/packa
 
 Nothing is merged automatically. The check only reports; a maintainer reads the code and merges.
 
-You do not have to download the archives to read them:
+You never have to download anything to read a package, everything is on GitHub:
 
-- **In the pull request.** The **Summary** of the check run has a "What changed" section for every new version: a table of added, changed and removed files and, for each one, a diff against the previous published version that you can expand. A first version shows its whole code.
-- **On your computer.** `crater review <number or link>` downloads every new version in a pull request together with the previous one, unpacks them into `new/` and `old/`, writes `changes.diff`, prints the scanner report, the scripts the package runs and the diff, and with `--open` opens the folder in VS Code:
+- **Files changed tab.** `crater publish` puts the unpacked code of the version next to its archive, in `<scope>/<package>/source/`. That folder always holds the latest version, so the **Files changed** tab of the pull request shows the code itself with syntax highlighting and a line-by-line diff against the previous version, and you can comment on lines. The check fails if `source/` differs from the archive in any byte, so what you read is exactly what gets installed.
+- **Summary of the check.** A "What changed" section lists added, changed and removed files of every new version with expandable diffs, next to the scanner report.
 
-  ```bash
-  crater review 7 --open
-  ```
-
-  Only maintainers of the registry (people who can merge there) can run it; it checks your `crater login`. It works for private registries too.
 
 
 To help with that, the check unpacks every new version and scans it. The report is shown in the log and in the **Summary** of the check run, with the file, the line and the code:
@@ -1037,7 +1033,6 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `registry init <folder> --repo Owner/Repo` | Create a registry repository from the template. |
 | `registry check [folder] [--base ref] [--author login]` | Validate a registry and pull request changes. |
 | `registry catalog [folder]` | Regenerate `packages.json`. |
-| `review <number or link> [--open]` | Unpack and diff the packages of a registry pull request. |
 | `registry scan <package.zip\|folder>` | Look for suspicious code in a package. |
 | `registry site [folder] [-o out] [--serve] [--port n]` | Build (and preview) the website. |
 | `self-update [--check]` | Update crater. |
