@@ -44,16 +44,33 @@ public static class InstallCommands
 
 	public static async Task AddAsync(Args args)
 	{
-		if (args.Positional.Count == 0)
+		bool browse = args.Has("packages-list", "l");
+
+		if (args.Positional.Count == 0 && !browse)
 		{
-			throw new CraterException($"Usage: {Fmt.Cmd("crater add <scope/name^> [--client|--server|--dev]")}");
+			throw new CraterException(
+				$"Usage: {Fmt.Cmd("crater add <scope/name^> [--client|--server|--dev]")}, or {Fmt.Cmd("crater add --packages-list [search]")} to pick from a list");
 		}
 
 		Project project = Common.LoadProject();
 		Prompter prompt = Common.PrompterFor(project, args);
 		Realm realm = Common.RealmFlag(args) ?? DefaultRealm(project);
+		bool interactive = Terminal.CanPrompt && !args.Has("y", "yes");
+		List<DependencySpec> specs = [];
 
-		List<DependencySpec> specs = args.Positional.Select(raw => DependencySpec.Parse(raw)).ToList();
+		if (browse)
+		{
+			DependencySpec picked = await AddPicker.PickAsync(project, string.Join(' ', args.Positional)) ?? throw new CraterException("Cancelled.");
+
+			specs.Add(picked);
+		}
+		else
+		{
+			foreach (string raw in args.Positional)
+			{
+				specs.Add(await AddPicker.ChooseRegistryAsync(project, DependencySpec.Parse(raw), interactive));
+			}
+		}
 		JsonObject manifest = Json.ReadObject(project.ManifestPath);
 		JsonArray list = ManifestEditor.ListFor(manifest, realm.ManifestField());
 

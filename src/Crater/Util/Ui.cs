@@ -250,6 +250,103 @@ public static class Select
 		}
 	}
 
+	public static int? One(string title, IReadOnlyList<Item> items, int start = 0)
+	{
+		if (!Terminal.CanPrompt)
+		{
+			throw new CraterException("Interactive selection needs a terminal.");
+		}
+
+		if (items.Count == 0)
+		{
+			return null;
+		}
+
+		int cursor = Math.Clamp(start, 0, items.Count - 1);
+
+		Out.Question(title);
+		Console.WriteLine();
+		Out.Dim("  ↑/↓ move, enter pick, esc cancel");
+
+		for (int i = 0; i < items.Count; i++)
+		{
+			Console.WriteLine();
+		}
+
+		int top = Math.Max(0, Console.CursorTop - items.Count);
+
+		SetCursorVisible(false);
+
+		try
+		{
+			RenderOne(items, cursor, top);
+
+			while (true)
+			{
+				ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+
+				switch (key.Key)
+				{
+					case ConsoleKey.UpArrow or ConsoleKey.K:
+						cursor = (cursor - 1 + items.Count) % items.Count;
+						break;
+
+					case ConsoleKey.DownArrow or ConsoleKey.J:
+						cursor = (cursor + 1) % items.Count;
+						break;
+
+					case ConsoleKey.Enter:
+						return cursor;
+
+					case ConsoleKey.Escape or ConsoleKey.Q:
+						return null;
+				}
+
+				RenderOne(items, cursor, top);
+			}
+		}
+		finally
+		{
+			SetCursorVisible(true);
+		}
+	}
+
+	public static string? Ask(string question)
+	{
+		if (!Terminal.CanPrompt)
+		{
+			throw new CraterException("Interactive input needs a terminal.");
+		}
+
+		Out.Question(question);
+		Out.Inline(" ");
+
+		return Console.ReadLine()?.Trim();
+	}
+
+	static void RenderOne(IReadOnlyList<Item> items, int cursor, int top)
+	{
+		Console.SetCursorPosition(0, top);
+
+		for (int i = 0; i < items.Count; i++)
+		{
+			string pointer = i == cursor ? "[c]›[/]" : " ";
+			string hint = items[i].Hint is null ? "" : "  " + items[i].Hint;
+			string line = Fit($"{pointer} {items[i].Label}{hint}");
+			int padding = Math.Max(0, Terminal.Width - 1 - Out.Plain(line).Length);
+
+			Out.Inline(line + new string(' ', padding));
+			Console.WriteLine();
+		}
+	}
+
+	static string Fit(string line)
+	{
+		int max = Terminal.Width - 2;
+
+		return Out.Plain(line).Length <= max ? line : Out.Plain(line)[..Math.Max(1, max - 1)] + "…";
+	}
+
 	static void Render(IReadOnlyList<Item> items, bool[] selected, int cursor, int top)
 	{
 		Console.SetCursorPosition(0, top);

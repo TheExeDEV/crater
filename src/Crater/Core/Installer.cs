@@ -16,6 +16,11 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		Stopwatch watch = Stopwatch.StartNew();
 		LockFile oldLock = LockFile.Load(project.LockPath);
 
+		if (locked && oldLock.HadConflicts)
+		{
+			throw new CraterException($"{Fmt.File(LockFile.FileName)} has merge conflicts. Run {Fmt.Cmd("crater install")} and commit the result.");
+		}
+
 		if (update is null && InstallState.IsCurrent(project, oldLock))
 		{
 			InstallSummary.Print(oldLock, oldLock, watch.Elapsed);

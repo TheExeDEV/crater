@@ -6,6 +6,8 @@ namespace Crater.Core;
 
 public static class PackageFiles
 {
+	public const string PesdeLinkFolder = "roblox_packages";
+
 	static readonly string[] LicensePrefixes = ["license", "licence", "copying", "notice", "unlicense"];
 	static readonly string[] Manifests = ["crater.json", "wally.toml", "pesde.toml"];
 	static readonly string[] DocumentPrefixes = ["readme", "changelog", "changes", "history", "contributing", "code_of_conduct", "security", "authors"];
@@ -48,12 +50,12 @@ public static class PackageFiles
 			.Distinct(StringComparer.OrdinalIgnoreCase)
 			.ToList();
 
-		string folder = Path.Combine(content, "roblox_packages");
+		string folder = Path.Combine(content, PesdeLinkFolder);
 
 		foreach (string alias in aliases)
 		{
 			Directory.CreateDirectory(folder);
-			File.WriteAllText(Path.Combine(folder, alias + ".luau"), $"return require(script.Parent.Parent.Parent[\"{alias}\"])\n");
+			File.WriteAllText(Path.Combine(folder, alias + ".luau"), Links.PrivateLink(alias, "roblox", []));
 		}
 	}
 

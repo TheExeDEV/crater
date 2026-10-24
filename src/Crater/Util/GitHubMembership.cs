@@ -18,6 +18,13 @@ public static class GitHubMembership
 		Dictionary<string, string> headers = GitHubAuth.Headers("application/vnd.github+json");
 		string url = $"https://api.github.com/orgs/{organization}/public_members/{login}";
 
-		return Http.GetBytesOrNullAsync(url, null, headers).GetAwaiter().GetResult() is not null;
+		try
+		{
+			return Http.GetBytesOrNullAsync(url, null, headers).GetAwaiter().GetResult() is not null;
+		}
+		catch (CraterException)
+		{
+			return false;
+		}
 	}
 }

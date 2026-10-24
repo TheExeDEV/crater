@@ -119,7 +119,7 @@ public static class DeprecateCommand
 		return version is null ? "this package is no longer maintained" : "do not use this version";
 	}
 
-	static string RegistryLocation(Args args, out string baseDirectory)
+	public static string RegistryLocation(Args args, out string baseDirectory)
 	{
 		Project? project = null;
 

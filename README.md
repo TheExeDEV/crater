@@ -573,6 +573,7 @@ Exact versions, sources, git commits and sha256 of everything installed. Commit 
 - A locked version whose sha256 changed in the registry stops the install (`crater update name` if that is expected).
 - Local registry paths are stored relative to the project.
 - `crater install --locked` fails instead of changing `crater.lock` when it does not match `crater.json`. Use it in CI.
+- Merge conflicts in `crater.lock` fix themselves: when two people added different packages and git leaves `<<<<<<<` markers in the lock file, resolve `crater.json` as usual and run `crater install`. crater reads both sides of the conflict, keeps the versions each side had, resolves again from `crater.json` and writes a clean `crater.lock`. `crater install --locked` refuses a lock file with conflict markers.
 - When nothing changed since the last install (same `crater.json`, folders and patches), `install` finishes in a fraction of a second without touching the network. crater keeps a fingerprint of `crater.json` in `crater.lock` for that.
 - Registry indexes are cached on disk and revalidated with a short "has it changed?" request. With `--offline` (or `CRATER_OFFLINE=1`) crater uses only the cache: installs, updates and `outdated` work without internet as long as the packages were downloaded once.
 
@@ -632,6 +633,10 @@ graph LR
 ```
 
 Picking a version outside the requirement rewrites it in `crater.json` (keeping the operator and alias) and installs, with rollback if the install fails.
+
+**`crater add --packages-list`** opens a search instead of asking for an exact name. Type a word, pick a package from the crater registry, Wally or pesde with the arrow keys, then pick the version (the newest is preselected). crater writes the right prefix (`wally#`, `pesde#`) when the package comes from a registry your project does not search first. `crater add --packages-list promise` starts with that search.
+
+**Same name in several registries.** When your `registry` list has more than one registry and `crater add scope/name` finds the package in more than one of them, crater asks which one to use and writes its name before `#` if you pick anything but the first. With `-y` or outside a terminal it takes the first one and says where else the package exists.
 
 **`crater why dep/dependency`** shows every chain that pulls a package in:
 
@@ -786,7 +791,7 @@ pesde packages install the same way, from the pesde index:
 
 or with `"registry": "https://github.com/pesde-pkg/index"`. crater recognizes the pesde format by its `config.toml`, reads the index file of each package and downloads the archive from the pesde API. Only the Roblox builds are used: the `roblox` target, or `roblox_server` (installed into the server folder) when a version has no `roblox` build. The entry module is the `lib` of that target. Dependencies of pesde packages come from pesde, their Wally dependencies from Wally; `dev` dependencies are skipped. Yanked versions are treated as deprecated and package deprecation messages are shown.
 
-pesde code requires its dependencies with string requires like `require("../roblox_packages/types")`. crater writes those `roblox_packages/<alias>.luau` files inside each pesde package, pointing at the installed dependency, so the code runs unchanged. `crater search --registry pesde jecs`, `crater info pesde#marked/jecs` and `crater import pesde.toml` (which writes `pesde#` and `wally#` before the dependencies) work too. Publishing to pesde is done with `pesde publish`.
+pesde code requires its dependencies with string requires like `require("../roblox_packages/types")`. crater writes those `roblox_packages/<alias>.luau` files inside each pesde package, pointing at the installed dependency and re-exporting its `export type` declarations, so the code runs unchanged and luau-lsp sees the types. `crater search --registry pesde jecs`, `crater info pesde#marked/jecs` and `crater import pesde.toml` (which writes `pesde#` and `wally#` before the dependencies) work too. Publishing to pesde is done with `pesde publish`.
 
 ### Several registries
 
@@ -913,6 +918,8 @@ crater registry scan path/to/package
 
 On the official registry `main` is protected with a ruleset: changes only through pull requests, one approval and a green **Check packages** are required, force pushes and branch deletion are blocked. Repository admins can merge their own pull requests without an approval (GitHub does not allow approving your own). Nothing else writes to `main`.
 
+The automatic check runs the workflow from the pull request itself, so a pull request that changes `.github/` could change the check too. The check reports such changes, but the human review is what stops them: never merge a pull request from someone else that touches `.github/`, `registry.json` or files outside the author's package folders.
+
 ---
 
 ## Publishing
@@ -959,6 +966,18 @@ When the owner accepts it, everyone can install it with `crater add theexedev/co
 | `version` | Three numbers: `1.0.0`, `0.2.5`. Not `1.0`, not `v1`. Each publish needs a new version; a published version never changes. |
 | `registry` | Already set by `crater init`. Leave it. |
 | `can_publish` | `true`. Set it to `false` for games and projects that should never be published. |
+
+### Co-owners
+
+A package belongs to its scope: your login, or an organization. To let a friend publish new versions of one of your packages without creating an organization, add them as an owner:
+
+```bash
+crater owner add theexedev/cool-lib friendlogin
+crater owner list theexedev/cool-lib
+crater owner remove theexedev/cool-lib friendlogin
+```
+
+This goes through review like a publish and stores the logins in `"owners"` of the package's `index.json`. After it is merged, `friendlogin` can `crater publish` new versions and `crater deprecate` that package. Owners cannot add or remove owners, publish other packages of your scope, or change published versions; the registry check enforces all three. Only the scope owner (or a public member of the organization, or a registry maintainer) can change the list. The website shows the owners on the package page.
 
 ### Publishing for a GitHub organization
 
@@ -1117,6 +1136,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `import [wally.toml\|pesde.toml] [--force]` | Convert a Wally or pesde project. |
 | `install [--workspace] [--locked]` (`i`) | Install, respecting `crater.lock`. `--locked` fails if the lock is out of date. |
 | `add <spec...> [--client\|--server\|--dev]` | Add or replace dependencies and install. Restores `crater.json` if the install fails. |
+| `add --packages-list [search]` | Search all registries and pick a package and version with the arrow keys. |
 | `remove <name...> [--client\|--server\|--dev]` (`rm`) | Remove by `scope/name` or alias. |
 | `update [name...] [-i] [--workspace]` (`up`) | Update all or the given packages. `-i` to pick. |
 | `outdated [--all]` | Show newer versions. |
@@ -1134,6 +1154,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `whoami` | Show the signed-in GitHub account. |
 | `publish [--dry-run] [--workspace]` | Send the package to the registry for review. See [Publishing](#publishing). |
 | `deprecate <scope/name>[@version] [message] [--undo]` | Mark a package or a version as deprecated, see [Deprecating](#deprecating). |
+| `owner add\|remove\|list <scope/name> [login...]` | Let other GitHub accounts publish a package, see [Co-owners](#co-owners). |
 | `registry init <folder> --repo Owner/Repo` | Create a registry repository from the template. |
 | `registry check [folder] [--base ref] [--author login]` | Validate a registry and pull request changes. |
 | `registry catalog [folder]` | Regenerate `packages.json`. |
@@ -1180,7 +1201,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 - Type re-exports come only from the main module.
 - Publishing goes through git (a pull request or a local folder); there is no HTTP upload.
 - `import` does not convert pesde git dependencies or Wally version ranges with an upper bound.
-- From pesde only Roblox builds are installed (`roblox` and `roblox_server` targets). Inside pesde packages, `export type` from dependencies is not re-exported through `roblox_packages`, so luau-lsp may show those types as unknown in package code; your own code is not affected.
+- From pesde only Roblox builds are installed (`roblox` and `roblox_server` targets).
 
 ---
 

@@ -19,6 +19,7 @@ public static class Help
 		("Dependencies", [
 			new("install [--workspace] [--locked]", "install dependencies, --locked fails if crater.lock is out of date"),
 			new("add <spec...> [--client|--server|--dev]", "add dependencies and install"),
+			new("add --packages-list [search]", "search all registries and pick a package and version"),
 			new("remove <name...> [--client|--server|--dev]", "remove dependencies by scope/name or alias"),
 			new("update [name...] [-i] [--workspace]", "update to the newest matching versions, -i to pick"),
 			new("outdated [--all]", "show dependencies that have newer versions"),
@@ -40,6 +41,7 @@ public static class Help
 			new("pack [-o file.zip]", "build the package archive"),
 			new("publish [--dry-run]", "send the package to the registry for review"),
 			new("deprecate <scope/name>[@version] [message] [--undo]", "mark a package or one version as deprecated"),
+			new("owner add|remove|list <scope/name> [login]", "let a friend publish your package"),
 			new("registry init|check|catalog|site", "manage a registry repository"),
 		]),
 		("Crater", [

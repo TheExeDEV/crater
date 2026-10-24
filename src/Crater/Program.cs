@@ -182,6 +182,9 @@ public static class Program
 			case "graph":
 				return GraphCommand.Run(args);
 
+			case "owner":
+				return await OwnerCommand.RunAsync(args);
+
 			case "deprecate":
 				return await DeprecateCommand.RunAsync(args);
 

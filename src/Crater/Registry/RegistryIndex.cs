@@ -11,7 +11,13 @@ public sealed class RegistryIndex
 
 	[JsonPropertyName("name")] public string Name { get; set; } = "";
 	[JsonPropertyName("deprecated")] public string? Deprecated { get; set; }
+	[JsonPropertyName("owners")] public List<string>? Owners { get; set; }
 	[JsonPropertyName("versions")] public List<RegistryRelease> Versions { get; set; } = [];
+
+	public bool IsOwner(string login)
+	{
+		return Owners?.Any(owner => owner.Equals(login, StringComparison.OrdinalIgnoreCase)) == true;
+	}
 
 	[JsonIgnore]
 	public RegistryRelease? Latest =>

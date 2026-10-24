@@ -161,7 +161,10 @@ public static class Patches
 
 	static bool IsGenerated(string directory, string relative)
 	{
-		if (!relative.Equals("init.luau", StringComparison.Ordinal))
+		bool candidate = relative.Equals("init.luau", StringComparison.Ordinal) ||
+			(relative.StartsWith(PackageFiles.PesdeLinkFolder + "/", StringComparison.Ordinal) && relative.Count(character => character == '/') == 1);
+
+		if (!candidate || !File.Exists(Path.Combine(directory, relative)))
 		{
 			return false;
 		}
