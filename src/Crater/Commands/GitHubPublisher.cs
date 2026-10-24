@@ -38,26 +38,63 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			return;
 		}
 
+		string url = await SendAsync(login, head, files, $"publish/{name.Replace('/', '-')}-{release.Version}", $"Publish {id}", $"Publishes `{id}`.", id);
+
+		Out.Ok($"Sent {Fmt.Pkg(id)} for review: {Fmt.File(url)}");
+		Out.Info("The registry owner checks it and adds it. GitHub notifies you when it is accepted.");
+	}
+
+	public async Task ChangeIndexAsync(string name, Func<JsonObject, string> edit)
+	{
+		string login = await GitHubApi.RequireLoginAsync();
+
+		await CheckScopeAsync(name, login);
+
+		string head = await GitHubApi.RequireAsync(HttpMethod.Get, $"repos/{registry.Slug}/git/ref/heads/{registry.Branch}", null, "object.sha");
+		string path = $"{name}/{RegistryIndex.FileName}";
+		string text = await Http.GetTextOrNullAsync($"{registry.RawBase(head)}/{path}", GitHubAuth.Headers())
+			?? throw new CraterException($"{Fmt.Pkg(name)} is not in the registry {Fmt.Val(registry.Slug)}.");
+		JsonObject index = JsonNode.Parse(text) as JsonObject ?? throw new CraterException($"{Fmt.File(path)} in {Fmt.Val(registry.Slug)} is not valid.");
+		string change = edit(index);
+
+		if (!prompt.Confirm($"Send to {Fmt.Val(registry.Slug)} for review: {change}"))
+		{
+			throw new CraterException("Cancelled.");
+		}
+
+		if (dryRun)
+		{
+			Out.Ok("Dry run: nothing was sent.");
+			return;
+		}
+
+		List<PackageFile> files = [new PackageFile(path, System.Text.Encoding.UTF8.GetBytes(Json.Serialize(index) + "\n"))];
+		string branch = $"index/{name.Replace('/', '-')}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+		string title = Out.Plain(change);
+		string url = await SendAsync(login, head, files, branch, title, title + ".", name);
+
+		Out.Ok($"Sent for review: {Fmt.File(url)}");
+		Out.Info("The registry owner checks it and merges it. GitHub notifies you when it is accepted.");
+	}
+
+	async Task<string> SendAsync(string login, string head, List<PackageFile> files, string branch, string title, string body, string label)
+	{
 		bool isOwner = registry.Owner.Equals(login, StringComparison.OrdinalIgnoreCase) || await GitHubApi.HasPermissionAsync(registry.Slug, "push");
 		string target = isOwner ? registry.Slug : await EnsureCopyAsync(login);
-		string branch = $"publish/{name.Replace('/', '-')}-{release.Version}";
-		string url;
 
-		using (new Spinner($"Sending {id}"))
+		using (new Spinner($"Sending {label}"))
 		{
 			if (!isOwner)
 			{
 				await GitHubApi.SendAsync(HttpMethod.Post, $"repos/{target}/merge-upstream", new JsonObject { ["branch"] = registry.Branch });
 			}
 
-			string commit = await CreateCommitAsync(target, head, files, $"Publish {id}");
+			string commit = await CreateCommitAsync(target, head, files, title);
 
 			await SetBranchAsync(target, branch, commit);
-			url = await OpenReviewAsync(isOwner ? branch : $"{login}:{branch}", id);
-		}
 
-		Out.Ok($"Sent {Fmt.Pkg(id)} for review: {Fmt.File(url)}");
-		Out.Info("The registry owner checks it and adds it. GitHub notifies you when it is accepted.");
+			return await OpenReviewAsync(isOwner ? branch : $"{login}:{branch}", title, body);
+		}
 	}
 
 	async Task<List<PackageFile>> BuildFilesAsync(RegistryRelease release, byte[] archive, string head)
@@ -279,9 +316,9 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 		throw new CraterException($"GitHub is still setting up your account. Run {Fmt.Cmd("crater publish")} again in a minute.");
 	}
 
-	async Task<string> OpenReviewAsync(string head, string id)
+	async Task<string> OpenReviewAsync(string head, string title, string body)
 	{
-		JsonObject request = new() { ["title"] = $"Publish {id}", ["head"] = head, ["base"] = registry.Branch, ["body"] = $"Publishes `{id}`." };
+		JsonObject request = new() { ["title"] = title, ["head"] = head, ["base"] = registry.Branch, ["body"] = body };
 		GitHubApi.Result created = await GitHubApi.SendAsync(HttpMethod.Post, $"repos/{registry.Slug}/pulls", request);
 
 		if (created.Success && created.Json is { } json)

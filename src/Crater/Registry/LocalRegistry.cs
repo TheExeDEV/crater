@@ -95,6 +95,29 @@ public sealed class LocalRegistry(string root) : IRegistry
 		}
 	}
 
+	public string ChangeIndex(string fullName, Func<System.Text.Json.Nodes.JsonObject, string> edit)
+	{
+		string indexPath = Path.Combine(PackageDirectory(fullName), RegistryIndex.FileName);
+
+		if (!File.Exists(indexPath))
+		{
+			throw new CraterException($"{Fmt.Pkg(fullName)} is not in the registry {Fmt.File(root)}.");
+		}
+
+		System.Text.Json.Nodes.JsonObject index = Json.ReadObject(indexPath);
+		string change = edit(index);
+
+		Json.WriteText(indexPath, Json.Serialize(index));
+		indexes.Remove(fullName);
+
+		if (!IsGitRepository)
+		{
+			WriteCatalog();
+		}
+
+		return change;
+	}
+
 	public void WriteCatalog()
 	{
 		Json.WriteText(Path.Combine(root, Catalog.FileName), Json.Serialize(Catalog.Build(root)));

@@ -95,24 +95,6 @@ public static class Program
 			case "dev":
 				return await DevCommand.RunAsync(args);
 
-			case "test":
-				return await TestCommand.RunAsync(args);
-
-			case "check":
-				return await CheckCommand.RunAsync(args);
-
-			case "lint":
-				return await QualityCommands.LintAsync(args);
-
-			case "fmt":
-				return await QualityCommands.FormatAsync(args);
-
-			case "ci":
-				return await QualityCommands.CiAsync(args);
-
-			case "build":
-				return await BuildCommand.RunAsync(args);
-
 			case "doctor":
 				return await DoctorCommand.RunAsync();
 
@@ -196,6 +178,12 @@ public static class Program
 
 			case "cache":
 				return CacheCommand.Run(args);
+
+			case "graph":
+				return GraphCommand.Run(args);
+
+			case "deprecate":
+				return await DeprecateCommand.RunAsync(args);
 
 			case "completion":
 				return CompletionCommand.Run(args);

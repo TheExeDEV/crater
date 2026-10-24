@@ -4,7 +4,8 @@
 
 - Publish only into the folder named after your GitHub login in lowercase, or of a GitHub organization where you are a public member.
 - A published version never changes. To fix something, publish a new version.
-- Published versions are not deleted. Ask a maintainer if a version must be yanked.
+- Published versions are not deleted. To warn people about a bad version or an abandoned package, run `crater deprecate scope/name@1.2.3 "reason"` or `crater deprecate scope/name "reason"`. That pull request changes only the `deprecated` field in `index.json`.
+- Keep a `CHANGELOG.md` with a `## <version>` section; `crater publish` stores it in the index and the website shows it.
 - Packages may depend only on registry packages, not on local folders or git repositories.
 - Packages must not contain executables or code that loads other code at runtime (`require(<asset id>)`, `loadstring`).
 - Do not edit `packages.json`, `registry.json` or `.github/`. The catalog is generated after merge.

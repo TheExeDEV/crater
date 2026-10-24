@@ -91,19 +91,4 @@ public sealed class CommandTests : IDisposable
 		Assert.Single(text.Split("Register-ArgumentCompleter")[1..]);
 		Assert.Equal(1, Crater("completion", "tcsh").ExitCode);
 	}
-
-	[Fact]
-	public void TestUsesTheTestScriptOrSaysThereAreNoTests()
-	{
-		Project(_ => { });
-
-		(int exitCode, string output) = Crater("test");
-
-		Assert.Equal(0, exitCode);
-		Assert.Contains("No tests found", output);
-
-		Project(manifest => manifest["scripts"] = new JsonObject { ["test"] = "exit 3" });
-
-		Assert.Equal(3, Crater("test").ExitCode);
-	}
 }
