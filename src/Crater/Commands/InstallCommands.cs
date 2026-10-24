@@ -17,7 +17,7 @@ public static class InstallCommands
 		{
 			Common.Heading(project, projects.Count);
 
-			await new Installer(project, Common.PrompterFor(project, args)).InstallAsync(update: null);
+			await new Installer(project, Common.PrompterFor(project, args), args.Has("locked")).InstallAsync(update: null);
 		}
 	}
 

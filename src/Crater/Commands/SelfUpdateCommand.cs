@@ -23,6 +23,11 @@ public static class SelfUpdateCommand
 		[JsonPropertyName("browser_download_url")] public string DownloadUrl { get; set; } = "";
 	}
 
+	public static async Task<string> LatestVersionAsync()
+	{
+		return (await LatestReleaseAsync(UpdateRepository())).TagName;
+	}
+
 	public static async Task RunAsync(Args args)
 	{
 		string repository = UpdateRepository();

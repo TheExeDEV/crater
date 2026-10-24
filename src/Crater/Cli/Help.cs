@@ -11,11 +11,12 @@ public static class Help
 		("Project", [
 			new("init [--name scope/name]", "create crater.json and crater.settings.json"),
 			new("import [wally.toml|pesde.toml]", "convert a Wally or pesde project"),
+			new("bump [patch|minor|major]", "raise the version: 0.0.9 becomes 0.1.0"),
 			new("run [script] [-- args]", "run a script from crater.json"),
 			new("doctor", "check the project for problems"),
 		]),
 		("Dependencies", [
-			new("install [--workspace]", "install dependencies (respects crater.lock)"),
+			new("install [--workspace] [--locked]", "install dependencies, --locked fails if crater.lock is out of date"),
 			new("add <spec...> [--client|--server|--dev]", "add dependencies and install"),
 			new("remove <name...> [--client|--server|--dev]", "remove dependencies by scope/name or alias"),
 			new("update [name...] [-i] [--workspace]", "update to the newest matching versions, -i to pick"),
@@ -36,6 +37,7 @@ public static class Help
 		]),
 		("Crater", [
 			new("self-update [--check]", "update crater itself"),
+			new("cache [clean]", "show or clear the download cache"),
 			new("version", "show version"),
 		]),
 	];

@@ -61,6 +61,7 @@ public sealed class ResolutionContext
 			Preferred = PreferredVersions(realm),
 			Overrides = overrides,
 			Pinned = sources.For,
+			Named = name => Registries.Open(NamedRegistries.Location(name, project.Manifest), project.Directory),
 		};
 
 		return await resolver.ResolveAsync(request);

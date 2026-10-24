@@ -26,7 +26,11 @@ public static class Program
 
 		try
 		{
-			return await DispatchAsync(args);
+			int exitCode = await DispatchAsync(args);
+
+			await UpdateNotice.ShowAsync(args.Command);
+
+			return exitCode;
 		}
 		catch (CraterException exception)
 		{
@@ -54,6 +58,10 @@ public static class Program
 
 			case "import":
 				ImportCommand.Run(args);
+				return 0;
+
+			case "bump":
+				ProjectCommands.Bump(args);
 				return 0;
 
 			case "run":
@@ -121,6 +129,9 @@ public static class Program
 
 			case "registry":
 				return await RegistryCommands.RunAsync(args);
+
+			case "cache":
+				return CacheCommand.Run(args);
 
 			case "self-update":
 				await SelfUpdateCommand.RunAsync(args);

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
 using Crater.Cli;
 using Crater.Core;
@@ -7,7 +8,7 @@ using Crater.Versioning;
 
 namespace Crater.Commands;
 
-public static class ProjectCommands
+public static partial class ProjectCommands
 {
 	public static void Init(Args args)
 	{
@@ -109,6 +110,33 @@ public static class ProjectCommands
 
 		return DependencySpec.IsValidPackageName("scope/" + folder) ? "scope/" + folder : "scope/package";
 	}
+
+	public static void Bump(Args args)
+	{
+		Project project = Common.LoadProject();
+		string part = (args.First ?? "patch").ToLowerInvariant();
+		string current = project.Manifest.Version;
+
+		if (!SemVer.TryParse(current, out SemVer version))
+		{
+			throw new CraterException($"Bad {Fmt.Val("version")} in {Fmt.File(Manifest.FileName)}: {SemVer.Explain(current)}.");
+		}
+
+		string next = version.Next(part).ToString();
+		string text = File.ReadAllText(project.ManifestPath);
+		Match field = VersionField().Match(text);
+
+		if (!field.Success)
+		{
+			throw new CraterException($"{Fmt.File(Manifest.FileName)} has no {Fmt.Val("version")} field.");
+		}
+
+		File.WriteAllText(project.ManifestPath, text[..field.Groups["value"].Index] + next + text[(field.Groups["value"].Index + field.Groups["value"].Length)..]);
+		Out.Ok($"{Fmt.Pkg(project.Manifest.Name)} {Fmt.Val(current)} → {Fmt.Val(next)}");
+	}
+
+	[GeneratedRegex(@"""version""\s*:\s*""(?<value>[^""]*)""")]
+	private static partial Regex VersionField();
 
 	public static int Run(Args args)
 	{

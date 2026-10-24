@@ -13,6 +13,7 @@ public sealed class ResolveRequest
 	public IReadOnlyDictionary<string, string> Preferred { get; init; } = new Dictionary<string, string>();
 	public IReadOnlyDictionary<string, DependencySpec> Overrides { get; init; } = new Dictionary<string, DependencySpec>();
 	public Func<string, IRegistry?> Pinned { get; init; } = _ => null;
+	public Func<string, IRegistry> Named { get; init; } = name => throw new CraterException($"Unknown registry {Fmt.Val(name)}");
 }
 
 public sealed class Resolver
@@ -65,6 +66,11 @@ public sealed class Resolver
 
 		public void AddConstraint(DependencySpec spec, string owner, IRegistry? registry)
 		{
+			if (spec.RegistryName is string named)
+			{
+				registry = request.Named(named);
+			}
+
 			edgeRegistries.TryAdd(spec.FullName, registry);
 
 			bool isOverridden = request.Overrides.TryGetValue(spec.FullName, out DependencySpec? forced);

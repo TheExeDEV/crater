@@ -258,8 +258,9 @@ public static class InspectCommands
 
 	public static async Task InfoAsync(Args args)
 	{
-		string name = DependencySpec.Parse(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater info <scope/name>")}")).FullName;
-		IRegistry registry = OpenRegistry(args);
+		DependencySpec spec = DependencySpec.Parse(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater info <scope/name>")}"));
+		string name = spec.FullName;
+		IRegistry registry = OpenRegistry(args, spec);
 		RegistryIndex index = await registry.GetIndexAsync(name)
 			?? throw new CraterException($"{Fmt.Pkg(name)} not found in {Fmt.File(registry.Location)}");
 
@@ -298,8 +299,9 @@ public static class InspectCommands
 
 	public static async Task VersionsAsync(Args args)
 	{
-		string name = DependencySpec.Parse(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater versions <scope/name>")}")).FullName;
-		IRegistry registry = OpenRegistry(args);
+		DependencySpec spec = DependencySpec.Parse(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater versions <scope/name>")}"));
+		string name = spec.FullName;
+		IRegistry registry = OpenRegistry(args, spec);
 		RegistryIndex index = await registry.GetIndexAsync(name)
 			?? throw new CraterException($"{Fmt.Pkg(name)} not found in {Fmt.File(registry.Location)}");
 
@@ -327,16 +329,24 @@ public static class InspectCommands
 		Out.Info($"  [v]{label.PadRight(14)}[/] {value}");
 	}
 
-	static IRegistry OpenRegistry(Args args)
+	static IRegistry OpenRegistry(Args args, DependencySpec? spec = null)
 	{
 		string? explicitRegistry = args.Value("registry");
+		Project? project = TryLoadProject();
 
 		if (explicitRegistry is not null)
 		{
-			return Registries.Open(explicitRegistry, Environment.CurrentDirectory);
+			string location = NamedRegistries.LooksLikeName(explicitRegistry)
+				? NamedRegistries.Location(explicitRegistry, project?.Manifest)
+				: explicitRegistry;
+
+			return Registries.Open(location, Environment.CurrentDirectory);
 		}
 
-		Project? project = TryLoadProject();
+		if (spec?.RegistryName is string named)
+		{
+			return Registries.Open(NamedRegistries.Location(named, project?.Manifest), project?.Directory ?? Environment.CurrentDirectory);
+		}
 
 		if (project is not null)
 		{
