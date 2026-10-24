@@ -157,7 +157,9 @@ public static class CheckCommand
 		{
 			string manifestPath = Path.Combine(package.Directory, Manifest.FileName);
 			List<string> patterns = File.Exists(manifestPath) ? Json.ReadFile<Manifest>(manifestPath).DefinitionPatterns : [];
-			List<string> files = patterns.Count > 0 ? DefinitionLookup.Resolve(package.Directory, patterns) : DefinitionLookup.AutoDetect(package.Directory);
+			List<string> files = PackageMeta.Read(package.Directory) is PackageMeta meta
+				? meta.DefinitionFiles
+				: patterns.Count > 0 ? DefinitionLookup.Resolve(package.Directory, patterns) : DefinitionLookup.AutoDetect(package.Directory);
 
 			foreach (string file in files)
 			{

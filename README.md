@@ -417,9 +417,9 @@ Packages/
 - `require(Packages.signal)` loads the package directly.
 - Dependencies of dependencies sit next to the packages that need them, so a package's own `require(script.Parent.janitor)` works the same as it did in Wally.
 - When a package uses another name for its dependency (an alias like `Janitor` or `Promise`), crater adds a one-line `Name.luau` file that returns the real folder.
-- If the main module is not in the package root (`path_to_main` is `src/init.luau`), crater writes an `init.luau` into the package folder that returns `src`. Packages with their own `default.project.json` (most Wally packages) are left as they are; crater only sets the project `name` to the folder name so Rojo keeps the name.
+- If the main module is not in the package root (`path_to_main` is `src/init.luau`), crater writes an `init.luau` into the package folder that returns `src`. When a package has a `default.project.json` that points at a folder (common for packages from other tools, like `lib/`), crater moves that folder's contents up into the package folder and drops the project file, so the package is called by its own name everywhere: in Rojo, in luau-lsp with or without a sourcemap, and in auto-import (`Promise`, not `lib`).
 - When a package needs a dependency under a name another package already uses (your `Promise` is `evaera/promise`, but Janitor's `Promise` is `howmanysmall/typed-promise`), crater moves that package into `_Isolated/<name>/` together with its own links, so its `script.Parent.Promise` gets the right package. `Packages.janitor` still works from your code. Only two of your own dependencies under one name is an error.
-- Only what a package needs is kept: its code, license, manifest and definition files. READMEs, changelogs, docs, tests, examples and tool configs are dropped. A package with a `default.project.json` keeps just the folder that file points to.
+- Only what a package needs is kept: its code, license and definition files. READMEs, changelogs, docs, tests, examples and tool configs are dropped. The package's own manifest (`crater.json`, or one from another tool) is turned into a small `.crater-package` file with its name, version, license, dependencies in crater syntax and definition files; Rojo does not sync it, so no stray `crater` or manifest modules appear inside packages.
 - Packages that were not made with crater (Wally and others) get their entry found automatically: `default.project.json`, then `init` in the root, then `src` (or `lib`, `Source`): its `init`, a module named like the package, or a collection of its modules; then the nearest `init` or module named like the package (case does not matter), skipping tests, docs and examples.
 
 - When dependencies change, only the added or changed packages are unpacked again; the other package folders stay as they are.
@@ -525,11 +525,11 @@ Generics, defaults, function types, string literal types and packs are kept. Tex
 
 **`.luaurc`:** an alias per installed folder, so `require("@Packages/adof")` works. Other settings are kept. With `luaurc_path` the aliases go into your own file instead, and `.vscode/settings.json` gets `"luau-lsp.server.baseLuaurc"` pointing at it.
 
-**VS Code (luau-lsp):** the definition files of every installed package, including dependencies of dependencies, go into `luau-lsp.types.definitionFiles`. A package lists its files in `path_to_definition_files`; if the list is empty, crater uses every `*.d.luau` file inside it (up to 10). `crater pack` and `crater publish` fail when an entry matches no file. crater writes them in the object form luau-lsp uses, one entry per file named after the package:
+**VS Code (luau-lsp):** the definition files of every installed package, including dependencies of dependencies, go into `luau-lsp.types.definitionFiles`. A package lists its files in `path_to_definition_files`; if the list is empty, crater uses every `*.d.luau` file inside it (up to 10). `crater pack` and `crater publish` fail when an entry matches no file. crater writes them in the object form luau-lsp uses, one entry per file named after the package folder and its version:
 
 ```json
 "luau-lsp.types.definitionFiles": {
-  "@signal": "Packages/signal/types/signal.d.luau"
+  "@signal@2.0.3": "Packages/signal/types/signal.d.luau"
 }
 ```
 

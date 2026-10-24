@@ -26,7 +26,103 @@ public static class PackageFiles
 	public static void Prepare(string id, string content, string folderName, Manifest manifest, bool quiet)
 	{
 		PrepareRojoProject(id, content, folderName, quiet);
+
+		List<string> definitions = Definitions(content, manifest).ToList();
+
 		Trim(content, manifest, id);
+
+		string? lifted = LiftProjectPath(content);
+
+		if (lifted is not null)
+		{
+			definitions = definitions
+				.Select(path => path.StartsWith(lifted + "/", StringComparison.Ordinal) ? path[(lifted.Length + 1)..] : path)
+				.ToList();
+		}
+
+		PackageMeta.Capture(content, manifest, definitions.Where(path => File.Exists(Path.Combine(content, path))).ToList());
+	}
+
+	static string? LiftProjectPath(string content)
+	{
+		if (!PackageEntry.HasRojoProject(content) || ProjectPath(content) is not string target || target.Length == 0)
+		{
+			return null;
+		}
+
+		string source = Path.Combine(content, target);
+
+		if (File.Exists(source))
+		{
+			string init = "init" + Path.GetExtension(source);
+
+			if (File.Exists(Path.Combine(content, init)))
+			{
+				return null;
+			}
+
+			File.Move(source, Path.Combine(content, init));
+			File.Delete(Path.Combine(content, PackageEntry.RojoProject));
+			RemoveEmptyParents(content, Path.GetDirectoryName(source)!);
+
+			return null;
+		}
+
+		if (!Directory.Exists(source))
+		{
+			return null;
+		}
+
+		string top = target.Split('/')[0];
+		List<string> entries = Directory.EnumerateFileSystemEntries(source).ToList();
+		bool clashes = entries.Any(entry =>
+		{
+			string name = Path.GetFileName(entry);
+			string destination = Path.Combine(content, name);
+
+			return !name.Equals(top, StringComparison.OrdinalIgnoreCase) && (File.Exists(destination) || Directory.Exists(destination));
+		});
+
+		if (clashes)
+		{
+			return null;
+		}
+
+		string staging = Path.Combine(content, $".crater-lift-{Guid.NewGuid():N}");
+
+		Directory.Move(source, staging);
+		RemoveEmptyParents(content, Path.GetDirectoryName(source)!);
+
+		foreach (string entry in Directory.EnumerateFileSystemEntries(staging))
+		{
+			string destination = Path.Combine(content, Path.GetFileName(entry));
+
+			if (Directory.Exists(entry))
+			{
+				Directory.Move(entry, destination);
+			}
+			else
+			{
+				File.Move(entry, destination);
+			}
+		}
+
+		Directory.Delete(staging);
+		File.Delete(Path.Combine(content, PackageEntry.RojoProject));
+
+		return target;
+	}
+
+	static void RemoveEmptyParents(string root, string directory)
+	{
+		string full = Path.GetFullPath(directory);
+		string stop = Path.GetFullPath(root);
+
+		while (!full.Equals(stop, StringComparison.OrdinalIgnoreCase) && Directory.Exists(full) && !Directory.EnumerateFileSystemEntries(full).Any())
+		{
+			Directory.Delete(full);
+			full = Path.GetDirectoryName(full)!;
+		}
 	}
 
 	public static Manifest ManifestIn(string content)
@@ -66,6 +162,13 @@ public static class PackageFiles
 				{
 					Delete(entry);
 				}
+			}
+
+			string code = Path.Combine(content, onlyCode);
+
+			if (Directory.Exists(code))
+			{
+				RemoveClutter(content, code, keep);
 			}
 
 			return;

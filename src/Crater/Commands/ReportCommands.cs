@@ -88,6 +88,11 @@ public static partial class ReportCommands
 
 	static string LicenseOf(string directory)
 	{
+		if (PackageMeta.Read(directory) is { License.Length: > 0 } meta)
+		{
+			return meta.License;
+		}
+
 		string manifest = Path.Combine(directory, Manifest.FileName);
 
 		if (File.Exists(manifest))

@@ -18,7 +18,7 @@ public static class VsCodeSettings
 		string path = PathIn(project);
 		bool writeDefinitions = project.Config.OnInstallUpdateVscodeLuauDefinitionFiles;
 		bool writeBaseLuaurc = project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project);
-		List<(ResolvedPackage Package, string Path)> definitions = writeDefinitions ? Layout.DefinitionFiles(project, graphs).ToList() : [];
+		List<(ResolvedPackage Package, string Name, string Path)> definitions = writeDefinitions ? Layout.DefinitionFiles(project, graphs).ToList() : [];
 
 		if (!File.Exists(path) && definitions.Count == 0 && !writeBaseLuaurc)
 		{
@@ -54,9 +54,9 @@ public static class VsCodeSettings
 			map.Remove(key);
 		}
 
-		foreach ((ResolvedPackage package, string file) in definitions)
+		foreach ((ResolvedPackage package, string name, string file) in definitions)
 		{
-			map[UniqueKey(map, package, file)] = file;
+			map[UniqueKey(map, package, name, file)] = file;
 		}
 
 		root[Key] = map;
@@ -108,15 +108,9 @@ public static class VsCodeSettings
 		return map;
 	}
 
-	static string UniqueKey(JsonObject map, ResolvedPackage package, string file)
+	static string UniqueKey(JsonObject map, ResolvedPackage package, string name, string file)
 	{
-		string name = package.Name[(package.Name.IndexOf('/') + 1)..].Replace('-', '_');
-		string key = "@" + name;
-
-		if (map.ContainsKey(key))
-		{
-			key = "@" + package.Name.Replace('/', '_').Replace('-', '_');
-		}
+		string key = $"@{name}@{package.Version}";
 
 		if (map.ContainsKey(key))
 		{

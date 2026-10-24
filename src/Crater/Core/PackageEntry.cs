@@ -28,10 +28,22 @@ public sealed record PackageEntry(EntryKind Kind, List<string> Segments, List<Co
 		}
 
 		PackageEntry declared = AnalyzePath(contentDirectory, pathToMain);
-		bool isCraterPackage = File.Exists(Path.Combine(contentDirectory, "crater.json"));
+
+		if (declared.Kind == EntryKind.Module)
+		{
+			return declared;
+		}
+
+		PackageEntry atRoot = AnalyzePath(contentDirectory, "");
+		bool isCraterPackage = File.Exists(Path.Combine(contentDirectory, "crater.json")) || PackageMeta.Read(contentDirectory)?.IsCrater == true;
 		bool declaredMissing = Links.NormalizeRelative(pathToMain).Length > 0 && declared.Kind == EntryKind.Missing;
 
-		if (declared.Kind == EntryKind.Module || (isCraterPackage && !declaredMissing))
+		if (atRoot.Kind == EntryKind.Module && (declaredMissing || !isCraterPackage))
+		{
+			return atRoot;
+		}
+
+		if (isCraterPackage && !declaredMissing)
 		{
 			return declared;
 		}
@@ -46,7 +58,7 @@ public sealed record PackageEntry(EntryKind Kind, List<string> Segments, List<Co
 			}
 		}
 
-		return declaredMissing ? AnalyzePath(contentDirectory, "") : declared;
+		return declaredMissing ? atRoot : declared;
 	}
 
 	static PackageEntry AnalyzePath(string contentDirectory, string pathToMain)

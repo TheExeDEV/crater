@@ -11,7 +11,7 @@ public static class Layout
 		return depth == 0 ? "  " : new string(' ', depth * 2) + "└ ";
 	}
 
-	public static IEnumerable<(ResolvedPackage Package, string Path)> DefinitionFiles(
+	public static IEnumerable<(ResolvedPackage Package, string Name, string Path)> DefinitionFiles(
 		Project project,
 		IReadOnlyDictionary<Realm, ResolvedGraph> graphs)
 	{
@@ -31,7 +31,7 @@ public static class Layout
 
 				foreach (string definition in DefinitionsOf(project, package, content))
 				{
-					yield return (package, $"{content}/{definition}");
+					yield return (package, Path.GetFileName(layout.Folders[package]), $"{content}/{definition}");
 				}
 			}
 		}
@@ -40,6 +40,12 @@ public static class Layout
 	static IEnumerable<string> DefinitionsOf(Project project, ResolvedPackage package, string content)
 	{
 		string directory = project.Abs(content);
+
+		if (PackageMeta.Read(directory) is PackageMeta meta)
+		{
+			return meta.DefinitionFiles.Where(file => File.Exists(Path.Combine(directory, file)));
+		}
+
 		List<string> patterns = package.Manifest.DefinitionPatterns;
 
 		return patterns.Count > 0
