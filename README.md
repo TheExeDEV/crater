@@ -952,7 +952,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `CI` | No animations. |
 | `CRATER_DEBUG` | Full stack traces for internal errors. |
 | `CRATER_NO_UPDATE_CHECK` | Do not check once a day whether a newer crater is out. |
-| `CRATER_HOME` | Where tools and launchers live. Default `%LOCALAPPDATA%ater` or `~/.crater`. |
+| `CRATER_HOME` | Where tools and launchers live. Default `%LOCALAPPDATA%\crater` or `~/.crater`. |
 
 ---
 
