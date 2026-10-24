@@ -31,8 +31,11 @@ public static class Packer
 			.Select(Pattern.Create)
 			.ToList();
 
-		files = Directory.EnumerateFiles(project.Directory, "*", SearchOption.AllDirectories)
-			.Select(file => Path.GetRelativePath(project.Directory, file).Replace('\\', '/'))
+		List<string> collected = [];
+
+		CollectFiles(project.Directory, project.Directory, new IgnoreRules().With(project.Directory, project.Directory), collected);
+
+		files = collected
 			.Where(relative => !patterns.Any(pattern => pattern.Excludes(relative)))
 			.OrderBy(relative => relative, StringComparer.Ordinal)
 			.ToList();
@@ -62,6 +65,29 @@ public static class Packer
 		}
 
 		return stream.ToArray();
+	}
+
+	static void CollectFiles(string root, string directory, IgnoreRules rules, List<string> files)
+	{
+		foreach (string file in Directory.EnumerateFiles(directory))
+		{
+			string relative = Path.GetRelativePath(root, file).Replace('\\', '/');
+
+			if (!IgnoreRules.FileNames.Contains(Path.GetFileName(file)) && !rules.IsIgnored(relative, isDirectory: false))
+			{
+				files.Add(relative);
+			}
+		}
+
+		foreach (string child in Directory.EnumerateDirectories(directory))
+		{
+			string relative = Path.GetRelativePath(root, child).Replace('\\', '/');
+
+			if (!rules.IsIgnored(relative, isDirectory: true))
+			{
+				CollectFiles(root, child, rules.With(root, child), files);
+			}
+		}
 	}
 
 	public static void Extract(byte[] archiveData, string targetDirectory, string packageId)
