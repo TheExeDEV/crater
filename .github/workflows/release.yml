@@ -44,6 +44,9 @@ jobs:
             --self-contained \
             --output out \
             -p:PublishSingleFile=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:InvariantGlobalization=true \
+            -p:DebugType=none \
             -p:Version="${VERSION#v}" \
             -p:CraterUpdateRepo="$UPDATE_REPO"
 
