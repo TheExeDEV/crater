@@ -52,6 +52,7 @@ public static class PatchCommand
 			}
 
 			Packer.Extract(archive, original, id);
+			PackageFiles.Prepare(id, original, Path.GetFileName(package.Directory), PackageFiles.ManifestIn(original), quiet: true);
 
 			PatchChanges changes = Patches.Compare(original, package.Directory);
 

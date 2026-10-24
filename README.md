@@ -195,6 +195,7 @@ Every project and every package has a `crater.json`.
 | `registry` | Where dependencies come from and where `publish` goes. One registry or a list of them, see [Several registries](#several-registries). `crater init` fills in the default registry. See [Registry locations](#registry-locations). |
 | `repository` | Source code URL, shown on the website. |
 | `can_publish` | `true` lets `crater publish` send the package. `crater init` sets `true`; use `false` for games that are never published. |
+| `block_package_scripts`, `allow_scripts_from` | Refuse packages that run scripts in your game, except the listed ones. See [Packages that run scripts](#packages-that-run-scripts). |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
 | `path_to_definition_files` | `.d.luau` files added to VS Code settings on install. Each entry is a file, a folder (every `.d.luau` inside it) or a pattern with `*` / `**`. Empty means every `*.d.luau` in the package (up to 10). The old single-file field `path_to_definition_file` still works. |
@@ -417,7 +418,10 @@ Packages/
 - Dependencies of dependencies sit next to the packages that need them, so a package's own `require(script.Parent.janitor)` works the same as it did in Wally.
 - When a package uses another name for its dependency (an alias like `Janitor` or `Promise`), crater adds a one-line `Name.luau` file that returns the real folder.
 - If the main module is not in the package root (`path_to_main` is `src/init.luau`), crater writes an `init.luau` into the package folder that returns `src`. Packages with their own `default.project.json` (most Wally packages) are left as they are; crater only sets the project `name` to the folder name so Rojo keeps the name.
-- When two different packages need the same name, `install` stops and tells you which ones; give your own dependency another name with an alias (`"Promise2:scope/promise^4"`).
+- When a package needs a dependency under a name another package already uses (your `Promise` is `evaera/promise`, but Janitor's `Promise` is `howmanysmall/typed-promise`), crater moves that package into `_Isolated/<name>/` together with its own links, so its `script.Parent.Promise` gets the right package. `Packages.janitor` still works from your code. Only two of your own dependencies under one name is an error.
+- Only what a package needs is kept: its code, license, manifest and definition files. READMEs, changelogs, docs, tests, examples and tool configs are dropped. A package with a `default.project.json` keeps just the folder that file points to.
+- Packages that were not made with crater (Wally and others) get their entry found automatically: `default.project.json`, then `init` in the root, then `src` (or `lib`, `Source`): its `init`, a module named like the package, or a collection of its modules; then the nearest `init` or module named like the package (case does not matter), skipping tests, docs and examples.
+
 - When dependencies change, only the added or changed packages are unpacked again; the other package folders stay as they are.
 - The folder belongs to crater and is rebuilt when it changes. Add it to `.gitignore`.
 - crater refuses to touch an existing non-empty folder it did not create, so it cannot wipe your code.
@@ -431,6 +435,23 @@ return require(script.Parent["janitor"])  -- roblox
 return require("./janitor")               -- string
 ```
 
+
+### Packages that run scripts
+
+A package is plain code until something requires it, unless it contains scripts that Roblox runs on its own: `*.server.luau`, `*.client.luau`, `*.legacy.luau`, `*.local.luau`, `*.plugin.luau` or `.rbxm` / `.rbxmx` models (which can hold scripts). `crater publish` lists those files in the registry index, the pull request check verifies the list against the archive, and `crater add` / `install` warn when a new package has them:
+
+```
+! someone/analytics@1.2.0 runs scripts in your game: src/Tracker.server.luau
+```
+
+`crater info` shows the same. To refuse such packages entirely, add to `crater.json`:
+
+```json
+"block_package_scripts": true,
+"allow_scripts_from": ["sleitnick/knit"]
+```
+
+With that, `add` and `install` stop on any package with scripts that is not in `allow_scripts_from` and leave `crater.json` unchanged. Packages from Wally have no list in their index, so crater checks their files after download.
 
 ### Packages without a main module
 

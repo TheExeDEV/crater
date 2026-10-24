@@ -79,6 +79,13 @@ public static class PublishCommands
 			Manifest = Json.ReadFile<Manifest>(project.ManifestPath),
 		};
 
+		release.Scripts = PackageScripts.InArchive(archive, release.Manifest, $"{manifest.Name}@{release.Version}");
+
+		if (release.Scripts.Count > 0)
+		{
+			Out.Warn($"This package runs scripts in the games that install it: {PackageScripts.Describe(release.Scripts)}. People who add it will be told so.");
+		}
+
 		string id = Fmt.Pkg($"{manifest.Name}@{release.Version}");
 		Prompter prompt = Common.PrompterFor(project, args);
 
@@ -134,7 +141,7 @@ public static class PublishCommands
 				$"Add it to {Fmt.Val("exclude")} in {Fmt.File(Manifest.FileName)}.");
 		}
 
-		PackageEntry entry = PackageEntry.Analyze(project.Directory, project.Manifest.PathToMain);
+		PackageEntry entry = PackageEntry.Analyze(project.Directory, project.Manifest.PathToMain, project.Manifest.Name);
 
 		switch (entry.Kind)
 		{

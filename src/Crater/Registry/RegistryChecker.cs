@@ -270,6 +270,46 @@ public sealed partial class RegistryChecker(string root)
 		{
 			Errors.Add($"{Fmt.Pkg(packageId)}: {Fmt.File(blocked.File)} is an {blocked.Description}");
 		}
+
+		CheckScriptsList(archivePath, segments, packageId);
+	}
+
+	void CheckScriptsList(string archivePath, string[] segments, string packageId)
+	{
+		string indexPath = Path.Combine(root, segments[0], segments[1], RegistryIndex.FileName);
+		string version = Path.GetFileNameWithoutExtension(segments[2]);
+		RegistryRelease? release = Try(() => Json.ReadFile<RegistryIndex>(indexPath), indexPath)?.Versions.FirstOrDefault(item => item.Version == version);
+
+		if (release is null)
+		{
+			return;
+		}
+
+		List<string>? actual = Try(() => Crater.Core.PackageScripts.InArchive(File.ReadAllBytes(archivePath), release.Manifest, packageId), archivePath);
+
+		if (actual is null)
+		{
+			return;
+		}
+
+		if (release.Scripts is null)
+		{
+			Errors.Add($"{Fmt.Pkg(packageId)}: index.json has no \"scripts\" list. Publish it with a current crater ({Fmt.Cmd("crater self-update")}).");
+			return;
+		}
+
+		if (!release.Scripts.Order(StringComparer.Ordinal).SequenceEqual(actual.Order(StringComparer.Ordinal)))
+		{
+			string listed = release.Scripts.Count == 0 ? "none" : string.Join(", ", release.Scripts);
+			string found = actual.Count == 0 ? "none" : string.Join(", ", actual);
+
+			Errors.Add($"{Fmt.Pkg(packageId)}: index.json lists scripts {Fmt.Val(listed)}, but the archive has {Fmt.Val(found)}");
+		}
+
+		if (actual.Count > 0)
+		{
+			Out.Warn($"{Fmt.Pkg(packageId)} runs scripts in the games that install it: {string.Join(", ", actual)}");
+		}
 	}
 
 	void CheckImmutable(string baseRef, char status, string path, string fileName)

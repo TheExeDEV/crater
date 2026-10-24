@@ -67,12 +67,32 @@ public static partial class Links
 		};
 	}
 
-	public static string Alias(string folderName, string style, IReadOnlyList<TypeExport> types)
+	public static string Alias(string folderPath, string style, IReadOnlyList<TypeExport> types)
 	{
-		string target = style == "string" ? $"\"./{Escape(folderName)}\"" : $"script.Parent[\"{Escape(folderName)}\"]";
-
-		return ModuleLink(target, types);
+		return ModuleLink(PathTarget(folderPath, style, 0), types);
 	}
+
+	public static string PrivateLink(string folderPath, string style, IReadOnlyList<TypeExport> types)
+	{
+		return ModuleLink(PathTarget(folderPath, style, 2), types);
+	}
+
+	static string PathTarget(string folderPath, string style, int levelsUp)
+	{
+		string[] segments = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+		if (style == "string")
+		{
+			string prefix = levelsUp == 0 ? "./" : string.Concat(Enumerable.Repeat("../", levelsUp));
+
+			return $"\"{prefix}{string.Join('/', segments.Select(Escape))}\"";
+		}
+
+		string parents = string.Concat(Enumerable.Repeat(".Parent", levelsUp + 1));
+
+		return "script" + parents + string.Concat(segments.Select(segment => $"[\"{Escape(segment)}\"]"));
+	}
+
 
 
 	static string ModuleLink(string target, IReadOnlyList<TypeExport> types)

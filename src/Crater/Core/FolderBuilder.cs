@@ -69,7 +69,9 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		string folder = project.Abs(folderName);
 		PackageLayout layout = PackageLayout.Plan(graph, folderName);
 		Dictionary<string, string> previous = PackageLayout.ReadMarker(folder);
+		bool hadIsolated = previous.Values.Any(value => value.StartsWith(PackageLayout.IsolatedFolder + "/", StringComparison.Ordinal));
 		bool reusable = File.Exists(Path.Combine(folder, PackageLayout.MarkerFile)) &&
+			!layout.HasIsolated && !hadIsolated &&
 			!Directory.Exists(Path.Combine(folder, Layout.LegacyIndexFolder)) &&
 			previous.GetValueOrDefault(StyleKey) == project.Config.LinkStyle &&
 			previous.GetValueOrDefault(Patches.MarkerKey, "") == Patches.Fingerprint(project, graph.All);
@@ -207,7 +209,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 			if (!changed.Contains(package))
 			{
-				PackageEntry kept = PackageEntry.Analyze(content, package.Manifest.PathToMain);
+				PackageEntry kept = PackageEntry.Analyze(content, package.Manifest.PathToMain, package.Name);
 
 				extracted[package] = new Extracted(kept, kept.MainFile is null ? [] : TypeExports.Parse(File.ReadAllText(kept.MainFile)));
 				continue;
@@ -215,11 +217,10 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 			Directory.CreateDirectory(content);
 			Packer.Extract(archives[package], content, package.Id);
+			PackageFiles.Prepare(package.Id, content, Path.GetFileName(layout.Folders[package]), package.Manifest, quiet: false);
 			Patches.Apply(project, package, content);
 
-			PrepareRojoProject(package, content, layout.Folders[package]);
-
-			PackageEntry entry = PackageEntry.Analyze(content, package.Manifest.PathToMain);
+			PackageEntry entry = PackageEntry.Analyze(content, package.Manifest.PathToMain, package.Name);
 			List<TypeExport> types = entry.MainFile is null ? [] : TypeExports.Parse(File.ReadAllText(entry.MainFile));
 
 			if (Links.NeedsInit(entry) && !PackageEntry.HasRojoProject(content))
@@ -231,40 +232,6 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		}
 
 		return extracted;
-	}
-
-	static void PrepareRojoProject(ResolvedPackage package, string content, string name)
-	{
-		string path = Path.Combine(content, PackageEntry.RojoProject);
-
-		if (!File.Exists(path))
-		{
-			return;
-		}
-
-		try
-		{
-			JsonObject project = Json.ReadObject(path);
-			JsonObject? tree = project["tree"] as JsonObject;
-			string? className = tree?["$className"]?.GetValue<string>();
-			string? target = tree?["$path"]?.GetValue<string>();
-			bool targetExists = target is not null && (Directory.Exists(Path.Combine(content, target)) || File.Exists(Path.Combine(content, target)));
-
-			if (className == "DataModel" || !targetExists)
-			{
-				File.Delete(path);
-				Out.Dim($"  {package.Id}: ignored its {PackageEntry.RojoProject}, it does not describe the package");
-				return;
-			}
-
-			project["name"] = name;
-			Json.WriteText(path, Json.Serialize(project));
-		}
-		catch (Exception exception) when (exception is System.Text.Json.JsonException or InvalidOperationException or CraterException)
-		{
-			File.Delete(path);
-			Out.Dim($"  {package.Id}: ignored its {PackageEntry.RojoProject}, it could not be read");
-		}
 	}
 
 
@@ -291,6 +258,24 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			List<TypeExport> types = target.Entry.Kind == EntryKind.Module ? target.Types : [];
 
 			File.WriteAllText(Path.Combine(folder, alias + ".luau"), Links.Alias(layout.Folders[package], style, types));
+		}
+
+		foreach ((ResolvedPackage owner, Dictionary<string, ResolvedPackage> links) in layout.PrivateLinks)
+		{
+			string top = layout.Aliases.First(pair => pair.Value == owner).Key;
+			string directory = Path.Combine(folder, PackageLayout.IsolatedFolder, top);
+
+			Directory.CreateDirectory(directory);
+
+			foreach ((string link, ResolvedPackage package) in links)
+			{
+				Extracted target = extracted[package];
+				List<TypeExport> types = target.Entry.Kind == EntryKind.Module ? target.Types : [];
+
+				File.WriteAllText(Path.Combine(directory, link + ".luau"), Links.PrivateLink(layout.Folders[package], style, types));
+			}
+
+			Out.Dim($"  {owner.Id}: its dependencies clash with other packages by name, so it gets its own links in {PackageLayout.IsolatedFolder}/{top}");
 		}
 	}
 

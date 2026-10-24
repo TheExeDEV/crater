@@ -20,13 +20,37 @@ public sealed record PackageEntry(EntryKind Kind, List<string> Segments, List<Co
 
 	public static bool HasRojoProject(string contentDirectory) => File.Exists(Path.Combine(contentDirectory, RojoProject));
 
-	public static PackageEntry Analyze(string contentDirectory, string pathToMain)
+	public static PackageEntry Analyze(string contentDirectory, string pathToMain, string? packageName = null)
 	{
 		if (pathToMain.Length == 0 && ProjectMain(contentDirectory) is string projectMain)
 		{
 			pathToMain = projectMain;
 		}
 
+		PackageEntry declared = AnalyzePath(contentDirectory, pathToMain);
+		bool isCraterPackage = File.Exists(Path.Combine(contentDirectory, "crater.json"));
+		bool declaredMissing = Links.NormalizeRelative(pathToMain).Length > 0 && declared.Kind == EntryKind.Missing;
+
+		if (declared.Kind == EntryKind.Module || (isCraterPackage && !declaredMissing))
+		{
+			return declared;
+		}
+
+		if (EntryDiscovery.Find(contentDirectory, packageName ?? "") is string discovered)
+		{
+			PackageEntry found = AnalyzePath(contentDirectory, discovered);
+
+			if (found.Kind != EntryKind.Missing)
+			{
+				return found;
+			}
+		}
+
+		return declaredMissing ? AnalyzePath(contentDirectory, "") : declared;
+	}
+
+	static PackageEntry AnalyzePath(string contentDirectory, string pathToMain)
+	{
 		string? mainFile = TypeExports.FindMainFile(contentDirectory, pathToMain);
 		List<string> segments = Links.MainSegments(pathToMain);
 

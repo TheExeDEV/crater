@@ -49,6 +49,8 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		List<ResolvedGraph> stale = graphs.Values.Where(graph => !builder.IsUpToDate(graph, oldLock)).ToList();
 		Dictionary<ResolvedPackage, byte[]> archives = await DownloadAsync(stale.SelectMany(builder.PackagesToExtract).ToList());
 
+		await ScriptPolicy.CheckAsync(project, graphs.Values.SelectMany(graph => graph.All), archives, oldLock);
+
 		foreach (ResolvedGraph graph in stale)
 		{
 			builder.Build(graph, archives);

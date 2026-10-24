@@ -5,9 +5,11 @@ namespace Crater.Core;
 public sealed class PackageLayout
 {
 	public const string MarkerFile = ".crater";
+	public const string IsolatedFolder = "_Isolated";
 
 	public Dictionary<ResolvedPackage, string> Folders { get; } = [];
 	public Dictionary<string, ResolvedPackage> Aliases { get; } = new(StringComparer.Ordinal);
+	public Dictionary<ResolvedPackage, Dictionary<string, ResolvedPackage>> PrivateLinks { get; } = [];
 
 	readonly Dictionary<string, ResolvedPackage> names = new(StringComparer.Ordinal);
 	readonly Dictionary<string, ResolvedPackage> folderNames = new(StringComparer.OrdinalIgnoreCase);
@@ -19,32 +21,57 @@ public sealed class PackageLayout
 		this.folderName = folderName;
 	}
 
+	public bool HasIsolated => PrivateLinks.Count > 0;
+
 	public static PackageLayout Plan(ResolvedGraph graph, string folderName)
 	{
 		PackageLayout layout = new(folderName);
 
 		foreach (ResolvedDependency root in graph.Roots)
 		{
-			layout.Place(root.Package, root.LinkName, null);
+			if (!layout.TryClaim(root.LinkName, root.Package, out ResolvedPackage? taken))
+			{
+				throw layout.Clash(root.LinkName, root.Package, taken!);
+			}
 		}
 
 		foreach (ResolvedPackage package in graph.All.Where(package => !layout.Folders.ContainsKey(package)))
 		{
-			string? wanted = graph.All
-				.SelectMany(owner => owner.Dependencies.Select(edge => (owner, edge)))
-				.Where(pair => pair.edge.Package == package)
-				.Select(pair => pair.edge.LinkName)
-				.FirstOrDefault(name => !layout.names.ContainsKey(name) && !layout.folderNames.ContainsKey(name));
+			IEnumerable<string> wanted = graph.All
+				.SelectMany(owner => owner.Dependencies)
+				.Where(edge => edge.Package == package)
+				.Select(edge => edge.LinkName)
+				.Append(package.ShortName)
+				.Append($"{package.Scope}_{package.ShortName}");
 
-			layout.Place(package, wanted ?? package.ShortName, null);
+			string name = wanted.FirstOrDefault(layout.IsFreeFolder) ?? layout.NumberedFolder($"{package.Scope}_{package.ShortName}");
+
+			layout.TryClaim(name, package, out _);
 		}
+
+		List<ResolvedPackage> isolated = [];
 
 		foreach (ResolvedPackage owner in graph.All)
 		{
+			bool clashes = false;
+
 			foreach (ResolvedDependency edge in owner.Dependencies)
 			{
-				layout.Place(edge.Package, edge.LinkName, owner);
+				if (!layout.TryClaim(edge.LinkName, edge.Package, out _))
+				{
+					clashes = true;
+				}
 			}
+
+			if (clashes)
+			{
+				isolated.Add(owner);
+			}
+		}
+
+		foreach (ResolvedPackage owner in isolated)
+		{
+			layout.Isolate(owner);
 		}
 
 		return layout;
@@ -76,24 +103,21 @@ public sealed class PackageLayout
 		Json.WriteText(Path.Combine(folder, MarkerFile), Json.Serialize(entries));
 	}
 
-	void Place(ResolvedPackage package, string name, ResolvedPackage? owner)
-	{
-		if (names.TryGetValue(name, out ResolvedPackage? taken))
-		{
-			if (taken == package)
-			{
-				return;
-			}
+	public static string PrivateDirectory(string top) => $"{IsolatedFolder}/{top}";
 
-			throw Clash(name, package, taken, owner);
+	bool TryClaim(string name, ResolvedPackage package, out ResolvedPackage? taken)
+	{
+		if (names.TryGetValue(name, out taken))
+		{
+			return taken == package;
 		}
 
 		bool isAlias = Folders.ContainsKey(package);
 		Dictionary<string, ResolvedPackage> files = isAlias ? aliasNames : folderNames;
 
-		if (files.TryGetValue(name, out ResolvedPackage? sameOnDisk))
+		if (files.TryGetValue(name, out taken))
 		{
-			throw Clash(name, package, sameOnDisk, owner);
+			return false;
 		}
 
 		names[name] = package;
@@ -107,14 +131,41 @@ public sealed class PackageLayout
 		{
 			Folders[package] = name;
 		}
+
+		return true;
 	}
 
-	CraterException Clash(string name, ResolvedPackage wanted, ResolvedPackage taken, ResolvedPackage? owner)
-	{
-		string who = owner is null ? "your project" : Fmt.Pkg(owner.Id);
+	bool IsFreeFolder(string name) => !names.ContainsKey(name) && !folderNames.ContainsKey(name);
 
+	string NumberedFolder(string name)
+	{
+		for (int index = 2; ; index++)
+		{
+			string candidate = $"{name}_{index}";
+
+			if (IsFreeFolder(candidate))
+			{
+				return candidate;
+			}
+		}
+	}
+
+	void Isolate(ResolvedPackage owner)
+	{
+		string top = Folders[owner];
+
+		folderNames.Remove(top);
+		aliasNames[top] = owner;
+		Aliases[top] = owner;
+		Folders[owner] = $"{PrivateDirectory(top)}/{top}";
+
+		PrivateLinks[owner] = owner.Dependencies.ToDictionary(edge => edge.LinkName, edge => edge.Package, StringComparer.Ordinal);
+	}
+
+	CraterException Clash(string name, ResolvedPackage wanted, ResolvedPackage taken)
+	{
 		return new CraterException(
-			$"Two packages need the name {Fmt.Val(name)} in {Fmt.File(folderName)}: {Fmt.Pkg(taken.Id)} and {Fmt.Pkg(wanted.Id)} (used by {who}). " +
-			$"If one of them is your own dependency, add it under another name, for example {Fmt.Cmd($"\"{name}2:{taken.Name}^\"")}.");
+			$"Your project lists two packages under the name {Fmt.Val(name)} in {Fmt.File(folderName)}: {Fmt.Pkg(taken.Id)} and {Fmt.Pkg(wanted.Id)}. " +
+			$"Give one of them another name, for example {Fmt.Cmd($"\"{name}2:{wanted.Name}^\"")}.");
 	}
 }

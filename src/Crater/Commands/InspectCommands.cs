@@ -271,6 +271,11 @@ public static class InspectCommands
 
 		Out.Heading($"{name} {latest.Version}");
 
+		if (latest.Scripts is { Count: > 0 } scripts)
+		{
+			Out.Warn($"Runs scripts in your game: {PackageScripts.Describe(scripts)}");
+		}
+
 		if (manifest.Description.Length > 0)
 		{
 			Out.Info(manifest.Description);
