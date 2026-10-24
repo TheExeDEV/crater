@@ -19,6 +19,8 @@ public sealed partial record ToolSpec(string Owner, string Repo, string Version)
 		["asphalt"] = "jackTabsCode/asphalt",
 	};
 
+	public static IEnumerable<string> KnownNames => KnownTools.Keys;
+
 	[GeneratedRegex(@"^(?<owner>[A-Za-z0-9_.\-]+)/(?<repo>[A-Za-z0-9_.\-]+)(?:@(?<version>[A-Za-z0-9_.\-+]+))?$")]
 	private static partial Regex SpecRegex();
 

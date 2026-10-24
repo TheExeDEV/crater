@@ -15,6 +15,8 @@ public static class Help
 			new("run [script] [-- args]", "run a script from crater.json"),
 			new("doctor", "check the project for problems"),
 			new("check [paths...]", "type check the project with luau-lsp"),
+			new("test [filter]", "run *.test.luau files with Lune, or the test script"),
+			new("dev [--no-serve]", "rojo serve plus reinstall when crater.json changes"),
 			new("lint [paths...]", "find problems with selene"),
 			new("fmt [--check] [paths...]", "format code with StyLua"),
 			new("ci", "run check, lint and fmt --check together"),
@@ -49,6 +51,7 @@ public static class Help
 			new("tool add <name>[@version] [--global]", "pin a tool like rojo or luau-lsp to the project"),
 			new("tool list|remove|install", "manage pinned tools"),
 			new("cache [clean]", "show or clear the download cache"),
+			new("completion [install|powershell|bash|zsh|fish]", "turn on Tab completion, or print the script"),
 			new("version", "show version"),
 		]),
 	];

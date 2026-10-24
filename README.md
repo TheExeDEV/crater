@@ -12,6 +12,7 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 - Link files re-export `export type` declarations, so luau-lsp sees package types
 - Lock file with sha256 checks, parallel downloads, a summary of what changed
 - `outdated`, interactive `update -i`, `why`, `search`, `info`, `doctor`, `run`, `import` from Wally and pesde, `self-update`
+- `crater test` with Lune, `crater dev` (Rojo plus reinstall on save), Tab completion for PowerShell, bash, zsh and fish
 - A git registry with pull request checks and a static package website with search
 - Optional updates of `.luaurc` aliases and the luau-lsp definition files in VS Code
 - Optional confirmation before every action that changes files, colored output
@@ -71,6 +72,14 @@ Both lines run the same file. It downloads the latest release into `%LOCALAPPDAT
 Options, set before the command: `CRATER_VERSION=0.1.0` installs a specific version, `CRATER_INSTALL_DIR` changes the folder, `CRATER_NO_PATH=1` leaves `PATH` alone. In PowerShell: `$env:CRATER_VERSION = "0.1.0"`.
 
 **Manually:** download `crater-<platform>` from [the latest release](https://github.com/TheExeDEV/crater/releases/latest), rename it to `crater` (or `crater.exe`) and put it on your `PATH`.
+
+### Tab completion
+
+```bash
+crater completion
+```
+
+Run it once, open a new terminal, type `crater ` and press Tab. It completes commands, flags, subcommands like `crater tool add`, your dependencies after `remove`, `update`, `why` and `patch`, and your scripts after `run`. It picks your shell by itself: PowerShell (both 5 and 7 profiles) on Windows, otherwise bash, zsh or fish from `$SHELL`. Name it to choose: `crater completion install zsh`. Running it again replaces the old block instead of adding a second one. `crater completion powershell` (or `bash`, `zsh`, `fish`) only prints the script, if you want to add it to your profile yourself.
 
 ### Uninstall
 
@@ -675,6 +684,25 @@ All of these use the [tools](#tools) pinned in the project (or found on `PATH`) 
 | `crater build` | Builds the place or model with Rojo into `build/<name>.rbxl` (or `.rbxm`), `-o file` to choose. |
 | `crater build --minify` | Copies the project, minifies every mapped folder with darklua (comments, spaces and types removed, constant expressions computed) and builds that. Your files are not touched. |
 
+### Tests
+
+```bash
+crater test
+crater test signal
+```
+
+Runs every `*.test.luau` and `*.spec.luau` file (and every file in a `tests/`, `test/`, `spec/` or `specs/` folder) with `lune run`, one after another. Each file is a test: it passes when it finishes and fails when it errors. Output is hidden for passing files and the first 20 lines are shown for failing ones. A word after `test` keeps only files whose path contains it. Exits with `1` if any file failed. Lune comes from your [tools](#tools) (`crater tool add lune`) or from `PATH`.
+
+If `crater.json` has a `"test"` script, `crater test` runs that script instead, so a project with its own test runner (TestEZ, Jest Lua in run-in-roblox) keeps working. `crater test --lune` skips the script.
+
+### Live development
+
+```bash
+crater dev
+```
+
+Installs, then starts `rojo serve` (and `rojo sourcemap --watch` when `sourcemap.json` exists) and watches `crater.json` and `crater.settings.json`. Save a change there, for example a new dependency, and crater installs it at once; Rojo picks up the new `Packages` folder by itself. If Rojo stops during an install it is started again, reconnect the plugin in Studio if it shows disconnected. An error in the file is shown and crater keeps watching, so fix it and save again. `Ctrl+C` stops everything. `--no-serve` only watches and installs; arguments after `--` go to `rojo serve`, for example `crater dev -- --port 34873`.
+
 ---
 
 ## Package reports
@@ -1042,6 +1070,9 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `tool add|list|remove|install|run` | Pinned tools, see [Tools](#tools). |
 | `check [paths...]` | Type check with luau-lsp, see [Type checking](#type-checking). |
 | `lint`, `fmt [--check]`, `ci`, `unused`, `build [--minify]` | See [Code quality and builds](#code-quality-and-builds). |
+| `test [filter] [--lune]` | Run test files with Lune, or the `test` script, see [Tests](#tests). |
+| `dev [--no-serve] [-- rojo args]` | Rojo plus reinstall on save, see [Live development](#live-development). |
+| `completion [install\|powershell\|bash\|zsh\|fish]` | Turn on Tab completion, see [Tab completion](#tab-completion). |
 | `size`, `licenses` | [Package reports](#package-reports). |
 | `version`, `--help` | Version and help. |
 
