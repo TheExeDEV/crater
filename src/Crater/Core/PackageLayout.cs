@@ -62,9 +62,14 @@ public sealed class PackageLayout
 		return File.Exists(path) ? Json.ReadFile<Dictionary<string, string>>(path) : [];
 	}
 
-	public void WriteMarker(string folder)
+	public void WriteMarker(string folder, string patchFingerprint)
 	{
 		Dictionary<string, string> entries = Folders.ToDictionary(pair => pair.Key.Id, pair => pair.Value);
+
+		if (patchFingerprint.Length > 0)
+		{
+			entries[Patches.MarkerKey] = patchFingerprint;
+		}
 
 		Json.WriteText(Path.Combine(folder, MarkerFile), Json.Serialize(entries));
 	}

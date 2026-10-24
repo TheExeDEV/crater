@@ -53,6 +53,7 @@ public sealed class Manifest
 	[JsonPropertyName("overrides")] public List<string>? Overrides { get; set; }
 	[JsonPropertyName("workspace")] public List<string>? Workspace { get; set; }
 	[JsonPropertyName("scripts")] public Dictionary<string, string>? Scripts { get; set; }
+	[JsonPropertyName("tools")] public Dictionary<string, string>? Tools { get; set; }
 	[JsonPropertyName("exclude")] public List<string>? Exclude { get; set; }
 
 	[JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }

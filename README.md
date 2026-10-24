@@ -34,14 +34,18 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 12. [Editor integration](#editor-integration)
 13. [crater.lock](#craterlock)
 14. [Everyday commands](#everyday-commands)
-15. [The registry](#the-registry)
-16. [Publishing](#publishing)
-17. [The package website](#the-package-website)
-18. [Releasing crater](#releasing-crater)
-19. [Command reference](#command-reference)
-20. [Environment variables](#environment-variables)
-21. [Limitations](#limitations)
-22. [Source layout](#source-layout)
+15. [Patching packages](#patching-packages)
+16. [Tools](#tools)
+17. [Type checking](#type-checking)
+18. [Package reports](#package-reports)
+19. [The registry](#the-registry)
+20. [Publishing](#publishing)
+21. [The package website](#the-package-website)
+22. [Releasing crater](#releasing-crater)
+23. [Command reference](#command-reference)
+24. [Environment variables](#environment-variables)
+25. [Limitations](#limitations)
+26. [Source layout](#source-layout)
 
 ---
 
@@ -564,6 +568,77 @@ Packages/ (import_client)
 
 ---
 
+## Patching packages
+
+Found a bug in someone else's package? Fix it in place and keep the fix, no fork needed.
+
+1. Edit the files of the installed package, for example `Packages/promise/lib/init.lua`.
+2. Save the change:
+
+   ```bash
+   crater patch promise
+   ```
+
+   crater compares the folder with the original package and stores only what you changed in `patches/evaera_promise@4.0.0/` (changed files, plus a `.deleted` list for removed ones).
+3. Commit the `patches/` folder. Every `crater install`, on any machine, puts the original package down and applies your patch on top.
+
+| Command | What it does |
+|---|---|
+| `crater patch <name>` | Save your edits of an installed package (name, short name or alias). Run it again after more edits. |
+| `crater patch` | List patches and whether they are applied. |
+| `crater patch <name> --remove` | Delete the patch; the next `install` restores the original. |
+
+A patch belongs to one exact version. After an update crater says the old patch was not applied: make the change again and run `crater patch` again. Packages from `path:` or `git+` sources are changed at their source instead.
+
+---
+
+## Tools
+
+crater pins the tools of a project (Rojo, luau-lsp, selene, StyLua, darklua, Lune, any GitHub release) like rokit or aftman, in `crater.json`:
+
+```json
+"tools": {
+  "rojo": "rojo-rbx/rojo@7.7.1",
+  "luau-lsp": "JohnnyMorganz/luau-lsp@1.70.1"
+}
+```
+
+```bash
+crater tool add rojo luau-lsp selene stylua
+```
+
+`tool add` takes a known name (`rojo`, `luau-lsp`, `selene`, `stylua`, `darklua`, `lune`, `wally`, `pesde`, `luau`, `asphalt`) or any `owner/repo`, with an optional `@version`; without one it takes the latest release. It downloads the build for your system and processor and puts a small launcher into crater's folder on `PATH`, so `rojo serve` runs the version pinned in the project you are in. Someone who clones the project gets the same versions with `crater install`.
+
+| Command | What it does |
+|---|---|
+| `crater tool add <name>[@version]` | Pin and install a tool for this project. `--global` pins it for folders without a project. |
+| `crater tool list` | Pinned tools and whether they are installed. |
+| `crater tool remove <name>` | Unpin a tool (`--global` for global ones). |
+| `crater tool install` | Install every tool of the project (`crater install` does this too). |
+| `crater tool run <name> [args]` | Run a tool directly, what the launchers call. |
+
+Tools live in `%LOCALAPPDATA%\crater\tools` or `~/.crater/tools`, one folder per version. If rokit or aftman put their own `rojo` earlier on `PATH`, `tool add` says so.
+
+---
+
+## Type checking
+
+```bash
+crater check
+```
+
+Runs `luau-lsp analyze` over your code with everything set up: Roblox types (downloaded once a week), a fresh Rojo sourcemap so `require(ReplicatedStorage.Packages.x)` resolves, the definition files of your packages and your `.luaurc`. It checks the folders your `default.project.json` maps (or `src`), skips package folders and `patches/`, and exits with `1` when there are errors, so it works in CI. Pass paths to check something else: `crater check src/client`. luau-lsp and Rojo come from your [tools](#tools), or from `PATH`.
+
+---
+
+## Package reports
+
+**`crater size`** shows how much Luau code each installed package adds, alone and together with its dependencies, largest first.
+
+**`crater licenses`** lists the license of every installed package and marks the ones that need attention: no license, copyleft (`GPL`, `AGPL`) and file-level copyleft (`MPL`, `LGPL`). It is a hint, not legal advice.
+
+---
+
 ## The registry
 
 A registry is a folder tree. In the GitHub setup every user owns one folder, named after their GitHub login in lowercase, and each package is a folder inside it:
@@ -856,6 +931,10 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `self-update [--check]` | Update crater. |
 | `bump [patch|minor|major]` | Raise the version in `crater.json`. |
 | `cache [clean]` | Show or clear the download cache. |
+| `patch [name] [--remove]` | Keep your edits to an installed package, see [Patching packages](#patching-packages). |
+| `tool add|list|remove|install|run` | Pinned tools, see [Tools](#tools). |
+| `check [paths...]` | Type check with luau-lsp, see [Type checking](#type-checking). |
+| `size`, `licenses` | [Package reports](#package-reports). |
 | `version`, `--help` | Version and help. |
 
 `-y` / `--yes` skips confirmations. crater finds `crater.json` in the current folder or any parent. Exit codes: `0` success, `1` error, `2` internal error.
@@ -873,6 +952,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `CI` | No animations. |
 | `CRATER_DEBUG` | Full stack traces for internal errors. |
 | `CRATER_NO_UPDATE_CHECK` | Do not check once a day whether a newer crater is out. |
+| `CRATER_HOME` | Where tools and launchers live. Default `%LOCALAPPDATA%ater` or `~/.crater`. |
 
 ---
 
