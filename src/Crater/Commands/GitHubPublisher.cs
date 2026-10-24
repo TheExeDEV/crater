@@ -135,12 +135,45 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			return;
 		}
 
+		if (GitHubMembership.IsPublicMember(scope, login))
+		{
+			return;
+		}
+
+		if (GitHubCli.Api([$"orgs/{scope}/members/{login}"]).Success)
+		{
+			MakeMembershipPublic(scope, login);
+			return;
+		}
+
 		string expected = login.ToLowerInvariant() + name[name.IndexOf('/')..];
 
 		throw new CraterException(
-			$"You are signed in as {Fmt.Val(login)}, so the package name must start with {Fmt.Pkg(login.ToLowerInvariant() + "/")}. " +
-			$"In {Fmt.File(Manifest.FileName)} set {Fmt.Val($"\"name\": \"{expected}\"")}.");
+			$"You are signed in as {Fmt.Val(login)}, so the package name must start with {Fmt.Pkg(login.ToLowerInvariant() + "/")} " +
+			$"or with the name of a GitHub organization you are a member of. In {Fmt.File(Manifest.FileName)} set {Fmt.Val($"\"name\": \"{expected}\"")}.");
 	}
+
+	void MakeMembershipPublic(string organization, string login)
+	{
+		Out.Info($"You are a member of {Fmt.Val(organization)}, but your membership is hidden, so the registry check cannot see it.");
+
+		if (!prompt.Confirm($"Make your membership in {Fmt.Val(organization)} public"))
+		{
+			throw new CraterException($"Make it public at {Fmt.File(GitHubMembership.PeopleUrl(organization))} and run {Fmt.Cmd("crater publish")} again.");
+		}
+
+		ShellResult result = GitHubCli.Api(["-X", "PUT", $"orgs/{organization}/public_members/{login}"]);
+
+		if (!result.Success)
+		{
+			throw new CraterException(
+				$"GitHub did not allow crater to change it. Open {Fmt.File(GitHubMembership.PeopleUrl(organization))}, " +
+				$"find yourself, set the visibility to Public and run {Fmt.Cmd("crater publish")} again.");
+		}
+
+		Out.Ok($"Your membership in {Fmt.Val(organization)} is public now");
+	}
+
 
 	string EnsureCopy(string login)
 	{

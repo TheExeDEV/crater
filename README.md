@@ -622,7 +622,7 @@ This writes the README, contributing rules, pull request template, `.gitattribut
 
 `check.yml` runs `crater registry check . --base origin/main --author <PR author>`. A pull request fails when:
 
-- a changed file is outside the author's folder
+- a changed file is outside the author's folder (the folder of their login, or of an organization where they are a public member)
 - an existing version, archive or index entry was modified or removed
 - `index.json` is invalid, names or versions are wrong, a version is listed twice
 - an archive is missing, its sha256 does not match, or its `crater.json` has another name, version or dependencies
@@ -708,6 +708,12 @@ When the owner accepts it, everyone can install it with `crater add theexedev/co
 | `registry` | Already set by `crater init`. Leave it. |
 | `can_publish` | `true`. Set it to `false` for games and projects that should never be published. |
 
+### Publishing for a GitHub organization
+
+A package can belong to an organization instead of you: name it `<organization in lowercase>/<package>`, for example `"name": "funnydevz/funny-core"`, and run `crater publish` as usual. Any member of the organization can publish and update its packages.
+
+The registry check runs on GitHub and can only see **public** members. If your membership is hidden, `crater publish` offers to make it public; if GitHub does not allow that, open `https://github.com/orgs/<organization>/people`, find yourself and set the visibility to Public.
+
 ### Useful extras
 
 | Command | What it does |
@@ -725,6 +731,7 @@ When the owner accepts it, everyone can install it with `crater add theexedev/co
 |---|---|
 | `You are not signed in to GitHub` | Run `crater login`. |
 | `the package name must start with yourlogin/` | Change `name` in `crater.json` to the suggested value. |
+| `make your membership public` | Make your membership in the organization public, see [Publishing for a GitHub organization](#publishing-for-a-github-organization). |
 | `version '1.0' needs three numbers, write '1.0.0'` | Write the suggested version. |
 | `theexedev/cool-lib@1.0.0 is already published` | Raise `version`, for example to `1.0.1`. |
 | `Publishing is disabled` | Set `"can_publish": true`. |
