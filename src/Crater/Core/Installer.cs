@@ -48,12 +48,27 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		FolderBuilder builder = new(project, prompt);
 		List<ResolvedGraph> stale = graphs.Values.Where(graph => !builder.IsUpToDate(graph, oldLock)).ToList();
 		Dictionary<ResolvedPackage, byte[]> archives = await DownloadAsync(stale.SelectMany(builder.PackagesToExtract).ToList());
+		string staging = Path.Combine(project.Directory, ".crater-staging");
 
-		await ScriptPolicy.CheckAsync(project, graphs.Values.SelectMany(graph => graph.All), archives, oldLock);
-
-		foreach (ResolvedGraph graph in stale)
+		try
 		{
-			builder.Build(graph, archives);
+			Dictionary<ResolvedPackage, string> prepared = Stage(archives, staging);
+
+			archives.Clear();
+
+			await ScriptPolicy.CheckAsync(project, graphs.Values.SelectMany(graph => graph.All), prepared, oldLock);
+
+			foreach (ResolvedGraph graph in stale)
+			{
+				builder.Build(graph, prepared);
+			}
+		}
+		finally
+		{
+			if (Directory.Exists(staging))
+			{
+				Directory.Delete(staging, recursive: true);
+			}
 		}
 
 		if (project.Config.OnInstallUpdateLuaurc)
@@ -73,6 +88,27 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 
 		WriteLock(newLock);
 		InstallSummary.Print(oldLock, newLock, watch.Elapsed);
+	}
+
+	static Dictionary<ResolvedPackage, string> Stage(Dictionary<ResolvedPackage, byte[]> archives, string staging)
+	{
+		if (Directory.Exists(staging))
+		{
+			Directory.Delete(staging, recursive: true);
+		}
+
+		Dictionary<ResolvedPackage, string> prepared = [];
+		int index = 0;
+
+		foreach ((ResolvedPackage package, byte[] archive) in archives)
+		{
+			string directory = Path.Combine(staging, (index++).ToString());
+
+			PackageFiles.ExtractPrepared(archive, directory, package.Id, package.ShortName, package.Manifest, quiet: false);
+			prepared[package] = directory;
+		}
+
+		return prepared;
 	}
 
 	static void RejectRepublished(Dictionary<Realm, ResolvedGraph> graphs, LockFile oldLock)

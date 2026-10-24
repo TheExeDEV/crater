@@ -19,8 +19,7 @@ public static class PackageScripts
 
 		try
 		{
-			Packer.Extract(archive, staging, id);
-			PackageFiles.Prepare(id, staging, id[(id.IndexOf('/') + 1)..id.LastIndexOf('@')], manifest, quiet: true);
+			PackageFiles.ExtractPrepared(archive, staging, id, id[(id.IndexOf('/') + 1)..id.LastIndexOf('@')], manifest, quiet: true);
 
 			return InDirectory(staging);
 		}

@@ -86,7 +86,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			.ToHashSet();
 	}
 
-	public void Build(ResolvedGraph graph, IReadOnlyDictionary<ResolvedPackage, byte[]> archives)
+	public void Build(ResolvedGraph graph, IReadOnlyDictionary<ResolvedPackage, string> prepared)
 	{
 		if (graph.All.Count == 0)
 		{
@@ -142,7 +142,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			}
 		}
 
-		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, archives, folder, layout, changed);
+		Dictionary<ResolvedPackage, Extracted> extracted = ExtractPackages(graph, prepared, folder, layout, changed);
 
 		WriteAliases(layout, extracted, folder);
 		layout.WriteMarker(folder, Patches.Fingerprint(project, graph.All), project.Config.LinkStyle);
@@ -195,7 +195,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 	Dictionary<ResolvedPackage, Extracted> ExtractPackages(
 		ResolvedGraph graph,
-		IReadOnlyDictionary<ResolvedPackage, byte[]> archives,
+		IReadOnlyDictionary<ResolvedPackage, string> prepared,
 		string folder,
 		PackageLayout layout,
 		HashSet<ResolvedPackage> changed)
@@ -215,9 +215,9 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 				continue;
 			}
 
-			Directory.CreateDirectory(content);
-			Packer.Extract(archives[package], content, package.Id);
-			PackageFiles.Prepare(package.Id, content, Path.GetFileName(layout.Folders[package]), package.Manifest, quiet: false);
+			Directory.CreateDirectory(Path.GetDirectoryName(content)!);
+			Directory.Move(prepared[package], content);
+			PackageFiles.NameRojoProject(content, Path.GetFileName(layout.Folders[package]));
 			Patches.Apply(project, package, content);
 
 			PackageEntry entry = PackageEntry.Analyze(content, package.Manifest.PathToMain, package.Name);
