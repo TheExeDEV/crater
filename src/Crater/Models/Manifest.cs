@@ -23,6 +23,7 @@ public sealed class Manifest
 	[JsonIgnore] public string RegistryLocation => Registry.Length > 0 ? Registry : LegacyRegistry ?? "";
 
 	[JsonPropertyName("can_publish")] public bool CanPublish { get; set; }
+	[JsonPropertyName("registries")] public Dictionary<string, string>? Registries { get; set; }
 	[JsonPropertyName("import_to")] public string ImportTo { get; set; } = "shared";
 
 	[JsonPropertyName("path_to_main")] public string PathToMain { get; set; } = "";
@@ -134,6 +135,15 @@ public sealed class Manifest
 		}
 
 		ValidateCommon();
+
+		DependencySpec? custom = AllDependencies().FirstOrDefault(spec => spec.RegistryName is string named && !Crater.Registry.NamedRegistries.IsBuiltin(named));
+
+		if (custom is not null)
+		{
+			throw new CraterException(
+				$"{Fmt.Val(custom)} uses your own registry name {Fmt.Val(custom.RegistryName!)}. People who install this package do not have it; " +
+				$"published packages can only use {Fmt.Val("wally#")} or {Fmt.Val("crater#")}.");
+		}
 
 		DependencySpec? local = AllDependencies().FirstOrDefault(spec => spec.Source is not null);
 

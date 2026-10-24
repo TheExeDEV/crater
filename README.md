@@ -61,7 +61,7 @@ irm https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/install |
 curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/install | sh
 ```
 
-Both lines run the same file. It downloads the latest release into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin` and adds that folder to `PATH`: the user `PATH` on Windows, `~/.bashrc`, `~/.zshrc`, `~/.profile` and fish on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`.
+Both lines run the same file. It downloads the latest release into `%LOCALAPPDATA%\crater\bin` (Windows) or `~/.crater/bin` and adds that folder to `PATH`: the user `PATH` on Windows, `~/.bashrc`, `~/.zshrc`, `~/.profile` and fish on Linux and macOS. Open a new terminal and run `crater --version`. Update later with `crater self-update`; once a day crater checks for a new version and tells you after a command finishes.
 
 Options, set before the command: `CRATER_VERSION=0.1.0` installs a specific version, `CRATER_INSTALL_DIR` changes the folder, `CRATER_NO_PATH=1` leaves `PATH` alone. In PowerShell: `$env:CRATER_VERSION = "0.1.0"`.
 
@@ -251,7 +251,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
 ## Dependency syntax
 
 ```
-[Alias:]scope/name<operator><version>
+[Alias:][registry#]scope/name<operator><version>
 [Alias:]scope/name@<source>
 ```
 
@@ -265,6 +265,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
 | `a/b@1.2.3` | the same as `a/b^1.2.3`, handy in the Windows terminal (see below) |
 | `a/b~1.2.3` | patch updates only: `>=1.2.3 <1.3.0` |
 | `Promise:evaera/promise^4` | any of the above with an [alias](#aliases) |
+| `wally#sleitnick/knit^1` | from another registry, see [Several registries](#several-registries) |
 | `me/lib@path:../lib` | a [local folder](#local-and-git-dependencies) |
 | `me/lib@git+https://github.com/me/lib.git#v1.0.0` | a [git repository](#local-and-git-dependencies) at a tag, branch or commit |
 
@@ -491,6 +492,8 @@ Generics, defaults, function types, string literal types and packs are kept. Tex
 
 ## Editor integration
 
+**Rojo sourcemap:** if the project has `sourcemap.json` and `default.project.json` and `rojo` is installed, `install` regenerates the sourcemap after the folders change, so luau-lsp sees new packages right away.
+
 **`.luaurc`:** an alias per installed folder, so `require("@Packages/adof")` works. Other settings are kept.
 
 **VS Code (luau-lsp):** the definition files of every installed package, including dependencies of dependencies, go into `luau-lsp.types.definitionFiles`. A package lists its files in `path_to_definition_files`; if the list is empty, crater uses every `*.d.luau` file inside it (up to 10). `crater pack` and `crater publish` fail when an entry matches no file. crater writes them in the object form luau-lsp uses, one entry per file named after the package:
@@ -515,6 +518,7 @@ Exact versions, sources, git commits and sha256 of everything installed. Commit 
 - `update` takes the newest matching versions, `update name` only for the given packages.
 - A locked version whose sha256 changed in the registry stops the install (`crater update name` if that is expected).
 - Local registry paths are stored relative to the project.
+- `crater install --locked` fails instead of changing `crater.lock` when it does not match `crater.json`. Use it in CI.
 
 ---
 
@@ -606,6 +610,28 @@ crater can install straight from Wally. Point `registry` at the Wally index:
 Then `crater add sleitnick/knit^1`, `install`, `update`, `outdated`, `info` and `search signal` work as usual. crater recognizes the Wally format by its `config.json` and downloads packages from the Wally API. Dependencies of Wally packages are installed with the names they use (`Promise`, `Comm`), version ranges like `>=1.0.0, <2.0.0` are understood, and `[server-dependencies]` only go into the server folder. Wally does not publish checksums, so these archives are cached by name and version instead of sha256. Publishing to Wally is done with `wally publish`.
 
 Any other registry with the Wally layout (a git repository with `config.json` and an API) works the same way.
+
+### Several registries
+
+One project can take packages from several registries. `registry` stays the main one, and a dependency can name another one before `#`:
+
+```json
+"import_client": [
+  "ifmnb/funny-core^0.1.0",
+  "wally#sleitnick/knit^1",
+  "Promise:wally#evaera/promise^4"
+]
+```
+
+Built in names: `wally` (the Wally index) and `crater` (the default crater registry). Add your own in `crater.json`:
+
+```json
+"registries": {
+  "team": "https://github.com/MyTeam/crater-registry"
+}
+```
+
+Then `"team#myteam/tools^1"`. Dependencies of a package come from the registry the package came from. `crater add wally#sleitnick/knit`, `crater info wally#evaera/promise` and `crater search --registry wally signal` work the same way. Published packages may only use the built in names, because people who install them do not have your `registries`.
 
 ### Creating a GitHub registry
 
@@ -720,6 +746,7 @@ The registry check runs on GitHub and can only see **public** members. If your m
 | Command | What it does |
 |---|---|
 | `crater whoami` | Shows the GitHub account you are signed in with. |
+| `crater bump` | Raises the version: `0.0.8` becomes `0.0.9`, `0.0.9` becomes `0.1.0`, `0.9.9` becomes `1.0.0`. `crater bump minor` and `crater bump major` raise the other numbers. |
 | `crater pack` | Shows which files go into the package, without sending anything. |
 | `crater publish --dry-run` | Does everything except sending. Good for a first try. |
 | `crater publish --workspace` | Publishes every package of a workspace, dependencies first. |
@@ -804,7 +831,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 |---|---|
 | `init [--name scope/name]` | Create `crater.json` (name from your GitHub login, registry filled in) and `crater.settings.json`. |
 | `import [wally.toml\|pesde.toml] [--force]` | Convert a Wally or pesde project. |
-| `install [--workspace]` (`i`) | Install, respecting `crater.lock`. |
+| `install [--workspace] [--locked]` (`i`) | Install, respecting `crater.lock`. `--locked` fails if the lock is out of date. |
 | `add <spec...> [--client\|--server\|--dev]` | Add or replace dependencies and install. Restores `crater.json` if the install fails. |
 | `remove <name...> [--client\|--server\|--dev]` (`rm`) | Remove by `scope/name` or alias. |
 | `update [name...] [-i] [--workspace]` (`up`) | Update all or the given packages. `-i` to pick. |
@@ -827,6 +854,8 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `registry scan <package.zip\|folder>` | Look for suspicious code in a package. |
 | `registry site [folder] [-o out] [--serve] [--port n]` | Build (and preview) the website. |
 | `self-update [--check]` | Update crater. |
+| `bump [patch|minor|major]` | Raise the version in `crater.json`. |
+| `cache [clean]` | Show or clear the download cache. |
 | `version`, `--help` | Version and help. |
 
 `-y` / `--yes` skips confirmations. crater finds `crater.json` in the current folder or any parent. Exit codes: `0` success, `1` error, `2` internal error.
@@ -843,6 +872,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `NO_COLOR` | No colors and no animations. |
 | `CI` | No animations. |
 | `CRATER_DEBUG` | Full stack traces for internal errors. |
+| `CRATER_NO_UPDATE_CHECK` | Do not check once a day whether a newer crater is out. |
 
 ---
 
@@ -872,6 +902,7 @@ src/Crater/
   Versioning/         versions, requirements, dependency specs
   Util/               output, colors, spinner, progress bar, selection, JSON, TOML, shell
   Templates/          registry repository and website templates (embedded)
+tests/Crater.Tests/   unit tests and end to end tests (`dotnet test tests/Crater.Tests`)
 .github/workflows/    build and release of crater itself
 installers/           install and uninstall scripts for Windows, Linux and macOS
 ```

@@ -7,7 +7,7 @@ using Crater.Versioning;
 
 namespace Crater.Core;
 
-public sealed class Installer(Project project, Prompter prompt)
+public sealed class Installer(Project project, Prompter prompt, bool locked = false)
 {
 	const int ParallelDownloads = 6;
 
@@ -29,6 +29,14 @@ public sealed class Installer(Project project, Prompter prompt)
 
 		RejectRepublished(graphs, oldLock);
 
+		LockFile newLock = LockFile.From(graphs, project.Directory);
+
+		if (locked && (!File.Exists(project.LockPath) || Json.Serialize(newLock) != Json.Serialize(oldLock)))
+		{
+			throw new CraterException(
+				$"{Fmt.File(LockFile.FileName)} does not match {Fmt.File(Manifest.FileName)}. Run {Fmt.Cmd("crater install")} and commit {Fmt.File(LockFile.FileName)}.");
+		}
+
 		FolderBuilder builder = new(project, prompt);
 		List<ResolvedGraph> stale = graphs.Values.Where(graph => !builder.IsUpToDate(graph, oldLock)).ToList();
 		Dictionary<ResolvedPackage, byte[]> archives = await DownloadAsync(stale.SelectMany(graph => graph.All).ToList());
@@ -48,7 +56,10 @@ public sealed class Installer(Project project, Prompter prompt)
 			VsCodeSettings.Update(project, graphs, prompt);
 		}
 
-		LockFile newLock = LockFile.From(graphs, project.Directory);
+		if (stale.Count > 0)
+		{
+			RojoSourcemap.Refresh(project);
+		}
 
 		WriteLock(newLock);
 		InstallSummary.Print(oldLock, newLock, watch.Elapsed);

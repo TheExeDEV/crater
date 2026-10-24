@@ -1,4 +1,5 @@
 using System.Globalization;
+using Crater.Util;
 
 namespace Crater.Versioning;
 
@@ -215,6 +216,18 @@ public sealed class SemVer : IComparable<SemVer>, IEquatable<SemVer>
 	public static bool operator <=(SemVer left, SemVer right) => left.CompareTo(right) <= 0;
 
 	public static bool operator >=(SemVer left, SemVer right) => left.CompareTo(right) >= 0;
+
+	public SemVer Next(string part)
+	{
+		return part switch
+		{
+			"major" => new SemVer(Major + 1, 0, 0),
+			"minor" => Minor < 9 ? new SemVer(Major, Minor + 1, 0) : new SemVer(Major + 1, 0, 0),
+			"patch" when IsPrerelease => new SemVer(Major, Minor, Patch),
+			"patch" => Patch < 9 ? new SemVer(Major, Minor, Patch + 1) : new SemVer(Major, Minor, 0).Next("minor"),
+			_ => throw new CraterException($"Unknown part {Fmt.Val(part)}. Use patch, minor or major."),
+		};
+	}
 
 	public override string ToString()
 	{

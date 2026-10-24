@@ -51,6 +51,7 @@ public sealed record DependencySource(SourceKind Kind, string Location, string? 
 public sealed partial class DependencySpec
 {
 	public string? Alias { get; }
+	public string? RegistryName { get; }
 	public string Scope { get; }
 	public string Name { get; }
 	public VersionReq Req { get; }
@@ -59,9 +60,10 @@ public sealed partial class DependencySpec
 	public string FullName => $"{Scope}/{Name}";
 	public string LinkName => Alias ?? Name;
 
-	DependencySpec(string? alias, string scope, string name, VersionReq req, DependencySource? source)
+	DependencySpec(string? alias, string? registryName, string scope, string name, VersionReq req, DependencySource? source)
 	{
 		Alias = alias;
+		RegistryName = registryName;
 		Scope = scope;
 		Name = name;
 		Req = req;
@@ -69,7 +71,7 @@ public sealed partial class DependencySpec
 	}
 
 	[GeneratedRegex(
-		@"^(?:(?<alias>[A-Za-z][A-Za-z0-9_\-]*):)?(?<scope>[a-z0-9_\-]+)/(?<name>[a-z0-9_\-]+)(?:(?<op>[=+^~])(?<ver>\S*)|@(?<source>.+))?$",
+		@"^(?:(?<alias>[A-Za-z][A-Za-z0-9_\-]*):)?(?:(?<registry>[A-Za-z][A-Za-z0-9_\-]*)#)?(?<scope>[a-z0-9_\-]+)/(?<name>[a-z0-9_\-]+)(?:(?<op>[=+^~])(?<ver>\S*)|@(?<source>.+))?$",
 		RegexOptions.IgnoreCase)]
 	private static partial Regex SpecRegex();
 
@@ -79,7 +81,7 @@ public sealed partial class DependencySpec
 	[GeneratedRegex(@"^(?<head>[^@\s]+/[A-Za-z0-9_\-]+)@(?<op>[=+^~]?)(?<ver>\d\S*)$")]
 	private static partial Regex AtVersionRegex();
 
-	[GeneratedRegex(@"^(?<name>[A-Za-z0-9_\-]+/[A-Za-z0-9_\-]*?[A-Za-z_\-])(?<ver>\d+(\.\d+){1,2})$")]
+	[GeneratedRegex(@"^(?<name>(?:[A-Za-z][A-Za-z0-9_\-]*#)?[A-Za-z0-9_\-]+/[A-Za-z0-9_\-]*?[A-Za-z_\-])(?<ver>\d+(\.\d+){1,2})$")]
 	private static partial Regex EatenCaretRegex();
 
 	public static bool IsValidPackageName(string name)
@@ -120,6 +122,7 @@ public sealed partial class DependencySpec
 		}
 
 		string? alias = match.Groups["alias"].Success ? match.Groups["alias"].Value : null;
+		string? registryName = match.Groups["registry"].Success ? match.Groups["registry"].Value.ToLowerInvariant() : null;
 		string scope = match.Groups["scope"].Value.ToLowerInvariant();
 		string name = match.Groups["name"].Value.ToLowerInvariant();
 
@@ -132,7 +135,7 @@ public sealed partial class DependencySpec
 		{
 			DependencySource source = DependencySource.Parse(match.Groups["source"].Value.Trim(), context);
 
-			return new DependencySpec(alias, scope, name, VersionReq.Latest, source);
+			return new DependencySpec(alias, registryName, scope, name, VersionReq.Latest, source);
 		}
 
 		char? operatorSymbol = match.Groups["op"].Success ? match.Groups["op"].Value[0] : null;
@@ -141,7 +144,7 @@ public sealed partial class DependencySpec
 		{
 			VersionReq req = VersionReq.Parse(operatorSymbol, match.Groups["ver"].Value);
 
-			return new DependencySpec(alias, scope, name, req, null);
+			return new DependencySpec(alias, registryName, scope, name, req, null);
 		}
 		catch (FormatException exception)
 		{
@@ -149,7 +152,7 @@ public sealed partial class DependencySpec
 		}
 	}
 
-	public DependencySpec WithReq(VersionReq req) => new(Alias, Scope, Name, req, Source);
+	public DependencySpec WithReq(VersionReq req) => new(Alias, RegistryName, Scope, Name, req, Source);
 
 	public bool Matches(string nameOrAlias)
 	{
@@ -163,7 +166,7 @@ public sealed partial class DependencySpec
 
 	public override string ToString()
 	{
-		string prefix = Alias is null ? "" : Alias + ":";
+		string prefix = (Alias is null ? "" : Alias + ":") + (RegistryName is null ? "" : RegistryName.ToLowerInvariant() + "#");
 		string suffix = Source is null ? Req.ToString() : "@" + Source.Text;
 
 		return prefix + FullName + suffix;
