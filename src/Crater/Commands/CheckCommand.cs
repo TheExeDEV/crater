@@ -9,7 +9,7 @@ namespace Crater.Commands;
 
 public static class CheckCommand
 {
-	const string RojoProject = "default.project.json";
+	const string RojoProject = ProjectSources.RojoProject;
 	const string RobloxTypesUrl = "https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/main/scripts/globalTypes.PluginSecurity.d.luau";
 
 	static readonly TimeSpan RobloxTypesMaxAge = TimeSpan.FromDays(7);
@@ -20,7 +20,7 @@ public static class CheckCommand
 		string luauLsp = await ToolCommand.ExecutableAsync("luau-lsp");
 
 		List<string> folders = project.Config.ConfiguredFolders().Select(pair => pair.Folder.TrimEnd('/')).ToList();
-		List<string> targets = args.Positional.Count > 0 ? args.Positional.ToList() : SourceFolders(project, folders);
+		List<string> targets = args.Positional.Count > 0 ? args.Positional.ToList() : ProjectSources.Folders(project);
 		string temporary = Path.Combine(Path.GetTempPath(), $"crater-check-{Guid.NewGuid():N}");
 
 		Directory.CreateDirectory(temporary);
@@ -98,53 +98,6 @@ public static class CheckCommand
 		lock (LiveLine.Sync)
 		{
 			Console.Out.WriteLine(line);
-		}
-	}
-
-	static List<string> SourceFolders(Project project, List<string> packageFolders)
-	{
-		string projectFile = Path.Combine(project.Directory, RojoProject);
-		List<string> paths = [];
-
-		if (File.Exists(projectFile))
-		{
-			using JsonDocument document = JsonDocument.Parse(File.ReadAllText(projectFile));
-
-			CollectPaths(document.RootElement, paths);
-		}
-
-		List<string> sources = paths
-			.Select(path => path.Replace('\\', '/').TrimEnd('/'))
-			.Where(path => !packageFolders.Contains(path, StringComparer.OrdinalIgnoreCase))
-			.Where(path => Directory.Exists(Path.Combine(project.Directory, path)) || File.Exists(Path.Combine(project.Directory, path)))
-			.Distinct()
-			.ToList();
-
-		if (sources.Count > 0)
-		{
-			return sources;
-		}
-
-		return Directory.Exists(Path.Combine(project.Directory, "src")) ? ["src"] : ["."];
-	}
-
-	static void CollectPaths(JsonElement element, List<string> paths)
-	{
-		if (element.ValueKind != JsonValueKind.Object)
-		{
-			return;
-		}
-
-		foreach (JsonProperty property in element.EnumerateObject())
-		{
-			if (property.Name == "$path" && property.Value.ValueKind == JsonValueKind.String)
-			{
-				paths.Add(property.Value.GetString()!);
-			}
-			else
-			{
-				CollectPaths(property.Value, paths);
-			}
 		}
 	}
 

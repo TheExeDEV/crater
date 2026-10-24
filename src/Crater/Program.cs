@@ -90,6 +90,18 @@ public static class Program
 			case "check":
 				return await CheckCommand.RunAsync(args);
 
+			case "lint":
+				return await QualityCommands.LintAsync(args);
+
+			case "fmt":
+				return await QualityCommands.FormatAsync(args);
+
+			case "ci":
+				return await QualityCommands.CiAsync(args);
+
+			case "build":
+				return await BuildCommand.RunAsync(args);
+
 			case "doctor":
 				return await DoctorCommand.RunAsync();
 
@@ -124,6 +136,9 @@ public static class Program
 			case "patch":
 				await PatchCommand.RunAsync(args);
 				return 0;
+
+			case "unused":
+				return UnusedCommand.Run();
 
 			case "size":
 				ReportCommands.Size();

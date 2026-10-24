@@ -37,15 +37,16 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 15. [Patching packages](#patching-packages)
 16. [Tools](#tools)
 17. [Type checking](#type-checking)
-18. [Package reports](#package-reports)
-19. [The registry](#the-registry)
-20. [Publishing](#publishing)
-21. [The package website](#the-package-website)
-22. [Releasing crater](#releasing-crater)
-23. [Command reference](#command-reference)
-24. [Environment variables](#environment-variables)
-25. [Limitations](#limitations)
-26. [Source layout](#source-layout)
+18. [Code quality and builds](#code-quality-and-builds)
+19. [Package reports](#package-reports)
+20. [The registry](#the-registry)
+21. [Publishing](#publishing)
+22. [The package website](#the-package-website)
+23. [Releasing crater](#releasing-crater)
+24. [Command reference](#command-reference)
+25. [Environment variables](#environment-variables)
+26. [Limitations](#limitations)
+27. [Source layout](#source-layout)
 
 ---
 
@@ -415,6 +416,7 @@ Packages/
 - When a package uses another name for its dependency (an alias like `Janitor` or `Promise`), crater adds a one-line `Name.luau` file that returns the real folder.
 - If the main module is not in the package root (`path_to_main` is `src/init.luau`), crater writes an `init.luau` into the package folder that returns `src`. Packages with their own `default.project.json` (most Wally packages) are left as they are; crater only sets the project `name` to the folder name so Rojo keeps the name.
 - When two different packages need the same name, `install` stops and tells you which ones; give your own dependency another name with an alias (`"Promise2:scope/promise^4"`).
+- When dependencies change, only the added or changed packages are unpacked again; the other package folders stay as they are.
 - The folder belongs to crater and is rebuilt when it changes. Add it to `.gitignore`.
 - crater refuses to touch an existing non-empty folder it did not create, so it cannot wipe your code.
 
@@ -523,6 +525,8 @@ Exact versions, sources, git commits and sha256 of everything installed. Commit 
 - A locked version whose sha256 changed in the registry stops the install (`crater update name` if that is expected).
 - Local registry paths are stored relative to the project.
 - `crater install --locked` fails instead of changing `crater.lock` when it does not match `crater.json`. Use it in CI.
+- When nothing changed since the last install (same `crater.json`, folders and patches), `install` finishes in a fraction of a second without touching the network. crater keeps a fingerprint of `crater.json` in `crater.lock` for that.
+- Registry indexes are cached on disk and revalidated with a short "has it changed?" request. With `--offline` (or `CRATER_OFFLINE=1`) crater uses only the cache: installs, updates and `outdated` work without internet as long as the packages were downloaded once.
 
 ---
 
@@ -628,6 +632,21 @@ crater check
 ```
 
 Runs `luau-lsp analyze` over your code with everything set up: Roblox types (downloaded once a week), a fresh Rojo sourcemap so `require(ReplicatedStorage.Packages.x)` resolves, the definition files of your packages and your `.luaurc`. It checks the folders your `default.project.json` maps (or `src`), skips package folders and `patches/`, and exits with `1` when there are errors, so it works in CI. Pass paths to check something else: `crater check src/client`. luau-lsp and Rojo come from your [tools](#tools), or from `PATH`.
+
+---
+
+## Code quality and builds
+
+All of these use the [tools](#tools) pinned in the project (or found on `PATH`) and work on the folders your `default.project.json` maps, skipping package folders.
+
+| Command | What it does |
+|---|---|
+| `crater lint` | Runs selene. Creates `selene.toml` with the Roblox standard library the first time. Warnings are shown but do not fail; `--strict` makes them fail too. |
+| `crater fmt` | Formats your code with StyLua. `crater fmt --check` only reports files that are not formatted. |
+| `crater ci` | Runs `check`, `lint` and `fmt --check` one after another and prints a table. Exits with `1` if anything failed, so one line in GitHub Actions checks everything. |
+| `crater unused` | Finds dependencies in `crater.json` that your code never requires, and requires of packages you did not declare (for example a package that only came as a dependency of another one). It understands `Packages.Name`, `Packages["Name"]`, `WaitForChild("Name")`, `"@Packages/Name"` and local variables that hold the folder; comments are ignored. |
+| `crater build` | Builds the place or model with Rojo into `build/<name>.rbxl` (or `.rbxm`), `-o file` to choose. |
+| `crater build --minify` | Copies the project, minifies every mapped folder with darklua (comments, spaces and types removed, constant expressions computed) and builds that. Your files are not touched. |
 
 ---
 
@@ -962,6 +981,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `patch [name] [--remove]` | Keep your edits to an installed package, see [Patching packages](#patching-packages). |
 | `tool add|list|remove|install|run` | Pinned tools, see [Tools](#tools). |
 | `check [paths...]` | Type check with luau-lsp, see [Type checking](#type-checking). |
+| `lint`, `fmt [--check]`, `ci`, `unused`, `build [--minify]` | See [Code quality and builds](#code-quality-and-builds). |
 | `size`, `licenses` | [Package reports](#package-reports). |
 | `version`, `--help` | Version and help. |
 
@@ -981,6 +1001,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `CI` | No animations. |
 | `CRATER_DEBUG` | Full stack traces for internal errors. |
 | `CRATER_NO_UPDATE_CHECK` | Do not check once a day whether a newer crater is out. |
+| `CRATER_OFFLINE` | Same as `--offline`: use only the cache. |
 | `CRATER_HOME` | Where tools and launchers live. Default `%LOCALAPPDATA%\crater` or `~/.crater`. |
 
 ---

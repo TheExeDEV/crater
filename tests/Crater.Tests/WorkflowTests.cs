@@ -1,0 +1,197 @@
+using System.Text.Json.Nodes;
+using Crater.Core;
+using CraterProject = Crater.Core.Project;
+using Crater.Models;
+using Crater.Registry;
+using Crater.Versioning;
+
+namespace Crater.Tests;
+
+[Collection("crater process")]
+public sealed class WorkflowTests : IDisposable
+{
+	readonly string root = Path.Combine(Path.GetTempPath(), $"crater-workflow-test-{Guid.NewGuid():N}");
+	readonly string previousDirectory = Environment.CurrentDirectory;
+
+	public WorkflowTests()
+	{
+		Directory.CreateDirectory(Path.Combine(root, "registry"));
+		Environment.SetEnvironmentVariable("CRATER_CACHE", Path.Combine(root, "cache"));
+		Environment.SetEnvironmentVariable("NO_COLOR", "1");
+	}
+
+	public void Dispose()
+	{
+		Environment.CurrentDirectory = previousDirectory;
+		Directory.Delete(root, recursive: true);
+	}
+
+	int Crater(string directory, params string[] arguments)
+	{
+		Environment.CurrentDirectory = directory;
+
+		return Program.Main(arguments).GetAwaiter().GetResult();
+	}
+
+	string CraterOutput(string directory, params string[] arguments)
+	{
+		TextWriter previous = Console.Out;
+		StringWriter output = new();
+
+		Console.SetOut(output);
+
+		try
+		{
+			Crater(directory, arguments);
+		}
+		finally
+		{
+			Console.SetOut(previous);
+		}
+
+		return output.ToString();
+	}
+
+	string Project(string name, string[] dependencies, Dictionary<string, string> files)
+	{
+		string directory = Path.Combine(root, name.Replace('/', '_'));
+		Directory.CreateDirectory(directory);
+
+		Assert.Equal(0, Crater(directory, "init", "--name", name, "-y"));
+
+		string manifestPath = Path.Combine(directory, "crater.json");
+		JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+
+		manifest["version"] = "1.0.0";
+		manifest["registry"] = "../registry";
+		manifest["path_to_main"] = "init.luau";
+		manifest["import_client"] = new JsonArray(dependencies.Select(item => (JsonNode)item).ToArray());
+		File.WriteAllText(manifestPath, manifest.ToJsonString());
+
+		foreach ((string path, string content) in files)
+		{
+			string file = Path.Combine(directory, path);
+			Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+			File.WriteAllText(file, content);
+		}
+
+		return directory;
+	}
+
+	void Publish(string name)
+	{
+		string directory = Project(name, [], new() { ["init.luau"] = "return {}\n" });
+
+		Assert.Equal(0, Crater(directory, "publish", "-y"));
+	}
+
+	[Fact]
+	public void UnchangedInstallDoesNotNeedTheRegistry()
+	{
+		Publish("t/alpha");
+
+		string game = Project("t/game", ["t/alpha^1"], new() { ["init.luau"] = "return nil\n" });
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		Directory.Move(Path.Combine(root, "registry"), Path.Combine(root, "registry-away"));
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		Assert.True(InstallState.IsCurrent(CraterProject.Load(game), LockFile.Load(Path.Combine(game, LockFile.FileName))));
+
+		File.WriteAllText(Path.Combine(game, "crater.json"), File.ReadAllText(Path.Combine(game, "crater.json")).Replace("t/alpha^1", "t/alpha^1.0.0"));
+
+		Assert.False(InstallState.IsCurrent(CraterProject.Load(game), LockFile.Load(Path.Combine(game, LockFile.FileName))));
+	}
+
+	[Fact]
+	public void AddingAPackageKeepsTheOthersInPlace()
+	{
+		Publish("t/alpha");
+		Publish("t/beta");
+
+		string game = Project("t/game", ["t/alpha^1"], new() { ["init.luau"] = "return nil\n" });
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		string sentinel = Path.Combine(game, "Packages", "alpha", "SENTINEL");
+		File.WriteAllText(sentinel, "");
+
+		Assert.Equal(0, Crater(game, "add", "t/beta@1", "-y"));
+		Assert.True(File.Exists(sentinel));
+		Assert.True(Directory.Exists(Path.Combine(game, "Packages", "beta")));
+
+		Assert.Equal(0, Crater(game, "remove", "beta", "-y"));
+		Assert.True(File.Exists(sentinel));
+		Assert.False(Directory.Exists(Path.Combine(game, "Packages", "beta")));
+	}
+
+	[Fact]
+	public void UnusedFindsDeclaredButNotRequiredPackages()
+	{
+		Publish("t/alpha");
+		Publish("t/beta");
+
+		string game = Project("t/game", ["t/alpha^1", "t/beta^1"], new()
+		{
+			["init.luau"] = "return nil\n",
+			["src/main.luau"] = "local Packages = game.ReplicatedStorage.Packages\nlocal alpha = require(Packages.alpha)\n-- require(Packages.beta)\nlocal x = require(Packages.gamma)\nreturn nil\n",
+		});
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		string output = CraterOutput(game, "unused");
+
+		Assert.Contains("t/beta^1", output);
+		Assert.DoesNotContain("t/alpha^1 in", output);
+		Assert.Contains("Packages.gamma", output);
+	}
+
+	[Fact]
+	public void PlanReportsTwoPackagesWantingOneName()
+	{
+		LocalRegistry registry = new(Path.Combine(root, "registry"));
+		ResolvedPackage first = Package("a/util", registry);
+		ResolvedPackage second = Package("b/util", registry);
+		ResolvedPackage owner = Package("c/lib", registry);
+
+		owner.Dependencies.Add(new ResolvedDependency("util", second));
+
+		ResolvedGraph graph = new()
+		{
+			Realm = Realm.Client,
+			Roots = [new ResolvedDependency("util", first), new ResolvedDependency("lib", owner)],
+			All = [first, second, owner],
+		};
+
+		CraterException error = Assert.Throws<CraterException>(() => PackageLayout.Plan(graph, "Packages"));
+
+		Assert.Contains("util", error.Message);
+	}
+
+	[Fact]
+	public async Task OfflineModeRefusesUncachedRequests()
+	{
+		Http.Offline = true;
+
+		try
+		{
+			await Assert.ThrowsAsync<CraterException>(() => Http.GetCachedAsync("https://example.invalid/index.json"));
+		}
+		finally
+		{
+			Http.Offline = false;
+		}
+	}
+
+	static ResolvedPackage Package(string name, IRegistry registry)
+	{
+		return new ResolvedPackage
+		{
+			Name = name,
+			Registry = registry,
+			Release = new RegistryRelease { Version = "1.0.0", SemVer = SemVer.Parse("1.0.0"), Manifest = new Manifest { Name = name } },
+		};
+	}
+}

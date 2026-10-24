@@ -34,11 +34,6 @@ public static class Http
 		return data is null ? null : System.Text.Encoding.UTF8.GetString(data);
 	}
 
-	public static async Task<byte[]> GetBytesAsync(string url)
-	{
-		return await GetBytesOrNullAsync(url) ?? throw new CraterException($"{Fmt.File(url)}: HTTP 404 Not Found");
-	}
-
 	public static bool Offline { get; set; } = Environment.GetEnvironmentVariable("CRATER_OFFLINE") is { Length: > 0 };
 
 	sealed record Response(byte[]? Data, string? ETag, bool NotModified);
