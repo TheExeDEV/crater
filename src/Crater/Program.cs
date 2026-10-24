@@ -177,9 +177,6 @@ public static class Program
 			case "whoami":
 				return LoginCommands.WhoAmI();
 
-			case "review":
-				return await ReviewCommand.RunAsync(args);
-
 			case "registry":
 				return await RegistryCommands.RunAsync(args);
 

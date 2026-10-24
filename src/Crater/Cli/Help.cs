@@ -42,7 +42,6 @@ public static class Help
 			new("versions <scope/name>", "list published versions"),
 			new("pack [-o file.zip]", "build the package archive"),
 			new("publish [--dry-run]", "send the package to the registry for review"),
-			new("review <pr> [--open]", "unpack and diff the packages of a registry pull request"),
 			new("registry init|check|catalog|site", "manage a registry repository"),
 		]),
 		("Crater", [

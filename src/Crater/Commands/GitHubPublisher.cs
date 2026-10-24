@@ -8,7 +8,7 @@ namespace Crater.Commands;
 
 public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, bool dryRun)
 {
-	sealed record PackageFile(string Path, byte[] Content);
+	sealed record PackageFile(string Path, byte[]? Content);
 
 	public async Task PublishAsync(RegistryRelease release, byte[] archive, int fileCount)
 	{
@@ -82,12 +82,31 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			await local.PublishAsync(release, archive);
 
 			string zip = $"{release.Version}.zip";
+			string sourceDirectory = Path.Combine(packageDirectory, LocalRegistry.SourceFolder);
+			string sourcePath = $"{packagePath}/{LocalRegistry.SourceFolder}";
 
-			return
+			List<PackageFile> files =
 			[
 				new PackageFile($"{packagePath}/{zip}", await File.ReadAllBytesAsync(Path.Combine(packageDirectory, zip))),
 				new PackageFile($"{packagePath}/{RegistryIndex.FileName}", await File.ReadAllBytesAsync(Path.Combine(packageDirectory, RegistryIndex.FileName))),
 			];
+
+			foreach (string file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+			{
+				files.Add(new PackageFile($"{sourcePath}/{Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/')}", await File.ReadAllBytesAsync(file)));
+			}
+
+			HashSet<string> written = files.Select(file => file.Path).ToHashSet(StringComparer.Ordinal);
+
+			foreach (string old in await ExistingFilesAsync(head, sourcePath + "/"))
+			{
+				if (!written.Contains(old))
+				{
+					files.Add(new PackageFile(old, null));
+				}
+			}
+
+			return files;
 		}
 		finally
 		{
@@ -105,16 +124,65 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 
 		foreach (PackageFile file in files)
 		{
-			JsonObject blob = new() { ["content"] = Convert.ToBase64String(file.Content), ["encoding"] = "base64" };
-			string sha = await GitHubApi.RequireAsync(HttpMethod.Post, $"repos/{target}/git/blobs", blob, "sha");
+			JsonObject entry = new() { ["path"] = file.Path, ["mode"] = "100644", ["type"] = "blob" };
 
-			entries.Add(new JsonObject { ["path"] = file.Path, ["mode"] = "100644", ["type"] = "blob", ["sha"] = sha });
+			if (file.Content is null)
+			{
+				entry["sha"] = null;
+			}
+			else if (AsText(file.Content) is string text)
+			{
+				entry["content"] = text;
+			}
+			else
+			{
+				JsonObject blob = new() { ["content"] = Convert.ToBase64String(file.Content), ["encoding"] = "base64" };
+
+				entry["sha"] = await GitHubApi.RequireAsync(HttpMethod.Post, $"repos/{target}/git/blobs", blob, "sha");
+			}
+
+			entries.Add(entry);
 		}
 
 		string tree = await GitHubApi.RequireAsync(HttpMethod.Post, $"repos/{target}/git/trees", new JsonObject { ["base_tree"] = baseTree, ["tree"] = entries }, "sha");
 		JsonObject commit = new() { ["message"] = message, ["tree"] = tree, ["parents"] = new JsonArray(head) };
 
 		return await GitHubApi.RequireAsync(HttpMethod.Post, $"repos/{target}/git/commits", commit, "sha");
+	}
+
+	static string? AsText(byte[] content)
+	{
+		if (content.Contains((byte)0))
+		{
+			return null;
+		}
+
+		try
+		{
+			string text = new System.Text.UTF8Encoding(false, throwOnInvalidBytes: true).GetString(content);
+
+			return System.Text.Encoding.UTF8.GetByteCount(text) == content.Length && !text.StartsWith('﻿') ? text : null;
+		}
+		catch (System.Text.DecoderFallbackException)
+		{
+			return null;
+		}
+	}
+
+	async Task<List<string>> ExistingFilesAsync(string head, string prefix)
+	{
+		JsonElement? tree = await GitHubApi.GetAsync($"repos/{registry.Slug}/git/trees/{head}?recursive=1");
+
+		if (tree is not { } found || !found.TryGetProperty("tree", out JsonElement items))
+		{
+			return [];
+		}
+
+		return items.EnumerateArray()
+			.Where(item => item.GetProperty("type").GetString() == "blob")
+			.Select(item => item.GetProperty("path").GetString()!)
+			.Where(path => path.StartsWith(prefix, StringComparison.Ordinal))
+			.ToList();
 	}
 
 	static async Task SetBranchAsync(string target, string branch, string commit)
