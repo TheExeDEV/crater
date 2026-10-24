@@ -227,6 +227,12 @@ public sealed partial class HttpRegistry : IRegistry
 			}
 		}
 
+		if (GitHubAuth.Source() == "crater login" && Credentials.Load() is { CanReadPrivate: false })
+		{
+			throw new CraterException(
+				$"The registry {Fmt.Val(slug)} is private, and your crater sign-in covers only public repositories. Run {Fmt.Cmd("crater login --private")} and try again.");
+		}
+
 		string who = GitHubAuth.Login() is string login ? $"Your GitHub account {Fmt.Val(login)}" : "Your GitHub token";
 
 		throw new CraterException(

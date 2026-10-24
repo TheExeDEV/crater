@@ -27,7 +27,7 @@ public sealed class Credentials
 
 	public static string FilePath => Path.Combine(Directory, "credentials.json");
 
-	public bool CanReadPrivate => Scopes.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries).Contains("repo");
+	[JsonIgnore] public bool CanReadPrivate => Scopes.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries).Contains("repo");
 
 	public static Credentials? Load()
 	{

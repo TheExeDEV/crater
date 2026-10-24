@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>crater</AssemblyName>
     <RootNamespace>Crater</RootNamespace>
-    <Version>0.1.5</Version>
+    <Version>0.1.6</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
 
     <PackAsTool>true</PackAsTool>
@@ -16,7 +16,7 @@
 
     <CraterDefaultRegistry>https://raw.githubusercontent.com/TheExeDEV/crater-registry/main</CraterDefaultRegistry>
     <CraterUpdateRepo>TheExeDEV/crater</CraterUpdateRepo>
-    <CraterGitHubClientId></CraterGitHubClientId>
+    <CraterGitHubClientId>Ov23li0EOoaKizGwo3Ga</CraterGitHubClientId>
 
     <Description>Package manager for Luau and Roblox</Description>
     <Authors>TheExeDEV</Authors>
