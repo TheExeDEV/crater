@@ -10,9 +10,34 @@ public static class LuauRc
 {
 	public const string FileName = ".luaurc";
 
+	public static string RelativePath(Project project)
+	{
+		string configured = project.Config.LuaurcPath.Trim().Replace('\\', '/');
+
+		while (configured.StartsWith("./"))
+		{
+			configured = configured[2..];
+		}
+
+		return configured.Length == 0 ? FileName : configured;
+	}
+
+	public static string PathIn(Project project) => Path.GetFullPath(Path.Combine(project.Directory, RelativePath(project)));
+
+	public static bool IsCustom(Project project) => !RelativePath(project).Equals(FileName, StringComparison.Ordinal);
+
+	public static string AliasValue(Project project, string folder)
+	{
+		string luaurcDirectory = Path.GetDirectoryName(PathIn(project))!;
+		string relative = Path.GetRelativePath(luaurcDirectory, project.Abs(folder)).Replace('\\', '/');
+
+		return relative.StartsWith("..") ? relative : "./" + relative;
+	}
+
 	public static void Update(Project project, IReadOnlyDictionary<Realm, ResolvedGraph> graphs, Prompter prompt)
 	{
-		string path = Path.Combine(project.Directory, FileName);
+		string path = PathIn(project);
+		string shown = RelativePath(project);
 		JsonObject root = Json.ReadObject(path);
 		string before = Json.Serialize(root);
 
@@ -25,7 +50,7 @@ public static class LuauRc
 		foreach ((Realm realm, string folder) in project.Config.ConfiguredFolders())
 		{
 			string alias = AliasFor(folder);
-			string value = "./" + folder;
+			string value = AliasValue(project, folder);
 			bool installed = graphs.TryGetValue(realm, out ResolvedGraph? graph) && graph.All.Count > 0;
 
 			if (installed)
@@ -56,18 +81,19 @@ public static class LuauRc
 		}
 
 		string action = File.Exists(path)
-			? $"Update aliases in {Fmt.File(FileName)}{CommentsNote(path)}"
-			: $"Create {Fmt.File(FileName)} with package folder aliases";
+			? $"Update aliases in {Fmt.File(shown)}{CommentsNote(path)}"
+			: $"Create {Fmt.File(shown)} with package folder aliases";
 
 		if (prompt.Confirm(action))
 		{
+			Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 			Json.WriteText(path, after);
 		}
 	}
 
 	public static string AliasFor(string folder)
 	{
-		return folder[(folder.LastIndexOf('/') + 1)..];
+		return folder.TrimEnd('/')[(folder.TrimEnd('/').LastIndexOf('/') + 1)..];
 	}
 
 	internal static string CommentsNote(string path)

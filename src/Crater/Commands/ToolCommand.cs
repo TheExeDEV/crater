@@ -213,9 +213,21 @@ public static class ToolCommand
 
 			return await ToolStore.InstallAsync(name, spec);
 		}
-		catch (CraterException) when (OnPath(name))
+		catch (CraterException) when (OnPath(name) && RunsFromPath(name))
 		{
 			return name;
+		}
+	}
+
+	static bool RunsFromPath(string name)
+	{
+		try
+		{
+			return Shell.Capture(name, ["--version"], System.Environment.CurrentDirectory).Success;
+		}
+		catch (CraterException)
+		{
+			return false;
 		}
 	}
 

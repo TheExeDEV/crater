@@ -81,6 +81,7 @@ public static partial class ProjectCommands
 			["import_server_path"] = ProjectConfig.SuggestedFolder(Realm.Server),
 			["import_develop_path"] = ProjectConfig.SuggestedFolder(Realm.Develop),
 			["on_install_update_luaurc"] = true,
+			["luaurc_path"] = ".luaurc",
 			["on_install_update_vscode_luau_definition_files"] = true,
 			["on_install_should_i_ask_your_permission_to_do_any_action"] = true,
 			["link_style"] = "roblox",
