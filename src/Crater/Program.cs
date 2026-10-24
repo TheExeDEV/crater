@@ -14,6 +14,11 @@ public static class Program
 
 		Console.CancelKeyPress += (_, _) => Terminal.Restore();
 
+		if (argv.Length > 0 && argv[0] == "__complete")
+		{
+			return CompletionCommand.Complete(argv);
+		}
+
 		SelfUpdateCommand.CleanupPreviousVersion();
 
 		if (argv.Length >= 3 && argv[0] == "tool" && argv[1] == "run")
@@ -86,6 +91,12 @@ public static class Program
 
 			case "run":
 				return ProjectCommands.Run(args);
+
+			case "dev":
+				return await DevCommand.RunAsync(args);
+
+			case "test":
+				return await TestCommand.RunAsync(args);
 
 			case "check":
 				return await CheckCommand.RunAsync(args);
@@ -185,6 +196,9 @@ public static class Program
 
 			case "cache":
 				return CacheCommand.Run(args);
+
+			case "completion":
+				return CompletionCommand.Run(args);
 
 			case "self-update":
 				await SelfUpdateCommand.RunAsync(args);
