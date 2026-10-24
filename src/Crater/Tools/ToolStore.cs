@@ -237,15 +237,4 @@ public static class ToolStore
 			File.SetUnixFileMode(unix, File.GetUnixFileMode(unix) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
 		}
 	}
-
-	public static void RemoveShim(string name)
-	{
-		foreach (string file in new[] { Path.Combine(ShimDirectory, name), Path.Combine(ShimDirectory, name + ".cmd") })
-		{
-			if (File.Exists(file))
-			{
-				File.Delete(file);
-			}
-		}
-	}
 }

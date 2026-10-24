@@ -15,6 +15,10 @@ public static class Help
 			new("run [script] [-- args]", "run a script from crater.json"),
 			new("doctor", "check the project for problems"),
 			new("check [paths...]", "type check the project with luau-lsp"),
+			new("lint [paths...]", "find problems with selene"),
+			new("fmt [--check] [paths...]", "format code with StyLua"),
+			new("ci", "run check, lint and fmt --check together"),
+			new("build [-o file] [--minify]", "build the place or model with Rojo, --minify uses darklua"),
 		]),
 		("Dependencies", [
 			new("install [--workspace] [--locked]", "install dependencies, --locked fails if crater.lock is out of date"),
@@ -25,6 +29,7 @@ public static class Help
 			new("list", "show the installed package tree"),
 			new("why <name>", "show why a package is installed"),
 			new("patch [name] [--remove]", "keep your edits to an installed package"),
+			new("unused", "find dependencies your code never requires"),
 			new("size", "show how much code each package adds"),
 			new("licenses", "list the licenses of installed packages"),
 		]),
