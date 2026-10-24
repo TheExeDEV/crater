@@ -13,6 +13,10 @@ public sealed class ProjectConfig
 	[JsonPropertyName("import_server_path")] public string ImportServerPath { get; set; } = "";
 	[JsonPropertyName("import_develop_path")] public string ImportDevelopPath { get; set; } = "";
 
+	[JsonPropertyName("import_client_alias")] public string ImportClientAlias { get; set; } = "";
+	[JsonPropertyName("import_server_alias")] public string ImportServerAlias { get; set; } = "";
+	[JsonPropertyName("import_develop_alias")] public string ImportDevelopAlias { get; set; } = "";
+
 	[JsonPropertyName("on_install_update_luaurc")] public bool OnInstallUpdateLuaurc { get; set; } = true;
 	[JsonPropertyName("luaurc_path")] public string LuaurcPath { get; set; } = ".luaurc";
 	[JsonPropertyName("on_install_update_vscode_luau_definition_files")] public bool OnInstallUpdateVscodeLuauDefinitionFiles { get; set; } = true;
@@ -38,6 +42,29 @@ public sealed class ProjectConfig
 	}
 
 	public static string FolderField(Realm realm) => $"import_{realm.Key()}_path";
+
+	public static string AliasField(Realm realm) => $"import_{realm.Key()}_alias";
+
+	public string AliasFor(Realm realm, string folder)
+	{
+		string configured = realm switch
+		{
+			Realm.Client => ImportClientAlias,
+			Realm.Server => ImportServerAlias,
+			_ => ImportDevelopAlias,
+		};
+
+		configured = configured.Trim().TrimStart('@');
+
+		if (configured.Length > 0)
+		{
+			return configured;
+		}
+
+		string trimmed = folder.TrimEnd('/');
+
+		return trimmed[(trimmed.LastIndexOf('/') + 1)..];
+	}
 
 	public string? TryFolderFor(Realm realm)
 	{
@@ -151,6 +178,23 @@ public sealed class ProjectConfig
 			if (!seen.Add(folder))
 			{
 				throw new CraterException($"{FolderField(realm)} = {Fmt.Val(folder)} is already used by another realm.");
+			}
+		}
+
+		HashSet<string> aliases = new(StringComparer.OrdinalIgnoreCase);
+
+		foreach ((Realm realm, string folder) in ConfiguredFolders())
+		{
+			string alias = AliasFor(realm, folder);
+
+			if (alias.Any(character => char.IsWhiteSpace(character) || character is '/' or '\\' or '"'))
+			{
+				throw new CraterException($"{AliasField(realm)} = {Fmt.Val(alias)}: use letters, digits, - or _ only.");
+			}
+
+			if (!aliases.Add(alias))
+			{
+				throw new CraterException($"{AliasField(realm)} = {Fmt.Val(alias)} is already used by another realm.");
 			}
 		}
 	}

@@ -28,7 +28,7 @@ public static partial class UnusedCommand
 			string folderName = Path.GetFileName(folder.TrimEnd('/'));
 			List<DependencySpec> declared = project.Manifest.DepsFor(realm).Select(raw => DependencySpec.Parse(raw)).ToList();
 			HashSet<string> installed = InstalledNames(project.Abs(folder));
-			List<Use> uses = sources.SelectMany(pair => FindUses(pair.Value, folderName, pair.Key)).ToList();
+			List<Use> uses = sources.SelectMany(pair => FindUses(pair.Value, folderName, project.Config.AliasFor(realm, folder), pair.Key)).ToList();
 			HashSet<string> used = uses.Select(use => use.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 			foreach (DependencySpec spec in declared.Where(spec => !used.Contains(spec.LinkName)))
@@ -60,7 +60,7 @@ public static partial class UnusedCommand
 		else
 		{
 			Out.Info("");
-			Out.Dim("  Only requires written as Packages.Name, Packages[\"Name\"], WaitForChild(\"Name\") or \"@Packages/Name\" are found.");
+			Out.Dim("  Only requires written as Packages.Name, Packages[\"Name\"], WaitForChild(\"Name\") or \"@alias/Name\" from .luaurc are found.");
 		}
 
 		return 0;
@@ -88,9 +88,10 @@ public static partial class UnusedCommand
 		return names;
 	}
 
-	static IEnumerable<Use> FindUses(string text, string folderName, string file)
+	static IEnumerable<Use> FindUses(string text, string folderName, string aliasName, string file)
 	{
 		string folder = Regex.Escape(folderName);
+		string alias = Regex.Escape(aliasName);
 		List<string> roots = [folder];
 
 		foreach (Match match in Regex.Matches(text, $@"local\s+([A-Za-z_]\w*)\s*=\s*[^\n]*?(?:\.{folder}|\[\s*[""']{folder}[""']\s*\]|WaitForChild\(\s*[""']{folder}[""'][^)]*\))\s*$", RegexOptions.Multiline))
@@ -105,7 +106,7 @@ public static partial class UnusedCommand
 			$@"\.{folder}\s*\.\s*(?<name>[A-Za-z_]\w*)",
 			$@"{root}\s*\[\s*[""'](?<name>[^""']+)[""']\s*\]",
 			$@"{root}\s*:\s*(?:WaitForChild|FindFirstChild)\(\s*[""'](?<name>[^""']+)[""']",
-			$@"require\(\s*[""']@{folder}/(?<name>[^""'/]+)",
+			$@"require\(\s*[""']@{alias}/(?<name>[^""'/]+)",
 		];
 
 		foreach (string pattern in patterns)

@@ -216,6 +216,9 @@ Install settings of your project. The folder names live here and only here: crat
   "import_client_path": "Packages",
   "import_server_path": "ServerPackages",
   "import_develop_path": "DevPackages",
+  "import_client_alias": "",
+  "import_server_alias": "",
+  "import_develop_alias": "",
 
   "on_install_update_luaurc": true,
   "luaurc_path": ".luaurc",
@@ -231,6 +234,7 @@ Install settings of your project. The folder names live here and only here: crat
 |---|---|
 | `import_client_path`, `import_server_path`, `import_develop_path` | Folder for each list. Required when the list has dependencies, otherwise crater stops and tells you which field to add. Nested paths work. |
 | `on_install_update_luaurc` | Keep folder aliases in `.luaurc` up to date. |
+| `import_client_alias`, `import_server_alias`, `import_develop_alias` | Alias names for the folders in `.luaurc`, so `"Shared"` gives `require("@Shared/promise")`. Empty or missing: the folder name (`@Packages`). |
 | `luaurc_path` | Which file gets the aliases. Default `.luaurc` in the project folder. Set another file, for example `"src/config.luaurc"`, and crater writes the aliases there (paths relative to that file, like `"../Packages"`) and sets `"luau-lsp.server.baseLuaurc"` in `.vscode/settings.json` so luau-lsp uses it. `crater check` uses it too. |
 | `on_install_update_vscode_luau_definition_files` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date. |
 | `on_install_should_i_ask_your_permission_to_do_any_action` | Ask before every change. `-y` skips the questions for one run. |

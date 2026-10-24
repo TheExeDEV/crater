@@ -258,7 +258,7 @@ public static class DoctorCommand
 				continue;
 			}
 
-			string alias = LuauRc.AliasFor(folder);
+			string alias = project.Config.AliasFor(realm, folder);
 			string? value = aliases?[alias]?.GetValue<string>();
 
 			if (value == LuauRc.AliasValue(project, folder))
