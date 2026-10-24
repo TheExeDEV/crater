@@ -52,6 +52,7 @@ public sealed class RegistryRelease
 	[JsonPropertyName("sha256")] public string Sha256 { get; set; } = "";
 	[JsonPropertyName("published_at")] public DateTimeOffset? PublishedAt { get; set; }
 	[JsonPropertyName("manifest")] public Manifest Manifest { get; set; } = new();
+	[JsonPropertyName("scripts")] public List<string>? Scripts { get; set; }
 
 	[JsonIgnore] public SemVer SemVer { get; set; } = new(0, 0, 0);
 }

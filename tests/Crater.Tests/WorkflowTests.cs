@@ -149,7 +149,7 @@ public sealed class WorkflowTests : IDisposable
 	}
 
 	[Fact]
-	public void PlanReportsTwoPackagesWantingOneName()
+	public void PlanIsolatesClashingDependenciesButRejectsClashingRoots()
 	{
 		LocalRegistry registry = new(Path.Combine(root, "registry"));
 		ResolvedPackage first = Package("a/util", registry);
@@ -165,7 +165,21 @@ public sealed class WorkflowTests : IDisposable
 			All = [first, second, owner],
 		};
 
-		CraterException error = Assert.Throws<CraterException>(() => PackageLayout.Plan(graph, "Packages"));
+		PackageLayout layout = PackageLayout.Plan(graph, "Packages");
+
+		Assert.Equal("util", layout.Folders[first]);
+		Assert.Equal("_Isolated/lib/lib", layout.Folders[owner]);
+		Assert.Same(second, layout.PrivateLinks[owner]["util"]);
+		Assert.Same(owner, layout.Aliases["lib"]);
+
+		ResolvedGraph twoRoots = new()
+		{
+			Realm = Realm.Client,
+			Roots = [new ResolvedDependency("util", first), new ResolvedDependency("util", second)],
+			All = [first, second],
+		};
+
+		CraterException error = Assert.Throws<CraterException>(() => PackageLayout.Plan(twoRoots, "Packages"));
 
 		Assert.Contains("util", error.Message);
 	}
