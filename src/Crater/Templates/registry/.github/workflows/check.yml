@@ -1,7 +1,7 @@
 name: Check
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - {{BRANCH}}
 
@@ -14,20 +14,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
 
       - name: Build crater
+        working-directory: ${{ runner.temp }}
         run: |
-          git clone --depth 1 https://github.com/{{CRATER_REPO}}.git "$RUNNER_TEMP/crater"
-          dotnet publish "$RUNNER_TEMP/crater/src/Crater" --configuration Release --output "$RUNNER_TEMP/crater-bin"
+          git clone --depth 1 https://github.com/{{CRATER_REPO}}.git crater
+          dotnet publish crater/src/Crater --configuration Release --output crater-bin
+
+      - name: Checkout the pull request
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Check registry
         env:
