@@ -918,7 +918,7 @@ crater registry scan path/to/package
 
 On the official registry `main` is protected with a ruleset: changes only through pull requests, one approval and a green **Check packages** are required, force pushes and branch deletion are blocked. Repository admins can merge their own pull requests without an approval (GitHub does not allow approving your own). Nothing else writes to `main`.
 
-The automatic check runs the workflow from the pull request itself, so a pull request that changes `.github/` could change the check too. The check reports such changes, but the human review is what stops them: never merge a pull request from someone else that touches `.github/`, `registry.json` or files outside the author's package folders.
+The check runs on `pull_request_target`: GitHub always takes the workflow from `main`, so a pull request cannot change the check that judges it. crater is built from the crater repository before the pull request is checked out, the checkout keeps no token, and the files of the pull request are only read, never run. Still never merge a pull request from someone else that touches `.github/` or `registry.json`.
 
 ---
 
