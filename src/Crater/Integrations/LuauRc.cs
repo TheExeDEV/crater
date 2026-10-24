@@ -51,11 +51,14 @@ public static class LuauRc
 		{
 			string alias = project.Config.AliasFor(realm, folder);
 			string value = AliasValue(project, folder);
-			string generated = AliasFor(folder);
+			List<string> renamed = aliases
+				.Where(pair => pair.Key != alias && pair.Value?.GetValueKind() == JsonValueKind.String && (string?)pair.Value == value)
+				.Select(pair => pair.Key)
+				.ToList();
 
-			if (generated != alias && aliases[generated]?.GetValueKind() == JsonValueKind.String && (string?)aliases[generated] == value)
+			foreach (string old in renamed)
 			{
-				aliases.Remove(generated);
+				aliases.Remove(old);
 			}
 
 			bool installed = graphs.TryGetValue(realm, out ResolvedGraph? graph) && graph.All.Count > 0;
