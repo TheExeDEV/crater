@@ -12,14 +12,66 @@ public static class LuauRc
 
 	public static string RelativePath(Project project)
 	{
-		string configured = project.Config.LuaurcPath.Trim().Replace('\\', '/');
-
-		while (configured.StartsWith("./"))
+		if (FromVsCode(project) is string existing)
 		{
-			configured = configured[2..];
+			return existing;
 		}
 
+		string configured = Clean(project.Config.LuaurcPath);
+
 		return configured.Length == 0 ? FileName : configured;
+	}
+
+	public static string? FromVsCode(Project project)
+	{
+		string settings = VsCodeSettings.PathIn(project);
+
+		if (!File.Exists(settings))
+		{
+			return null;
+		}
+
+		try
+		{
+			string? value = Json.ReadObject(settings)[VsCodeSettings.BaseLuaurcKey]?.GetValue<string>();
+
+			if (string.IsNullOrWhiteSpace(value))
+			{
+				return null;
+			}
+
+			string path = Clean(value.Replace("${workspaceFolder}", "").Replace("${workspaceRoot}", ""));
+
+			if (Path.IsPathRooted(path))
+			{
+				string relative = Path.GetRelativePath(project.Directory, path).Replace('\\', '/');
+
+				return relative.StartsWith("..") ? path : relative;
+			}
+
+			return path.Length == 0 ? null : path;
+		}
+		catch (Exception exception) when (exception is CraterException or InvalidOperationException or JsonException)
+		{
+			return null;
+		}
+	}
+
+	static string Clean(string path)
+	{
+		string cleaned = path.Trim().Replace('\\', '/');
+
+		if (cleaned.StartsWith('/') && cleaned.Length > 2 && cleaned[2] == ':')
+		{
+			cleaned = cleaned[1..];
+		}
+
+		while (cleaned.StartsWith("./"))
+		{
+			cleaned = cleaned[2..];
+		}
+
+		return cleaned;
 	}
 
 	public static string PathIn(Project project) => Path.GetFullPath(Path.Combine(project.Directory, RelativePath(project)));
@@ -38,6 +90,12 @@ public static class LuauRc
 	{
 		string path = PathIn(project);
 		string shown = RelativePath(project);
+		string configured = Clean(project.Config.LuaurcPath);
+
+		if (FromVsCode(project) is not null && configured.Length > 0 && configured != FileName && configured != shown)
+		{
+			Out.Dim($"  {VsCodeSettings.BaseLuaurcKey} in .vscode/settings.json points to {shown}, so the aliases go there instead of luaurc_path ({configured})");
+		}
 		JsonObject root = Json.ReadObject(path);
 		string before = Json.Serialize(root);
 
