@@ -672,7 +672,7 @@ Why lowercase: GitHub logins are case insensitive, but raw file URLs are not, so
 | `https://example.com/registry` | any static host with the same layout |
 | `../registry`, `C:/registries/team`, `file:///...` | a local folder |
 
-Set `CRATER_REGISTRY_TOKEN` for private HTTP registries (sent as a bearer token).
+Set `CRATER_REGISTRY_TOKEN` for private HTTP registries outside GitHub (sent as a bearer token to that registry only). For private GitHub registries see [Private registries](#private-registries).
 
 ### Wally packages
 
@@ -707,6 +707,34 @@ Built in names: `wally` (the Wally index) and `crater` (the default crater regis
 ```
 
 Then `"team#myteam/tools^1"`. Dependencies of a package come from the registry the package came from. `crater add wally#sleitnick/knit`, `crater info wally#evaera/promise` and `crater search --registry wally signal` work the same way. Published packages may only use the built in names, because people who install them do not have your `registries`.
+
+### Private registries
+
+A registry can be a **private** GitHub repository, so only your team sees and installs its packages.
+
+1. The owner creates it without the public website:
+
+   ```bash
+   crater registry init team-registry --repo MyTeam/team-registry --private
+   ```
+
+   pushes the folder into a private repository and adds people in *Settings → Collaborators* (or gives an organization team access).
+2. Everyone who uses it runs `crater login` once.
+3. Projects add it next to the main registry:
+
+   ```json
+   "registries": { "team": "https://github.com/MyTeam/team-registry" },
+   "import_client": ["team#myteam/secret-lib^1"]
+   ```
+
+   or make it the main `registry`.
+
+crater first asks GitHub without a token. A private repository answers "not found" to that, so crater checks the registry once and, if it is private, repeats every request to it with your GitHub token (from `crater login`, or `CRATER_GITHUB_TOKEN` / `GITHUB_TOKEN` / `GH_TOKEN`). The token is sent only to GitHub, never to other hosts. Without access you get a clear message: sign in, or ask the owner to add your account.
+
+- `crater publish` works the same: a pull request inside the private repository, reviewed and merged by its owner.
+- `crater search --registry https://github.com/MyTeam/team-registry lib` lists packages through the GitHub API, because a private repository has no free website.
+- In GitHub Actions put a token that can read the registry into a secret and pass it as `CRATER_GITHUB_TOKEN`; the built in `GITHUB_TOKEN` only covers the repository the workflow runs in.
+- Packages in a public registry cannot depend on a private one (`publish` refuses), since other people could not install them.
 
 ### Creating a GitHub registry
 
@@ -946,7 +974,8 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | Variable | Description |
 |---|---|
 | `CRATER_CACHE` | Download cache. Default `%LOCALAPPDATA%\crater\cache`. Archives are stored by sha256 and verified on read, git checkouts live in `git/`. |
-| `CRATER_REGISTRY_TOKEN` | Bearer token for HTTP registries. |
+| `CRATER_REGISTRY_TOKEN` | Bearer token sent only to non-GitHub HTTP registries. |
+| `CRATER_GITHUB_TOKEN` | GitHub token for private registries (also `GITHUB_TOKEN`, `GH_TOKEN`, or the `crater login` account). |
 | `CRATER_UPDATE_REPO` | Overrides the repository used by `self-update`. |
 | `NO_COLOR` | No colors and no animations. |
 | `CI` | No animations. |

@@ -69,7 +69,7 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 			LocalRegistry local = new(staging);
 			string packageDirectory = local.PackageDirectory(name);
 			string packagePath = Path.GetRelativePath(staging, packageDirectory).Replace('\\', '/');
-			string? existing = await Http.GetTextOrNullAsync($"{registry.RawBase(head)}/{packagePath}/{RegistryIndex.FileName}");
+			string? existing = await Http.GetTextOrNullAsync($"{registry.RawBase(head)}/{packagePath}/{RegistryIndex.FileName}", GitHubAuth.Headers());
 
 			Directory.CreateDirectory(packageDirectory);
 

@@ -73,7 +73,8 @@ public static class RegistryCommands
 		string name = parts[1];
 		string branch = args.Value("branch") ?? "main";
 		string craterRepository = args.Value("crater-repo") ?? (BuildInfo.UpdateRepo.Length > 0 ? BuildInfo.UpdateRepo : "Owner/crater");
-		string siteUrl = $"https://{owner.ToLowerInvariant()}.github.io/{name}/";
+		bool isPrivate = args.Has("private");
+		string siteUrl = isPrivate ? "" : $"https://{owner.ToLowerInvariant()}.github.io/{name}/";
 
 		Dictionary<string, string> values = new()
 		{
@@ -83,13 +84,24 @@ public static class RegistryCommands
 			["BRANCH"] = branch,
 			["LOCATION"] = branch == "main" ? $"https://github.com/{owner}/{name}" : $"https://github.com/{owner}/{name}/tree/{branch}",
 			["CRATER_REPO"] = craterRepository,
-			["SITE_URL"] = siteUrl,
+			["SITE_URL"] = isPrivate ? "this registry is private, list its packages with `crater search --registry <its url>`" : siteUrl,
 			["YEAR"] = DateTime.UtcNow.Year.ToString(),
 		};
 
 		Directory.CreateDirectory(target);
 		Out.Step($"Writing registry template to {Fmt.File(target)}");
 		Templates.WriteTo("registry", target, values, overwrite: args.Has("force"));
+
+		if (isPrivate)
+		{
+			string siteWorkflow = Path.Combine(target, ".github", "workflows", "publish.yml");
+
+			if (File.Exists(siteWorkflow))
+			{
+				File.Delete(siteWorkflow);
+				Out.Dim("  skipped .github/workflows/publish.yml, a private registry has no public website");
+			}
+		}
 
 		string infoPath = Path.Combine(target, RegistryInfo.FileName);
 
@@ -112,11 +124,22 @@ public static class RegistryCommands
 		Out.Ok("Registry template is ready");
 		Out.Info("");
 		Out.Info("Next steps:");
+
+		if (isPrivate)
+		{
+			Out.Info($"  1. Create the {Fmt.Val("private")} GitHub repository {Fmt.Val(repository)} and push this folder to {Fmt.Val(branch)}.");
+			Out.Info($"  2. Add the people who may use it in Settings → Collaborators (or give an organization team access).");
+			Out.Info($"  3. Each of them runs {Fmt.Cmd("crater login")} once.");
+			Out.Info($"  4. Projects add it: {Fmt.Cmd($"\"registries\": {{ \"team\": \"{values["LOCATION"]}\" }}")} and depend on {Fmt.Cmd("\"team#scope/name^1\"")}.");
+			return;
+		}
+
 		Out.Info($"  1. Create the GitHub repository {Fmt.Val(repository)} and push this folder to {Fmt.Val(branch)}.");
 		Out.Info($"  2. In Settings → Pages, set Source to {Fmt.Val("GitHub Actions")}.");
 		Out.Info($"  3. Make sure {Fmt.Val(craterRepository)} is the public crater repository the workflows build from.");
-		Out.Info($"  4. Users set {Fmt.Cmd($"\"registry\": \"https://raw.githubusercontent.com/{repository}/{branch}\"")} in their crater.json.");
+		Out.Info($"  4. Users set {Fmt.Cmd($"\"registry\": \"{values["LOCATION"]}\"")} in their crater.json.");
 	}
+
 
 	static int Check(Args args)
 	{
