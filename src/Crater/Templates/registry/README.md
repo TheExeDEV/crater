@@ -34,7 +34,7 @@ crater publish
 
 `crater login` signs you in with GitHub (once per computer). `crater publish` sends the package here for review and prints a link to the request. A maintainer checks the code and accepts or declines it; GitHub notifies you either way. After it is accepted, the website and `crater search` show it within a few minutes.
 
-Your packages are named after your GitHub login in lowercase: if your login is `TheExeDEV`, the name is `theexedev/<package>`. `crater init` fills this in for you. The version is three numbers, like `1.0.0`, and every publish needs a new one.
+Your packages are named after your GitHub login in lowercase: if your login is `TheExeDEV`, the name is `theexedev/<package>`. `crater init` fills this in for you. Members of a GitHub organization can also publish as the organization (`myorg/<package>`) once their membership is public. The version is three numbers, like `1.0.0`, and every publish needs a new one.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the rules.
 

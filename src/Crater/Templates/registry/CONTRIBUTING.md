@@ -2,7 +2,7 @@
 
 ## Rules
 
-- Publish only into the folder named after your GitHub login in lowercase.
+- Publish only into the folder named after your GitHub login in lowercase, or of a GitHub organization where you are a public member.
 - A published version never changes. To fix something, publish a new version.
 - Published versions are not deleted. Ask a maintainer if a version must be yanked.
 - Packages may depend only on registry packages, not on local folders or git repositories.

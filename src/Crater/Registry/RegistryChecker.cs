@@ -233,9 +233,13 @@ public sealed partial class RegistryChecker(string root)
 				continue;
 			}
 
-			if (ownScope is not null && !isMaintainer && segments[0] != ownScope)
+			bool ownFolder = ownScope is null || isMaintainer || segments[0] == ownScope || GitHubMembership.IsPublicMember(segments[0], author!);
+
+			if (!ownFolder)
 			{
-				Errors.Add($"{Fmt.File(path)} is outside your folder {Fmt.File(ownScope + "/")}");
+				Errors.Add(
+					$"{Fmt.File(path)} is outside your folder {Fmt.File(ownScope + "/")}. " +
+					$"To publish for the organization {Fmt.Val(segments[0])}, make your membership public at {Fmt.File(GitHubMembership.PeopleUrl(segments[0]))}");
 			}
 
 			CheckImmutable(baseRef, status, path, segments[2]);

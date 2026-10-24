@@ -32,5 +32,6 @@ jobs:
       - name: Check registry
         env:
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          GITHUB_TOKEN: ${{ github.token }}
           BASE: origin/${{ github.base_ref }}
         run: dotnet "$RUNNER_TEMP/crater-bin/crater.dll" registry check . --base "$BASE" --author "$AUTHOR"
