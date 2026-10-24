@@ -134,8 +134,56 @@ public static partial class LoginCommands
 	[GeneratedRegex(@"\b[A-Z0-9]{4}-[A-Z0-9]{4}\b")]
 	private static partial Regex DeviceCode();
 
+	public static async Task<int> LoginAsync(Args args)
+	{
+		string clientId = BuildInfo.GitHubClientId;
+
+		if (clientId.Length == 0)
+		{
+			return Login(args);
+		}
+
+		bool includePrivate = args.Has("private");
+		Credentials? saved = Credentials.Load();
+
+		if (saved is not null && !args.Has("force") && (!includePrivate || saved.CanReadPrivate))
+		{
+			Out.Ok($"Already signed in to GitHub as {Fmt.Val(saved.Login)}. Run {Fmt.Cmd("crater login --force")} to switch accounts.");
+			return 0;
+		}
+
+		Credentials credentials = await DeviceLogin.SignInAsync(clientId, includePrivate, DeviceLogin.CanOpenBrowser());
+
+		credentials.Save();
+		GitHubAuth.Forget();
+
+		credentials.Login = await GitHubApi.RequireLoginAsync();
+		credentials.Save();
+
+		Out.Ok($"Signed in as {Fmt.Val(credentials.Login)}. Publish packages named {Fmt.Pkg($"{credentials.Login.ToLowerInvariant()}/<package>")} with {Fmt.Cmd("crater publish")}.");
+
+		if (!credentials.CanReadPrivate)
+		{
+			Out.Dim($"  For private registries run {Fmt.Cmd("crater login --private")}.");
+		}
+
+		return 0;
+	}
+
 	public static int Logout()
 	{
+		if (Credentials.Delete())
+		{
+			Out.Ok("Signed out of crater.");
+
+			if (GitHubCli.Find() is not null && GitHubCli.Login() is string cliLogin)
+			{
+				Out.Dim($"  The GitHub CLI is still signed in as {cliLogin}, crater uses it as a fallback. Sign it out with: gh auth logout");
+			}
+
+			return 0;
+		}
+
 		string? gh = GitHubCli.Find();
 
 		if (gh is null || GitHubCli.Login() is null)
@@ -149,7 +197,7 @@ public static partial class LoginCommands
 
 	public static int WhoAmI()
 	{
-		string? login = GitHubCli.Login();
+		string? login = GitHubAuth.Login();
 
 		if (login is null)
 		{
@@ -157,10 +205,11 @@ public static partial class LoginCommands
 			return 1;
 		}
 
-		Out.Info($"{Fmt.Val(login)} (packages go to {Fmt.Pkg(login.ToLowerInvariant() + "/")})");
+		Out.Info($"{Fmt.Val(login)} (packages go to {Fmt.Pkg(login.ToLowerInvariant() + "/")}, signed in through {GitHubAuth.Source()})");
 
 		return 0;
 	}
+
 
 	static string InstallGitHubCli(Args args)
 	{

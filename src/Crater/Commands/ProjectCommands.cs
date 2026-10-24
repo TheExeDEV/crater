@@ -100,7 +100,7 @@ public static partial class ProjectCommands
 		}
 
 		string folder = new DirectoryInfo(directory).Name.ToLowerInvariant().Replace(' ', '-');
-		string user = (GitHubCli.Login() ?? Environment.UserName).ToLowerInvariant();
+		string user = (GitHubAuth.Login() ?? Environment.UserName).ToLowerInvariant();
 		string candidate = $"{user}/{folder}";
 
 		if (DependencySpec.IsValidPackageName(candidate))

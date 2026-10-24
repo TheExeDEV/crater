@@ -16,6 +16,7 @@
 
     <CraterDefaultRegistry>https://raw.githubusercontent.com/TheExeDEV/crater-registry/main</CraterDefaultRegistry>
     <CraterUpdateRepo>TheExeDEV/crater</CraterUpdateRepo>
+    <CraterGitHubClientId></CraterGitHubClientId>
 
     <Description>Package manager for Luau and Roblox</Description>
     <Authors>TheExeDEV</Authors>
@@ -28,6 +29,7 @@
   <ItemGroup>
     <AssemblyMetadata Include="DefaultRegistry" Value="$(CraterDefaultRegistry)" />
     <AssemblyMetadata Include="UpdateRepo" Value="$(CraterUpdateRepo)" />
+    <AssemblyMetadata Include="GitHubClientId" Value="$(CraterGitHubClientId)" />
   </ItemGroup>
 
   <ItemGroup>

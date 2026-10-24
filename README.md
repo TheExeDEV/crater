@@ -738,7 +738,7 @@ A registry can be a **private** GitHub repository, so only your team sees and in
    ```
 
    pushes the folder into a private repository and adds people in *Settings → Collaborators* (or gives an organization team access).
-2. Everyone who uses it runs `crater login` once.
+2. Everyone who uses it runs `crater login --private` once.
 3. Projects add it next to the main registry:
 
    ```json
@@ -826,7 +826,9 @@ crater login
 crater publish
 ```
 
-`crater login` signs you in with your GitHub account. You do it once per computer. crater prints the link `https://github.com/login/device` and a one-time code like `5AFE-2162` right in the console: open the link in any browser (on this computer, your phone, anywhere), enter the code and confirm. On Windows and macOS the browser opens by itself; on Linux without a desktop (for example over SSH) just open the link yourself. If the GitHub CLI is missing, crater offers to install it.
+`crater login` signs you in with your GitHub account. You do it once per computer. crater prints the link `https://github.com/login/device` and a one-time code like `5AFE-2162` right in the console: open the link in any browser (on this computer, your phone, anywhere), enter the code and confirm. On Windows and macOS the browser opens by itself; on Linux without a desktop (for example over SSH) just open the link yourself. Nothing else is needed: crater talks to GitHub itself and saves the sign-in in `%APPDATA%\crater\credentials.json` or `~/.config/crater/credentials.json` (readable only by you on Linux and macOS). `crater logout` deletes it, `crater whoami` shows the account.
+
+By default crater asks GitHub only for what publishing needs: public repositories and reading your organizations. `crater login --private` also asks for private repositories, needed for [private registries](#private-registries). If you are already signed in to the GitHub CLI (`gh`), crater can use that sign-in too.
 
 `crater publish` sends the package to the registry written in `crater.json` for review. There is nothing to fill in: no paths, no flags. crater prints a link like this:
 
@@ -995,7 +997,8 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 |---|---|
 | `CRATER_CACHE` | Download cache. Default `%LOCALAPPDATA%\crater\cache`. Archives are stored by sha256 and verified on read, git checkouts live in `git/`. |
 | `CRATER_REGISTRY_TOKEN` | Bearer token sent only to non-GitHub HTTP registries. |
-| `CRATER_GITHUB_TOKEN` | GitHub token for private registries (also `GITHUB_TOKEN`, `GH_TOKEN`, or the `crater login` account). |
+| `CRATER_GITHUB_TOKEN` | GitHub token, used before the `crater login` sign-in (also `GITHUB_TOKEN`, `GH_TOKEN`). Handy in CI. |
+| `CRATER_CONFIG_DIR` | Where `credentials.json` from `crater login` is kept. |
 | `CRATER_UPDATE_REPO` | Overrides the repository used by `self-update`. |
 | `NO_COLOR` | No colors and no animations. |
 | `CI` | No animations. |

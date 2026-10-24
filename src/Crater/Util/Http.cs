@@ -193,6 +193,56 @@ public static class Http
 		return new Response(buffer.ToArray(), response.Headers.ETag?.ToString(), false);
 	}
 
+	public sealed record Reply(int Status, byte[] Body);
+
+	public static async Task<Reply> SendAsync(HttpMethod method, string url, HttpContent? content, IReadOnlyDictionary<string, string>? headers = null)
+	{
+		if (Offline)
+		{
+			throw new CraterException($"{Fmt.File(url)} needs the internet, but crater runs with {Fmt.Cmd("--offline")}.");
+		}
+
+		byte[]? payload = content is null ? null : await content.ReadAsByteArrayAsync();
+		string? contentType = content?.Headers.ContentType?.ToString();
+
+		for (int attempt = 1; ; attempt++)
+		{
+			try
+			{
+				using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(60));
+				using HttpRequestMessage request = new(method, url);
+
+				foreach ((string name, string value) in headers ?? new Dictionary<string, string>())
+				{
+					request.Headers.TryAddWithoutValidation(name, value);
+				}
+
+				if (payload is not null)
+				{
+					request.Content = new ByteArrayContent(payload);
+					request.Content.Headers.TryAddWithoutValidation("Content-Type", contentType ?? "application/json");
+				}
+
+				using HttpResponseMessage response = await Client.SendAsync(request, timeout.Token);
+
+				if ((int)response.StatusCode is 502 or 503 or 504 && attempt < Attempts)
+				{
+					throw new HttpRequestException($"HTTP {(int)response.StatusCode}", null, response.StatusCode);
+				}
+
+				return new Reply((int)response.StatusCode, await response.Content.ReadAsByteArrayAsync(timeout.Token));
+			}
+			catch (Exception exception) when (IsTransient(exception) && attempt < Attempts)
+			{
+				await Task.Delay(TimeSpan.FromMilliseconds(600 * attempt));
+			}
+			catch (Exception exception) when (IsTransient(exception))
+			{
+				throw new CraterException($"Could not reach {Fmt.File(url)}: {Describe(exception)}. Check your internet connection and try again.");
+			}
+		}
+	}
+
 	static bool IsTransient(Exception exception)
 	{
 		return exception is HttpRequestException or TaskCanceledException or OperationCanceledException or IOException or SocketException;

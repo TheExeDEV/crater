@@ -169,7 +169,7 @@ public static class Program
 				return 0;
 
 			case "login":
-				return LoginCommands.Login(args);
+				return await LoginCommands.LoginAsync(args);
 
 			case "logout":
 				return LoginCommands.Logout();
