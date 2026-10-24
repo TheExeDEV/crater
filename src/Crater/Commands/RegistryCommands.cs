@@ -162,6 +162,7 @@ public static class RegistryCommands
 			ScanReport.Print(checker.Findings);
 			ScanReport.PrintSummaryLine(checker.Findings, checker.ScannedVersions);
 			ScanReport.WriteGitHubSummary(checker.Findings, checker.ScannedVersions);
+			ScanReport.AppendGitHubSummary(checker.Reviews.Count == 0 ? "" : "## What changed\n\n" + string.Concat(checker.Reviews));
 		}
 
 		foreach (string warning in checker.Warnings)
