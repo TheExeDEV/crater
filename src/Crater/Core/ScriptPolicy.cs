@@ -8,9 +8,10 @@ public static class ScriptPolicy
 	public static async Task CheckAsync(
 		Project project,
 		IEnumerable<ResolvedPackage> packages,
-		IReadOnlyDictionary<ResolvedPackage, byte[]> archives,
+		IReadOnlyDictionary<ResolvedPackage, string> prepared,
 		LockFile oldLock)
 	{
+		Dictionary<string, string> preparedById = prepared.GroupBy(pair => pair.Key.Id).ToDictionary(group => group.Key, group => group.First().Value);
 		Manifest manifest = project.Manifest;
 		bool block = manifest.BlockPackageScripts == true;
 		HashSet<string> allowed = new(manifest.AllowScriptsFrom ?? [], StringComparer.OrdinalIgnoreCase);
@@ -30,11 +31,14 @@ public static class ScriptPolicy
 
 			if (scripts is null)
 			{
-				byte[]? archive = archives.TryGetValue(package, out byte[]? downloaded)
-					? downloaded
-					: block ? await PackageCache.GetAsync(package) : null;
-
-				scripts = archive is null ? null : PackageScripts.InArchive(archive, package.Manifest, package.Id);
+				if (preparedById.TryGetValue(package.Id, out string? directory))
+				{
+					scripts = PackageScripts.InDirectory(directory);
+				}
+				else if (block)
+				{
+					scripts = PackageScripts.InArchive(await PackageCache.GetAsync(package), package.Manifest, package.Id);
+				}
 			}
 
 			if (scripts is null || scripts.Count == 0)

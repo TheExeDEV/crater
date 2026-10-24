@@ -23,6 +23,113 @@ public static class PackageFiles
 		"bench", "benches", "benchmark", "benchmarks", "node_modules", "demo", "demos", ".github", ".vscode", ".idea", ".git",
 	};
 
+	public static void ExtractPrepared(byte[] archive, string content, string id, string folderName, Manifest manifest, bool quiet)
+	{
+		using (System.IO.Compression.ZipArchive zip = new(new MemoryStream(archive), System.IO.Compression.ZipArchiveMode.Read))
+		{
+			Packer.Extract(zip, content, id, ExtractFilter(zip));
+		}
+
+		Prepare(id, content, folderName, manifest, quiet);
+	}
+
+	public static void NameRojoProject(string content, string name)
+	{
+		string path = Path.Combine(content, PackageEntry.RojoProject);
+
+		if (!File.Exists(path))
+		{
+			return;
+		}
+
+		JsonObject project = Json.ReadObject(path);
+
+		project["name"] = name;
+		Json.WriteText(path, Json.Serialize(project));
+	}
+
+	static Func<string, bool> ExtractFilter(System.IO.Compression.ZipArchive zip)
+	{
+		List<string> paths = zip.Entries
+			.Select(entry => entry.FullName.Replace('\\', '/'))
+			.Where(path => !path.EndsWith('/'))
+			.ToList();
+
+		HashSet<string> definitionTops = paths
+			.Where(path => path.EndsWith(".d.luau", StringComparison.OrdinalIgnoreCase) && path.Contains('/'))
+			.Select(path => path.Split('/')[0])
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		string? codeTop = ProjectTop(zip, paths);
+
+		return path =>
+		{
+			string[] segments = path.Split('/');
+			string name = segments[^1];
+			bool atRoot = segments.Length == 1;
+
+			if (name.EndsWith(".d.luau", StringComparison.OrdinalIgnoreCase) || (!atRoot && definitionTops.Contains(segments[0])))
+			{
+				return true;
+			}
+
+			if (atRoot && (IsLicense(name) || Manifests.Contains(name, StringComparer.OrdinalIgnoreCase) || name.Equals(PackageEntry.RojoProject, StringComparison.OrdinalIgnoreCase)))
+			{
+				return true;
+			}
+
+			if (codeTop is not null && !segments[0].Equals(codeTop, StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+
+			if (segments[..^1].Any(DevFolders.Contains))
+			{
+				return false;
+			}
+
+			if ((IsDocument(name) && !IsLicense(name)) || IsTest(name))
+			{
+				return false;
+			}
+
+			return !(atRoot && (ToolFiles.Contains(name) || IsExtraProject(name)));
+		};
+	}
+
+	static string? ProjectTop(System.IO.Compression.ZipArchive zip, List<string> paths)
+	{
+		System.IO.Compression.ZipArchiveEntry? entry = zip.Entries.FirstOrDefault(item => item.FullName == PackageEntry.RojoProject);
+
+		if (entry is null)
+		{
+			return null;
+		}
+
+		try
+		{
+			using StreamReader reader = new(entry.Open());
+			JsonObject? project = JsonNode.Parse(reader.ReadToEnd()) as JsonObject;
+			JsonObject? tree = project?["tree"] as JsonObject;
+			string? target = tree?["$path"]?.GetValue<string>();
+
+			if (tree?["$className"]?.GetValue<string>() == "DataModel" || target is null)
+			{
+				return null;
+			}
+
+			string normalized = Links.NormalizeRelative(target);
+			string top = normalized.Split('/')[0];
+			bool exists = normalized.Length > 0 && paths.Any(path => path == normalized || path.StartsWith(normalized + "/", StringComparison.Ordinal));
+
+			return exists ? top : null;
+		}
+		catch (Exception exception) when (exception is System.Text.Json.JsonException or InvalidOperationException)
+		{
+			return null;
+		}
+	}
+
 	public static void Prepare(string id, string content, string folderName, Manifest manifest, bool quiet)
 	{
 		PrepareRojoProject(id, content, folderName, quiet);

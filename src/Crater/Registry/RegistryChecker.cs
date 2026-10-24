@@ -24,6 +24,7 @@ public sealed partial class RegistryChecker(string root)
 	public int VersionCount { get; private set; }
 	public List<Finding> Findings { get; } = [];
 	public int ScannedVersions { get; private set; }
+	public List<string> Reviews { get; } = [];
 
 	public void CheckContents()
 	{
@@ -275,6 +276,29 @@ public sealed partial class RegistryChecker(string root)
 		}
 
 		CheckScriptsList(archivePath, segments, packageId);
+		DescribeChanges(archivePath, segments, packageId);
+	}
+
+	void DescribeChanges(string archivePath, string[] segments, string packageId)
+	{
+		string packageDirectory = Path.Combine(root, segments[0], segments[1]);
+		SemVer current = SemVer.Parse(Path.GetFileNameWithoutExtension(segments[2]));
+
+		string? previous = Directory.EnumerateFiles(packageDirectory, "*.zip")
+			.Select(Path.GetFileNameWithoutExtension)
+			.OfType<string>()
+			.Where(version => SemVer.TryParse(version, out SemVer parsed) && parsed < current)
+			.MaxBy(SemVer.Parse);
+
+		byte[]? previousArchive = previous is null ? null : File.ReadAllBytes(Path.Combine(packageDirectory, previous + ".zip"));
+		List<FileChange>? changes = Try(() => PackageDiff.Compare(File.ReadAllBytes(archivePath), previousArchive), archivePath);
+
+		if (changes is not null)
+		{
+			int used = Reviews.Sum(review => review.Length);
+
+			Reviews.Add(PackageDiff.Markdown(packageId, previous, changes, Math.Max(20_000, 600_000 - used)));
+		}
 	}
 
 	void CheckScriptsList(string archivePath, string[] segments, string packageId)

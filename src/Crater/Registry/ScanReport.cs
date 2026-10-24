@@ -77,6 +77,16 @@ public static class ScanReport
 		File.AppendAllText(path, markdown.ToString());
 	}
 
+	public static void AppendGitHubSummary(string markdown)
+	{
+		string? path = System.Environment.GetEnvironmentVariable("GITHUB_STEP_SUMMARY");
+
+		if (!string.IsNullOrEmpty(path) && markdown.Length > 0)
+		{
+			File.AppendAllText(path, markdown);
+		}
+	}
+
 	static IEnumerable<Finding> Ordered(IEnumerable<Finding> findings)
 	{
 		return findings

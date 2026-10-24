@@ -16,6 +16,7 @@ public static class Packer
 		".idea/",
 		"node_modules/",
 		"*.zip",
+		".crater-staging/",
 		LockFile.FileName,
 		ProjectConfig.FileName,
 		ProjectConfig.LegacyFileName,
@@ -92,9 +93,16 @@ public static class Packer
 
 	public static void Extract(byte[] archiveData, string targetDirectory, string packageId)
 	{
+		using ZipArchive archive = new(new MemoryStream(archiveData), ZipArchiveMode.Read);
+
+		Extract(archive, targetDirectory, packageId, null);
+	}
+
+	public static void Extract(ZipArchive archive, string targetDirectory, string packageId, Func<string, bool>? include)
+	{
 		string root = Path.GetFullPath(targetDirectory) + Path.DirectorySeparatorChar;
 
-		using ZipArchive archive = new(new MemoryStream(archiveData), ZipArchiveMode.Read);
+		Directory.CreateDirectory(root);
 
 		foreach (ZipArchiveEntry entry in archive.Entries)
 		{
@@ -109,7 +117,16 @@ public static class Packer
 
 			if (isDirectory)
 			{
-				Directory.CreateDirectory(destination);
+				if (include is null)
+				{
+					Directory.CreateDirectory(destination);
+				}
+
+				continue;
+			}
+
+			if (include is not null && !include(entry.FullName.Replace('\\', '/')))
+			{
 				continue;
 			}
 
