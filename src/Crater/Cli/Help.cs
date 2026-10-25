@@ -78,7 +78,7 @@ public static class Help
 
 	public static void Print()
 	{
-		Out.Heading($"crater {BuildInfo.Version}: package manager for Luau and Roblox");
+		Out.Heading($"crater {BuildInfo.Version}: project manager for Luau and Roblox");
 		Out.Info("");
 		Out.Info($"Usage: {Fmt.Cmd("crater <command>")} [arguments] [flags]");
 

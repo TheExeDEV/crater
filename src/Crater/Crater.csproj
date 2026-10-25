@@ -18,7 +18,7 @@
     <CraterUpdateRepo>TheExeDEV/crater</CraterUpdateRepo>
     <CraterGitHubClientId>Ov23li0EOoaKizGwo3Ga</CraterGitHubClientId>
 
-    <Description>Package manager for Luau and Roblox</Description>
+    <Description>Project manager for Luau and Roblox: packages, tools, scripts and templates</Description>
     <Authors>TheExeDEV</Authors>
     <RepositoryUrl>https://github.com/TheExeDEV/crater</RepositoryUrl>
     <PackageProjectUrl>https://github.com/TheExeDEV/crater</PackageProjectUrl>

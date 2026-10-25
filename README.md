@@ -1,24 +1,38 @@
 # crater
 
-A package manager for Luau and Roblox, written in C# on .NET 10.
+A project manager for Luau and Roblox, written in C# on .NET 10.
 
-It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its registry in a plain GitHub repository where anyone can publish through a pull request.
+One `crater.json` describes the whole project: the packages it uses, the tools it needs (Rojo, luau-lsp, StyLua and others), its scripts and how it is published. crater creates the project from a template, installs packages from the crater registry, Wally, pesde and Forest, pins the same tool versions for the whole team, runs Rojo with a live reinstall and checks the project with `doctor` and `audit`.
+
+It started as a package manager like Wally or pesde, borrows ideas from Cargo and npm, and keeps its registry in a plain GitHub repository where anyone can publish through a pull request.
+
+**The project**
+
+- `crater init --template game|library|plugin` creates a ready Rojo project, `crater import` converts `wally.toml` and `pesde.toml`
+- Pinned tools: `crater tool add rojo luau-lsp` puts the versions into `crater.json`, everyone who clones the project gets the same ones. The list of known tools lives in [`tools.json`](tools.json) and grows without a release
+- `crater run` for project scripts, `crater dev` for Rojo plus a reinstall every time `crater.json` changes
+- `crater doctor` checks the setup, `crater audit` checks the packages: deprecated versions, scripts that run in your game, licenses, backdoor patterns, updates
+- Workspaces for monorepos, `crater bump` for versions, `crater self-update`, Tab completion for PowerShell, bash, zsh and fish
+
+**The packages**
 
 - Three dependency groups (`import_client`, `import_server`, `import_develop`), each installed into a folder you name
 - Short version syntax: `scope/name^`, `=1.2.3`, `+1.2.3`, `^1.2.3`, `~1.2.3`
 - Aliases (`Promise:evaera/promise^4`), local folders (`@path:../lib`) and git repositories (`@git+https://...#v1`)
 - Every package is installed once per folder, and `overrides` force one version for the whole tree
-- Workspaces for monorepos
 - Link files re-export `export type` declarations, so luau-lsp sees package types
 - Lock file with sha256 checks, parallel downloads, a summary of what changed
 - Installs from the crater registry, Wally, pesde and Forest, also mixed in one project
-- `outdated`, interactive `update -i`, `why`, `graph`, `search`, `info`, `doctor`, `run`, `import` from Wally and pesde, `self-update`
+- `outdated`, interactive `update -i`, `why`, `graph`, `search`, `info`, `patch`, `unused`, `size`, `licenses`
 - Changelogs and deprecation messages from package authors, shown on install, update and the website
-- `crater init --template game|library|plugin`
-- `crater dev` (Rojo plus reinstall on save), Tab completion for PowerShell, bash, zsh and fish
-- A git registry with pull request checks and a static package website with search
 - Optional updates of `.luaurc` aliases and the luau-lsp definition files in VS Code
 - Optional confirmation before every action that changes files, colored output
+
+**The registry**
+
+- A git registry with pull request checks that scan every package for backdoors
+- A static package website with search, popular packages, versions and changelogs
+- Private registries for teams, on a private GitHub repository
 
 ---
 
