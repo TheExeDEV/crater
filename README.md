@@ -11,7 +11,7 @@ It works like Wally or pesde, borrows ideas from Cargo and npm, and keeps its re
 - Workspaces for monorepos
 - Link files re-export `export type` declarations, so luau-lsp sees package types
 - Lock file with sha256 checks, parallel downloads, a summary of what changed
-- Installs from the crater registry, Wally and pesde, also mixed in one project
+- Installs from the crater registry, Wally, pesde and Forest, also mixed in one project
 - `outdated`, interactive `update -i`, `why`, `graph`, `search`, `info`, `doctor`, `run`, `import` from Wally and pesde, `self-update`
 - Changelogs and deprecation messages from package authors, shown on install, update and the website
 - `crater init --template game|library|plugin`
@@ -445,6 +445,7 @@ Packages/
 - When a package uses another name for its dependency (an alias like `Janitor` or `Promise`), crater adds a one-line `Name.luau` file that returns the real folder.
 - If the main module is not in the package root (`path_to_main` is `src/init.luau`), crater writes an `init.luau` into the package folder that returns `src`. When a package has a `default.project.json` that points at a folder (common for packages from other tools, like `lib/`), crater moves that folder's contents up into the package folder and drops the project file, so the package is called by its own name everywhere: in Rojo, in luau-lsp with or without a sourcemap, and in auto-import (`Promise`, not `lib`).
 - When a package needs a dependency under a name another package already uses (your `Promise` is `evaera/promise`, but Janitor's `Promise` is `howmanysmall/typed-promise`), crater moves that package into `_Isolated/<name>/` together with its own links, so its `script.Parent.Promise` gets the right package. `Packages.janitor` still works from your code. Only two of your own dependencies under one name is an error.
+- Programs and archives are never installed, from any registry (crater, Wally, pesde, Forest): `.exe`, `.dll`, `.so`, zip and the rest are recognized by their content and deleted right after download, with a warning. Scripts like `.sh` stay only if the package lists them in `allow_files`.
 - Only what a package needs is kept: its code, license and definition files. READMEs, changelogs, docs, tests, examples and tool configs are dropped. The package's own manifest (`crater.json`, or one from another tool) is turned into a small `.crater-package` file with its name, version, license, dependencies in crater syntax and definition files; Rojo does not sync it, so no stray `crater` or manifest modules appear inside packages.
 - Packages that were not made with crater (Wally and others) get their entry found automatically: `default.project.json`, then `init` in the root, then `src` (or `lib`, `Source`): its `init`, a module named like the package, or a collection of its modules; then the nearest `init` or module named like the package (case does not matter), skipping tests, docs and examples.
 
@@ -794,6 +795,16 @@ or with `"registry": "https://github.com/pesde-pkg/index"`. crater recognizes th
 
 pesde code requires its dependencies with string requires like `require("../roblox_packages/types")`. crater writes those `roblox_packages/<alias>.luau` files inside each pesde package, pointing at the installed dependency and re-exporting its `export type` declarations, so the code runs unchanged and luau-lsp sees the types. `crater search --registry pesde jecs`, `crater info pesde#marked/jecs` and `crater import pesde.toml` (which writes `pesde#` and `wally#` before the dependencies) work too. Publishing to pesde is done with `pesde publish`.
 
+### Forest packages
+
+Packages from [Forest](https://forest.dev) install the same way:
+
+```json
+"import_client": ["forest#sleitnick/knit^1"]
+```
+
+crater reads versions and dependencies from the public Forest API (`api.forest.dev`, no account needed) and downloads only the files a package needs: its code, type definitions and license. Docs, tests, examples and programs are not downloaded at all. Packages that Forest mirrors from Wally are unpacked to their original Wally layout, so their dependencies resolve like any Wally package. `crater search --registry forest knit`, `crater info forest#sleitnick/knit` and `crater add --packages-list` work too. Publishing to Forest is done with `forest publish`.
+
 ### Several registries
 
 `registry` can be one registry or a list:
@@ -817,7 +828,7 @@ A dependency can also name a registry before `#`, which skips the search:
 ]
 ```
 
-Built in names: `crater` (the default crater registry), `wally` (the Wally index) and `pesde` (the pesde index). Add your own in `crater.json`:
+Built in names: `crater` (the default crater registry), `wally` (the Wally index), `pesde` (the pesde index) and `forest` (the Forest registry). Add your own in `crater.json`:
 
 ```json
 "registries": {

@@ -22,9 +22,14 @@ public static class Registries
 		{
 			string url = expanded.TrimEnd('/');
 
+			if (ForestRegistry.IsForest(url))
+			{
+				url = ForestRegistry.DefaultApi;
+			}
+
 			if (!Opened.TryGetValue(url, out IRegistry? remote))
 			{
-				remote = new HttpRegistry(url);
+				remote = ForestRegistry.IsForest(url) ? new ForestRegistry(url) : new HttpRegistry(url);
 				Opened[url] = remote;
 			}
 

@@ -157,6 +157,51 @@ public sealed class ExecutableTests : IDisposable
 	}
 
 	[Fact]
+	public void InstallDropsProgramsFromForeignPackages()
+	{
+		using MemoryStream archive = new();
+
+		using (ZipArchive zip = new(archive, ZipArchiveMode.Create, leaveOpen: true))
+		{
+			Add(zip, "init.luau", Text("return {}"));
+			Add(zip, "tools/helper.exe", [0x4D, 0x5A, 0x90, 0x00]);
+			Add(zip, "data.gpp", [0x50, 0x4B, 0x03, 0x04]);
+			Add(zip, "setup.sh", Text("#!/bin/sh\n"));
+			Add(zip, "level.gpp", Text("level data"));
+		}
+
+		string content = Path.Combine(root, "installed");
+
+		PackageFiles.ExtractPrepared(archive.ToArray(), content, "t/foreign@1.0.0", "foreign", new Crater.Models.Manifest { Name = "t/foreign", Version = "1.0.0" }, quiet: true);
+
+		Assert.True(File.Exists(Path.Combine(content, "init.luau")));
+		Assert.True(File.Exists(Path.Combine(content, "level.gpp")));
+		Assert.False(File.Exists(Path.Combine(content, "tools", "helper.exe")));
+		Assert.False(File.Exists(Path.Combine(content, "data.gpp")));
+		Assert.False(File.Exists(Path.Combine(content, "setup.sh")));
+	}
+
+	[Fact]
+	public void UnwrapsForestMirroredWallyPackages()
+	{
+		List<string> paths =
+		[
+			"comm/comm/Client/init.lua",
+			"comm/comm/init.lua",
+			"comm/comm/wally.toml",
+			"comm/init.lua",
+			"comm/Option.lua",
+			"comm/Promise.lua",
+			"LICENSE",
+		];
+
+		List<(string Path, string Target)> mapped = ForestRegistry.UnwrapMirror(paths);
+
+		Assert.Equal(["Client/init.lua", "LICENSE", "init.lua", "wally.toml"], mapped.Select(item => item.Target).Order(StringComparer.Ordinal).ToList());
+		Assert.Equal(["lib/init.lua", "default.project.json"], ForestRegistry.UnwrapMirror(["lib/init.lua", "default.project.json"]).Select(item => item.Target).ToList());
+	}
+
+	[Fact]
 	public void AnyNonProgramFileIsPublished()
 	{
 		string lib = Package([], new()
