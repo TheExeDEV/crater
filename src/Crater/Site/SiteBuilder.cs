@@ -119,7 +119,7 @@ public static class SiteBuilder
 
 			byte[]? data = Packer.ReadBytes(File.ReadAllBytes(archivePath), icon, Packer.MaxIconBytes);
 
-			if (data is null)
+			if (data is null || (extension == ".svg" && !SafeSvg.IsSafe(data)))
 			{
 				continue;
 			}

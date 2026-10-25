@@ -1224,7 +1224,7 @@ npx wrangler deploy
 `SALT` is any long random string. Add the Worker URL to `registry.json` of the registry and rebuild the site:
 
 ```json
-"stats_url": "https://crater-stats.you.workers.dev"
+"stats_url": "https://stats.you.workers.dev"
 ```
 
 | Endpoint | What it does |

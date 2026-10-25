@@ -224,6 +224,11 @@ public static class Packer
 		{
 			throw new CraterException($"icon = {Fmt.File(icon)} is {size / 1024} KB. Keep it under {MaxIconBytes / 1024} KB, 256x256 pixels is plenty.");
 		}
+
+		if (relative.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) && !SafeSvg.IsSafe(File.ReadAllBytes(Path.Combine(project.Directory, relative))))
+		{
+			throw new CraterException($"icon = {Fmt.File(icon)} contains scripts, event handlers or links to other files. Use a plain SVG or a PNG.");
+		}
 	}
 
 	static void RequireDefinitions(Project project, List<string> files)
