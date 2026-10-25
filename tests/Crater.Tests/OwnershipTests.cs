@@ -201,6 +201,47 @@ public sealed class OwnershipTests : IDisposable
 		Assert.Null(Json.ReadFile<RegistryIndex>(Path.Combine(registry, "alice", "lib", "index.json")).Owners);
 	}
 
+	[Theory]
+	[InlineData("tools/rojo.exe", new byte[] { 0x4D, 0x5A, 0x90, 0x00 }, true)]
+	[InlineData("bin/rojo", new byte[] { 0x7F, 0x45, 0x4C, 0x46 }, true)]
+	[InlineData("bin/rojo-macos", new byte[] { 0xCF, 0xFA, 0xED, 0xFE }, true)]
+	[InlineData("lib/native.so", new byte[] { 0x00 }, true)]
+	[InlineData("lib/native.dylib", new byte[] { 0x00 }, true)]
+	[InlineData("hidden.png", new byte[] { 0x4D, 0x5A, 0x90, 0x00 }, true)]
+	[InlineData("scripts/setup", new byte[] { 0x23, 0x21, 0x2F, 0x62 }, true)]
+	[InlineData("Tool.app/Contents/Info.plist", new byte[] { 0x3C }, true)]
+	[InlineData("src/init.luau", new byte[] { 0x4D, 0x5A, 0x20, 0x3D }, false)]
+	[InlineData("README.md", new byte[] { 0x4D, 0x5A, 0x20, 0x69 }, false)]
+	[InlineData("assets/icon.png", new byte[] { 0x89, 0x50, 0x4E, 0x47 }, false)]
+	public void RecognizesExecutablesOfEverySystem(string path, byte[] header, bool expected)
+	{
+		Assert.Equal(expected, global::Crater.Core.Executables.IsExecutable(path, header));
+	}
+
+	[Fact]
+	public void PackLeavesOutExecutables()
+	{
+		string registry = Path.Combine(root, "registry");
+		Directory.CreateDirectory(registry);
+
+		string lib = Project("t/tools", "../registry", []);
+
+		File.WriteAllBytes(Path.Combine(lib, "rojo.exe"), [0x4D, 0x5A, 0x90, 0x00]);
+		Directory.CreateDirectory(Path.Combine(lib, "bin"));
+		File.WriteAllBytes(Path.Combine(lib, "bin", "rojo"), [0x7F, 0x45, 0x4C, 0x46, 0x02]);
+		File.WriteAllText(Path.Combine(lib, "build.sh"), "#!/bin/sh\necho hi\n");
+
+		(int exitCode, string output) = Crater(lib, "pack", "-o", Path.Combine(root, "tools.zip"));
+
+		Assert.Equal(0, exitCode);
+		Assert.Contains("Left out 3 executable files", output);
+
+		using System.IO.Compression.ZipArchive zip = System.IO.Compression.ZipFile.OpenRead(Path.Combine(root, "tools.zip"));
+
+		Assert.Equal(["crater.json", "init.luau"], zip.Entries.Select(entry => entry.FullName).Order().ToList());
+		Assert.Equal(0, Crater(lib, "publish", "-y").ExitCode);
+	}
+
 	[Fact]
 	public void MergesAConflictedLockFile()
 	{

@@ -41,6 +41,27 @@ public static class Packer
 			.OrderBy(relative => relative, StringComparer.Ordinal)
 			.ToList();
 
+		List<Pattern> allowed = (project.Manifest.AllowFiles ?? []).Select(Pattern.Create).ToList();
+		List<(string Path, ProgramKind Kind)> programs = files
+			.Select(relative => (Path: relative, Kind: Executables.Classify(Path.Combine(project.Directory, relative), relative)))
+			.Where(item => item.Kind == ProgramKind.Binary || (item.Kind == ProgramKind.Script && !allowed.Any(pattern => pattern.Excludes(item.Path))))
+			.ToList();
+
+		if (programs.Count > 0)
+		{
+			files = files.Except(programs.Select(item => item.Path)).ToList();
+
+			string shown = string.Join(", ", programs.Take(5).Select(item => Fmt.File(item.Path)));
+			string more = programs.Count > 5 ? $" and {programs.Count - 5} more" : "";
+
+			Out.Warn($"Left out {Fmt.Plural(programs.Count, "executable file", "executable files")}, packages do not ship programs: {shown}{more}");
+
+			if (programs.Any(item => item.Kind == ProgramKind.Script))
+			{
+				Out.Dim($"  To ship a script on purpose, list it in {Fmt.Val("\"allow_files\"")} in {Fmt.File(Manifest.FileName)}, for example {Fmt.Val("\"allow_files\": [\"scripts/setup.sh\"]")}. Programs cannot be allowed.");
+			}
+		}
+
 		if (!files.Contains(Manifest.FileName))
 		{
 			throw new CraterException($"{Fmt.File(Manifest.FileName)} is excluded from the archive by the exclude patterns.");
@@ -201,7 +222,7 @@ public static class Packer
 		throw new CraterException($"{field} = {Fmt.File(path)}: file not found or excluded from the archive.");
 	}
 
-	sealed class Pattern
+	public sealed class Pattern
 	{
 		readonly Regex regex;
 		readonly bool directoryOnly;

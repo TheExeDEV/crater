@@ -2,6 +2,8 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using Crater.Core;
+using Crater.Models;
+using Crater.Util;
 
 namespace Crater.Registry;
 
@@ -77,11 +79,6 @@ public static partial class PackageScanner
 		new(Severity.Info, StudioCheck(), "behaves differently in Studio, backdoors use this to hide"),
 	];
 
-	static readonly HashSet<string> BlockedExtensions = new(StringComparer.OrdinalIgnoreCase)
-	{
-		".exe", ".dll", ".so", ".dylib", ".msi", ".scr", ".com", ".jar", ".bat", ".cmd", ".vbs", ".ps1", ".apk", ".app",
-	};
-
 	static readonly HashSet<string> ModelExtensions = new(StringComparer.OrdinalIgnoreCase)
 	{
 		".rbxm", ".rbxmx", ".rbxl", ".rbxlx",
@@ -98,6 +95,8 @@ public static partial class PackageScanner
 
 		using ZipArchive zip = new(new MemoryStream(archive), ZipArchiveMode.Read);
 
+		List<Packer.Pattern> allowed = AllowedFiles(zip.GetEntry(Manifest.FileName) is { } manifest ? Read(manifest) : null);
+
 		foreach (ZipArchiveEntry entry in zip.Entries.OrderBy(item => item.FullName, StringComparer.Ordinal))
 		{
 			if (entry.FullName.EndsWith('/'))
@@ -109,15 +108,43 @@ public static partial class PackageScanner
 			using MemoryStream buffer = new();
 
 			stream.CopyTo(buffer);
-			findings.AddRange(ScanFile(packageId, entry.FullName.Replace('\\', '/'), buffer.ToArray()));
+			findings.AddRange(ScanFile(packageId, entry.FullName.Replace('\\', '/'), buffer.ToArray(), allowed));
 		}
 
 		return findings;
 	}
 
+	static string Read(ZipArchiveEntry entry)
+	{
+		using StreamReader reader = new(entry.Open());
+
+		return reader.ReadToEnd();
+	}
+
+	static List<Packer.Pattern> AllowedFiles(string? manifestText)
+	{
+		if (manifestText is null)
+		{
+			return [];
+		}
+
+		try
+		{
+			return (Json.Parse<Manifest>(manifestText, Manifest.FileName).AllowFiles ?? [])
+				.Select(Packer.Pattern.Create)
+				.ToList();
+		}
+		catch (CraterException)
+		{
+			return [];
+		}
+	}
+
 	public static List<Finding> ScanDirectory(string directory, string packageId)
 	{
 		List<Finding> findings = [];
+		string manifestPath = Path.Combine(directory, Manifest.FileName);
+		List<Packer.Pattern> allowed = AllowedFiles(File.Exists(manifestPath) ? File.ReadAllText(manifestPath) : null);
 
 		foreach (string path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).OrderBy(item => item, StringComparer.Ordinal))
 		{
@@ -126,20 +153,31 @@ public static partial class PackageScanner
 
 			if (!skipped)
 			{
-				findings.AddRange(ScanFile(packageId, relative, File.ReadAllBytes(path)));
+				findings.AddRange(ScanFile(packageId, relative, File.ReadAllBytes(path), allowed));
 			}
 		}
 
 		return findings;
 	}
 
-	static IEnumerable<Finding> ScanFile(string packageId, string path, byte[] content)
+	static IEnumerable<Finding> ScanFile(string packageId, string path, byte[] content, List<Packer.Pattern> allowed)
 	{
 		string extension = Path.GetExtension(path);
+		ProgramKind kind = Executables.Classify(path, content);
 
-		if (BlockedExtensions.Contains(extension))
+		if (kind == ProgramKind.Binary)
 		{
 			yield return new Finding(Severity.Blocked, packageId, path, 0, "executable file, packages must not ship programs", "");
+			yield break;
+		}
+
+		if (kind == ProgramKind.Script)
+		{
+			bool isAllowed = allowed.Any(pattern => pattern.Excludes(path));
+
+			yield return isAllowed
+				? new Finding(Severity.Warning, packageId, path, 0, "script file the author kept with allow_files, read it before anyone runs it", "")
+				: new Finding(Severity.Blocked, packageId, path, 0, "script file, the author must list it in allow_files to ship it", "");
 			yield break;
 		}
 
