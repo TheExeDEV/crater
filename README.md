@@ -1,5 +1,7 @@
 # crater
 
+> **If you can support author:** [Place](https://www.roblox.com/games/104318394065422/donating)
+
 A project manager for Luau and Roblox, written in C# on .NET 10.
 
 One `crater.json` describes the whole project: the packages it uses, the tools it needs (Rojo, luau-lsp, StyLua and others), its scripts and how it is published. crater creates the project from a template, installs packages from the crater registry, Wally, pesde and Forest, pins the same tool versions for the whole team, runs Rojo with a live reinstall and checks the project with `doctor` and `audit`.
