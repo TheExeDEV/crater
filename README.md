@@ -1205,37 +1205,23 @@ Builds a static site (`index.html`, `assets/`, `data/`) from the registry, with 
 
 With a stats server, the site shows downloads (all time and the last 7 days), views and likes for packages of this registry, adds a "Most downloaded" sorting and a like button on every package page. `crater install` reports each package archive it downloads from the registry. Nothing else is sent: no names, no projects, only `POST <stats_url>/download/<scope>/<name>/<version>`. Visitors and installs are counted once per day per IP address, and the server stores only a salted hash of the address. Set `CRATER_NO_STATS=1` to turn reporting off; private registries are never reported.
 
-The server is a small Cloudflare Worker with a D1 database in [`workers/stats`](workers/stats), free on the Cloudflare free plan. To run your own:
-
-```bash
-cd workers/stats
-npx wrangler login
-npx wrangler d1 create crater-stats
-```
-
-Put the `database_id` it prints into `wrangler.toml`, set `ALLOWED_ORIGINS` (your site, for example `https://you.github.io`) and `REGISTRY_URL` (the raw URL of your registry), then:
-
-```bash
-npx wrangler d1 execute crater-stats --remote --file schema.sql
-npx wrangler secret put SALT
-npx wrangler deploy
-```
-
-`SALT` is any long random string. Add the Worker URL to `registry.json` of the registry and rebuild the site:
+The stats server of this registry runs at `https://stats.crater-dev.workers.dev`; its code is kept private. A registry turns stats on with the server address in `registry.json`, and the site picks it up on the next build:
 
 ```json
-"stats_url": "https://stats.you.workers.dev"
+"stats_url": "https://stats.example.workers.dev"
 ```
 
-| Endpoint | What it does |
-|---|---|
-| `GET /stats` | Counts of every package. |
-| `GET /stats/<scope>/<name>` | Counts of one package and whether this visitor liked it. |
-| `POST /view/<scope>/<name>` | Count a view (only from `ALLOWED_ORIGINS`). |
-| `POST /download/<scope>/<name>/<version>` | Count a download (only from crater). |
-| `POST` / `DELETE /like/<scope>/<name>` | Like or unlike (only from `ALLOWED_ORIGINS`). |
+Any server that answers these requests works, so another registry can run its own:
 
-Only packages that exist in the registry are counted. `npm test` in `workers/stats` runs its tests on Node's built-in SQLite.
+| Request | Answer |
+|---|---|
+| `GET /stats` | `{ "packages": { "<scope>/<name>": { "downloads", "weekly_downloads", "views", "likes" } } }` for every package. |
+| `GET /stats/<scope>/<name>` | `{ "downloads", "weekly_downloads", "views", "likes", "liked" }`, where `liked` says whether this visitor liked it. |
+| `POST /view/<scope>/<name>` | Count a view from the site. |
+| `POST /download/<scope>/<name>/<version>` | Count a download, sent by crater with `User-Agent: crater/<version>`. |
+| `POST` / `DELETE /like/<scope>/<name>` | Like or unlike, answers `{ "liked", "likes" }`. |
+
+The site calls it from the browser, so it has to allow CORS from the site's origin.
 
 ### Highlighting and links
 
