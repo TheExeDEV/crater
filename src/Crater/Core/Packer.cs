@@ -70,6 +70,7 @@ public static class Packer
 		RequirePath(project, files, project.Manifest.PathToMain, "path_to_main");
 		RequireIcon(project, files);
 		RequireDefinitions(project, files);
+		DocLanguage.Require(project.Directory, files);
 
 		using MemoryStream stream = new();
 
