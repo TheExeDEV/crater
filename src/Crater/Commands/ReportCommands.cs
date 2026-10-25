@@ -69,7 +69,7 @@ public static partial class ReportCommands
 			[
 				Fmt.Pkg(row.Package.Locked.Id),
 				row.License.Length == 0 ? Fmt.Bad("unknown") : Fmt.Val(row.License),
-				Note(row.License),
+				LicenseNote(row.License),
 			]).ToList());
 
 		Out.Info("");
@@ -79,14 +79,14 @@ public static partial class ReportCommands
 			Out.Info($"  {Fmt.Val(group.Key)}: {Fmt.Plural(group.Count(), "package", "packages")}");
 		}
 
-		if (rows.Any(row => Note(row.License).Length > 0))
+		if (rows.Any(row => LicenseNote(row.License).Length > 0))
 		{
 			Out.Info("");
 			Out.Dim("  The notes are a hint, not legal advice. Read the license text of the flagged packages.");
 		}
 	}
 
-	static string LicenseOf(string directory)
+	public static string LicenseOf(string directory)
 	{
 		if (PackageMeta.Read(directory) is { License.Length: > 0 } meta)
 		{
@@ -126,7 +126,7 @@ public static partial class ReportCommands
 		return "";
 	}
 
-	static string Note(string license)
+	public static string LicenseNote(string license)
 	{
 		string upper = license.ToUpperInvariant();
 

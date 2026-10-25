@@ -177,7 +177,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 
 ## crater.json
 
-Every project and every package has a `crater.json`.
+Every project and every package has a `crater.json`. `crater init` writes every field below, empty ones included, so you can see what exists and fill in what you need.
 
 ```json
 {
@@ -699,17 +699,47 @@ crater pins the tools of a project (Rojo, luau-lsp, selene, StyLua, darklua, Lun
 crater tool add rojo luau-lsp selene stylua
 ```
 
-`tool add` takes a known name (`rojo`, `luau-lsp`, `selene`, `stylua`, `darklua`, `lune`, `pesde`, `luau`, `asphalt`) or any `owner/repo`, with an optional `@version`; without one it takes the latest release. It downloads the build for your system and processor and puts a small launcher into crater's folder on `PATH`, so `rojo serve` runs the version pinned in the project you are in. Someone who clones the project gets the same versions with `crater install`.
+`tool add` takes a known name or any `owner/repo`, with an optional `@version`; without one it takes the latest release. It downloads the build for your system and processor and puts a small launcher into crater's folder on `PATH`, so `rojo serve` runs the version pinned in the project you are in. Someone who clones the project gets the same versions with `crater install`.
 
 | Command | What it does |
 |---|---|
 | `crater tool add <name>[@version]` | Pin and install a tool for this project. `--global` pins it for folders without a project. |
+| `crater tool known` | Every tool you can add by name, with its repository. |
 | `crater tool list` | Pinned tools and whether they are installed. |
 | `crater tool remove <name>` | Unpin a tool (`--global` for global ones). |
 | `crater tool install` | Install every tool of the project (`crater install` does this too). |
 | `crater tool run <name> [args]` | Run a tool directly, what the launchers call. |
 
 Tools live in `%LOCALAPPDATA%\crater\tools` or `~/.crater/tools`, one folder per version. If rokit or aftman put their own `rojo` earlier on `PATH`, `tool add` says so.
+
+### The tool list
+
+The known names are not built into crater. They come from [`tools.json`](tools.json) in the crater repository, which crater downloads when you add a tool by name (and keeps a copy of for offline use and Tab completion). A new tool shows up for everyone as soon as it is added to that file, without a new crater release:
+
+```json
+{
+  "tools": {
+    "rojo": {
+      "repository": "rojo-rbx/rojo",
+      "description": "Sync files into Roblox Studio and build places and models"
+    },
+    "odd-tool": {
+      "repository": "someone/odd-tool",
+      "executable": "odd",
+      "assets": { "windows-x64": "odd-*-pc.zip", "linux-x64": "odd-*-linux.tar.gz" }
+    }
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `repository` | The GitHub `owner/repo` that publishes the releases. Required. |
+| `description` | Shown by `crater tool known`. |
+| `executable` | The program name inside the archive, when it differs from the tool name. |
+| `assets` | Which release file to download per platform (`windows`, `macos` or `linux`, plus `-x64` or `-arm64`), `*` matches anything. Without it crater guesses from the file names, which works for almost every tool. |
+
+`CRATER_TOOLS_URL` points crater at another list: a URL, a local file or `file://...`, for example a company list of approved tools.
 
 ---
 
@@ -728,6 +758,19 @@ Installs, then starts `rojo serve` (and `rojo sourcemap --watch` when `sourcemap
 **`crater unused`** finds dependencies in `crater.json` that your code never requires, and requires of packages you did not declare (for example a package that only came as a dependency of another one). It understands `Packages.Name`, `Packages["Name"]`, `WaitForChild("Name")`, `"@Packages/Name"` and local variables that hold the folder; comments are ignored.
 
 **`crater size`** shows how much Luau code each installed package adds, alone and together with its dependencies, largest first.
+
+**`crater audit`** checks the whole project in one go: deprecated packages and versions, packages that run scripts in your game, missing and copyleft licenses, suspicious code in the installed package folders (the same scan as `crater registry scan`), updates within and beyond your version ranges, and whether the installed packages still match `crater.json`. Problems (a deprecated version, a backdoor pattern) make it exit with `1`; `--strict` does the same for warnings, handy in CI.
+
+```
+Problems (1)
+  ✗ someone/lib@1.2.0  src/init.luau:4: requires a Roblox asset by id, the most common backdoor
+
+Warnings (1)
+  ! other/thing@2.0.0  runs scripts in your game: ServerScriptService/Loader
+
+Notes (1)
+  · evaera/promise@4.0.0  5.0.0 is out, outside your requirement ^4
+```
 
 **`crater licenses`** lists the license of every installed package and marks the ones that need attention: no license, copyleft (`GPL`, `AGPL`) and file-level copyleft (`MPL`, `LGPL`). It is a hint, not legal advice.
 
@@ -1219,8 +1262,9 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `bump [patch|minor|major]` | Raise the version in `crater.json`. |
 | `cache [clean]` | Show or clear the download cache. |
 | `patch [name] [--remove]` | Keep your edits to an installed package, see [Patching packages](#patching-packages). |
-| `tool add|list|remove|install|run` | Pinned tools, see [Tools](#tools). |
+| `tool add|known|list|remove|install|run` | Pinned tools, see [Tools](#tools). |
 | `unused` | Dependencies your code never requires, see [Package reports](#package-reports). |
+| `audit [--strict]` | Deprecated and risky packages, licenses, suspicious code and updates, see [Package reports](#package-reports). |
 | `dev [--no-serve] [-- rojo args]` | Rojo plus reinstall on save, see [Live development](#live-development). |
 | `completion [install\|powershell\|bash\|zsh\|fish]` | Turn on Tab completion, see [Tab completion](#tab-completion). |
 | `size`, `licenses` | See [Package reports](#package-reports). |

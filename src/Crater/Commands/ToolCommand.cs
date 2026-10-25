@@ -34,10 +34,14 @@ public static class ToolCommand
 				await InstallAllAsync(Common.LoadProject().Manifest, announce: true);
 				return 0;
 
+			case "known" or "available":
+				await KnownAsync();
+				return 0;
+
 			default:
 				throw new CraterException(
 					$"Usage: {Fmt.Cmd("crater tool add <name>[@version] [--global]")}, {Fmt.Cmd("crater tool remove <name>")}, " +
-					$"{Fmt.Cmd("crater tool list")}, {Fmt.Cmd("crater tool install")}");
+					$"{Fmt.Cmd("crater tool list")}, {Fmt.Cmd("crater tool install")}, {Fmt.Cmd("crater tool known")}");
 		}
 	}
 
@@ -107,9 +111,11 @@ public static class ToolCommand
 		bool global = args.Has("global", "g");
 		Dictionary<string, string> added = [];
 
+		ToolCatalog? catalog = args.Positional.Any(ToolSpec.NeedsCatalog) ? await ToolCatalog.LoadAsync() : null;
+
 		foreach (string request in args.Positional)
 		{
-			(string name, string repository, string? version) = ToolSpec.ParseRequest(request);
+			(string name, string repository, string? version) = ToolSpec.ParseRequest(request, catalog);
 
 			using (new Spinner($"Looking up {repository}"))
 			{
@@ -153,6 +159,19 @@ public static class ToolCommand
 		}
 
 		WarnIfShimsHidden(added.Keys);
+	}
+
+	static async Task KnownAsync()
+	{
+		ToolCatalog catalog = await ToolCatalog.LoadAsync();
+
+		Table.Print(["Tool", "Repository", "Description"], catalog.Tools
+			.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+			.Select(pair => (IReadOnlyList<string>)[Fmt.Cmd(pair.Key), pair.Value.Repository, pair.Value.Description ?? ""])
+			.ToList());
+
+		Out.Info("");
+		Out.Dim($"  The list comes from {ToolCatalog.Url}. Any other GitHub release works too: {Fmt.Cmd("crater tool add owner/repo")}.");
 	}
 
 	static void Remove(Args args)

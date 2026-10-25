@@ -14,6 +14,7 @@ public static class Help
 			new("bump [patch|minor|major]", "raise the version: 0.0.9 becomes 0.1.0"),
 			new("run [script] [-- args]", "run a script from crater.json"),
 			new("doctor", "check the project for problems"),
+			new("audit [--strict]", "deprecated and risky packages, licenses, scan findings and updates"),
 			new("dev [--no-serve]", "rojo serve plus reinstall when crater.json changes"),
 		]),
 		("Dependencies", [
