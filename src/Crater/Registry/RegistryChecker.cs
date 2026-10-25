@@ -380,6 +380,7 @@ public sealed partial class RegistryChecker(string root)
 		}
 
 		CheckScriptsList(archivePath, segments, packageId);
+		CheckLanguage(archivePath, packageId);
 
 		if (!Directory.Exists(Path.Combine(root, segments[0], segments[1], LocalRegistry.SourceFolder)))
 		{
@@ -407,6 +408,19 @@ public sealed partial class RegistryChecker(string root)
 			int used = Reviews.Sum(review => review.Length);
 
 			Reviews.Add(PackageDiff.Markdown(packageId, previous, changes, Math.Max(20_000, 600_000 - used)));
+		}
+	}
+
+	void CheckLanguage(string archivePath, string packageId)
+	{
+		byte[] archive = File.ReadAllBytes(archivePath);
+
+		foreach (string entry in Try(() => Packer.ListEntries(archive), archivePath) ?? [])
+		{
+			if (DocLanguage.IsDocument(entry) && Packer.ReadText(archive, entry, 2 * 1024 * 1024) is string text && DocLanguage.Problem(text) is string problem)
+			{
+				Errors.Add($"{Fmt.Pkg(packageId)}: {Fmt.File(entry)} {problem}. Docs and changelogs must be in English or Russian.");
+			}
 		}
 	}
 

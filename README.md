@@ -1144,6 +1144,8 @@ crater does not download the registry for this: it reads the index of your packa
 
 Everything in the package folder except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the installed package folders, whatever your `.gitignore` and `.craterignore` files ignore, and the patterns in `exclude`. Archives use fixed timestamps, so the same files always give the same sha256.
 
+Docs and changelogs (every `.md` file, `README` and `CHANGELOG`) must be written in **English or Russian**. Code blocks, inline code and links are not checked, so examples and names in any language are fine. If the text is in another language, `pack` and `publish` stop and name the file, and the registry check rejects such a version too.
+
 Every other file type goes into the package as it is: data files, `.gpp`, `.cpp`, images, anything that is not a program. Programs of every system are left out automatically, and `pack` and `publish` list what they skipped:
 
 - **Programs** (never allowed): Windows (`.exe`, `.dll`, `.msi`, `.scr`...), Linux (`.so`, `.AppImage`, `.deb`, `.rpm`...), macOS (`.dylib`, `.app` bundles, `.pkg`, `.dmg`), `.jar`, `.apk`, `.wasm`, and any file whose content is a Windows, Linux or macOS program, even renamed to `.gpp` or `.txt`. Archives count as programs too, because they can hide one: zip, 7z, rar, tar, gzip, xz, bzip2, zstd and cab are recognized by their content, whatever the file is called. The name does not matter: crater reads the first bytes of every file.
