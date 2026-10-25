@@ -697,7 +697,7 @@ crater pins the tools of a project (Rojo, luau-lsp, selene, StyLua, darklua, Lun
 crater tool add rojo luau-lsp selene stylua
 ```
 
-`tool add` takes a known name (`rojo`, `luau-lsp`, `selene`, `stylua`, `darklua`, `lune`, `wally`, `pesde`, `luau`, `asphalt`) or any `owner/repo`, with an optional `@version`; without one it takes the latest release. It downloads the build for your system and processor and puts a small launcher into crater's folder on `PATH`, so `rojo serve` runs the version pinned in the project you are in. Someone who clones the project gets the same versions with `crater install`.
+`tool add` takes a known name (`rojo`, `luau-lsp`, `selene`, `stylua`, `darklua`, `lune`, `pesde`, `luau`, `asphalt`) or any `owner/repo`, with an optional `@version`; without one it takes the latest release. It downloads the build for your system and processor and puts a small launcher into crater's folder on `PATH`, so `rojo serve` runs the version pinned in the project you are in. Someone who clones the project gets the same versions with `crater install`.
 
 | Command | What it does |
 |---|---|

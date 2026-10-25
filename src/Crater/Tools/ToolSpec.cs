@@ -13,7 +13,6 @@ public sealed partial record ToolSpec(string Owner, string Repo, string Version)
 		["stylua"] = "JohnnyMorganz/StyLua",
 		["darklua"] = "seaofvoices/darklua",
 		["lune"] = "lune-org/lune",
-		["wally"] = "UpliftGames/wally",
 		["pesde"] = "pesde-pkg/pesde",
 		["luau"] = "luau-lang/luau",
 		["asphalt"] = "jackTabsCode/asphalt",
