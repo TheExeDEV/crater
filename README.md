@@ -1112,7 +1112,14 @@ If `registry` in `crater.json` is a local folder (for example `"../my-registry"`
 crater registry site . --output _site
 ```
 
-Builds a static site (`index.html`, `assets/`, `data/`) from the registry: a searchable list of packages and a page per package with its README, the [changelog](#changelog) of every version, install snippets with copy buttons, metadata, dependencies and versions. Deprecated packages and versions are marked with their message. Light and dark themes follow the system. README files are rendered with marked and sanitized with DOMPurify; all other data is inserted as text.
+Builds a static site (`index.html`, `assets/`, `data/`) from the registry, with a dark and a light theme (it follows the system, the button in the top bar switches it):
+
+- **Home:** the packages of this registry with sorting (recent, most used, A-Z), "Popular here" ranked by how many packages of the registry use each one, and "Popular on Forest" with Forest's download and like counts.
+- **One search for everything:** packages of this registry, plus Wally and pesde searched live from their own servers as you type. Every result shows where it comes from, with that registry's avatar. Forest does not allow other sites to search it, so the search links to forest.dev instead.
+- **Package pages:** README, the [changelog](#changelog) of every version, install snippets with copy buttons, owners, dependencies, "used by" and versions. Wally and pesde packages get pages too, read live from their indexes, with `wally#` / `pesde#` install snippets.
+- Nothing from Wally, pesde or Forest is copied into the registry repository. The Forest list is fetched when the site is built and lives only in the published site; set `CRATER_SITE_NO_EXTERNAL=1` to leave it out.
+
+README files are rendered with marked and sanitized with DOMPurify; all other data, including everything from other registries, is inserted as text.
 
 Preview it locally:
 

@@ -16,6 +16,7 @@ public static class SiteBuilder
 		[JsonPropertyName("owners")] public List<string>? Owners { get; set; }
 		[JsonPropertyName("versions")] public List<RegistryRelease> Versions { get; set; } = [];
 		[JsonPropertyName("readme")] public string? Readme { get; set; }
+		[JsonPropertyName("used_by")] public List<string> UsedBy { get; set; } = [];
 	}
 
 	static readonly string[] ReadmeNames = ["README.md", "readme.md", "Readme.md", "README"];
@@ -53,12 +54,21 @@ public static class SiteBuilder
 
 		string data = Path.Combine(target, "data");
 
+		Dictionary<string, SortedSet<string>> dependents = SitePopular.Dependents(root);
+
+		foreach (CatalogEntry entry in catalog.Packages)
+		{
+			entry.Dependents = dependents.GetValueOrDefault(entry.Name)?.Count ?? 0;
+		}
+
 		Json.WriteText(Path.Combine(data, RegistryInfo.FileName), Json.Serialize(info));
 		Json.WriteText(Path.Combine(data, Catalog.FileName), Json.Serialize(catalog));
+		Json.WriteText(Path.Combine(data, PopularPackages.FileName), Json.Serialize(SitePopular.Build(catalog, dependents)));
 
 		foreach (string indexPath in Catalog.FindIndexFiles(root))
 		{
 			PackagePage page = BuildPage(indexPath);
+			page.UsedBy = dependents.GetValueOrDefault(page.Name)?.ToList() ?? [];
 			string pagePath = Path.Combine(data, "packages", page.Name.Replace('/', Path.DirectorySeparatorChar) + ".json");
 
 			Json.WriteText(pagePath, Json.Serialize(page));
