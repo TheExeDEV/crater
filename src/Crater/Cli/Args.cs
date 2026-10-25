@@ -4,7 +4,7 @@ public sealed class Args
 {
 	static readonly HashSet<string> OptionsWithValue =
 	[
-		"name", "registry", "o", "output", "base", "author", "port", "crater-repo", "repo", "branch", "maintainer", "template", "t", "depth",
+		"name", "registry", "o", "output", "base", "author", "port", "crater-repo", "repo", "branch", "maintainer", "template", "t", "depth", "limit", "n",
 	];
 
 	readonly Dictionary<string, string?> options = [];

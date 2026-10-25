@@ -979,6 +979,15 @@ When the owner accepts it, everyone can install it with `crater add theexedev/co
 | `registry` | Already set by `crater init`. Leave it. |
 | `can_publish` | `true`. Set it to `false` for games and projects that should never be published. |
 
+### History
+
+```bash
+crater history
+crater history theexedev/cool-lib
+```
+
+Shows who published, deprecated or changed what, and when: the whole registry, or one package. It reads the git history of the registry (through the GitHub API for a GitHub registry), so nothing extra is stored and nothing expires. `--limit 100` shows more; the default is 30 entries.
+
 ### Co-owners
 
 A package belongs to its scope: your login, or an organization. To let a friend publish new versions of one of your packages without creating an organization, add them as an owner:
@@ -1114,12 +1123,19 @@ crater registry site . --output _site
 
 Builds a static site (`index.html`, `assets/`, `data/`) from the registry, with a dark and a light theme (it follows the system, the button in the top bar switches it):
 
-- **Home:** the packages of this registry with sorting (recent, most used, A-Z), "Popular here" ranked by how many packages of the registry use each one, and "Popular on Forest" with Forest's download and like counts.
-- **One search for everything:** packages of this registry, plus Wally and pesde searched live from their own servers as you type. Every result shows where it comes from, with that registry's avatar. Forest does not allow other sites to search it, so the search links to forest.dev instead.
-- **Package pages:** README, the [changelog](#changelog) of every version, install snippets with copy buttons, owners, dependencies, "used by" and versions. Packages from other registries get pages on this site too, with `wally#` / `pesde#` / `forest#` install snippets:
+- **Home:** one "Popular packages" list from every registry (this one, Wally, pesde and Forest), each package shown once with the registry it comes from: packages of this registry that others use first, then the most downloaded ones. Packages that Forest only mirrors from Wally are shown as Wally packages. Below it, all packages of this registry with sorting (recent, most used, A-Z).
+- **One search for everything:** packages of this registry, plus Wally and pesde searched live from their own servers as you type. Every result shows where it comes from, with that registry's avatar. Packages marked as originals come first.
+- **Package pages:** README, the [changelog](#changelog) of every version, install snippets with copy buttons, owners, dependencies, "used by" and versions. A version picker next to the name switches between versions; an older version says which one is the newest. Packages from other registries get pages on this site too, with `wally#` / `pesde#` / `forest#` install snippets:
   - **Wally:** versions and dependencies from the Wally index, README and the file list from the package archive itself, read live.
   - **pesde:** versions, dependencies, description and README from the pesde registry, read live.
   - **Forest:** README, versions, dependencies, downloads and likes of the popular packages, saved when the site is built (Forest does not let other sites read it live). Other Forest packages open on forest.dev.
+- **Originals:** many popular packages have forks under other names. List the real ones in `originals.json` in the registry root and the site marks them with an "Original" badge and shows them first in search:
+
+  ```json
+  { "packages": ["wally#evaera/promise", "wally#sleitnick/knit", "theexedev/signal"] }
+  ```
+
+  `scope/name` marks the package in every registry, `wally#`, `pesde#`, `forest#` or `crater#` only in one. `crater registry init` creates the file with a few well-known Roblox packages; the registry check rejects entries that are not package names, and only maintainers can change it.
 - Nothing from Wally, pesde or Forest is copied into the registry repository. The Forest list is fetched when the site is built and lives only in the published site; set `CRATER_SITE_NO_EXTERNAL=1` to leave it out.
 
 README files are rendered with marked and sanitized with DOMPurify; all other data, including everything from other registries, is inserted as text.
@@ -1188,6 +1204,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `publish [--dry-run] [--workspace]` | Send the package to the registry for review. See [Publishing](#publishing). |
 | `deprecate <scope/name>[@version] [message] [--undo]` | Mark a package or a version as deprecated, see [Deprecating](#deprecating). |
 | `owner add\|remove\|list <scope/name> [login...]` | Let other GitHub accounts publish a package, see [Co-owners](#co-owners). |
+| `history [scope/name] [--limit n]` | Who published, deprecated or changed what, see [History](#history). |
 | `registry init <folder> --repo Owner/Repo` | Create a registry repository from the template. |
 | `registry check [folder] [--base ref] [--author login]` | Validate a registry and pull request changes. |
 | `registry catalog [folder]` | Regenerate `packages.json`. |
