@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>crater</AssemblyName>
     <RootNamespace>Crater</RootNamespace>
-    <Version>0.3.8</Version>
+    <Version>0.3.9</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
 
     <PackAsTool>true</PackAsTool>

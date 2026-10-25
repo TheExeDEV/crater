@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Crater.Models;
@@ -20,6 +21,7 @@ public sealed class PopularEntry
 	[JsonPropertyName("likes")] public long? Likes { get; set; }
 	[JsonPropertyName("url")] public string? Url { get; set; }
 	[JsonPropertyName("updated_at")] public DateTimeOffset? UpdatedAt { get; set; }
+	[JsonIgnore] public JsonObject? Detail { get; set; }
 }
 
 public sealed class PopularPackages
@@ -159,7 +161,7 @@ public static partial class SitePopular
 			using JsonDocument document = JsonDocument.Parse(text);
 			JsonElement root = document.RootElement;
 
-			return new PopularEntry
+			PopularEntry entry = new()
 			{
 				Name = $"{scope}/{name}".ToLowerInvariant(),
 				Description = String(root, "description") ?? "",
@@ -170,6 +172,25 @@ public static partial class SitePopular
 				Likes = Number(root, "likes"),
 				Url = $"{ForestSite}p/roblox/{scope}/{name}",
 			};
+
+			JsonObject detail = new()
+			{
+				["name"] = entry.Name,
+				["description"] = entry.Description,
+				["latest"] = entry.Latest,
+				["license"] = entry.License,
+				["downloads"] = entry.Downloads,
+				["weekly_downloads"] = entry.WeeklyDownloads,
+				["likes"] = entry.Likes,
+				["url"] = entry.Url,
+				["readme"] = String(root, "readme"),
+				["versions"] = root.TryGetProperty("versions", out JsonElement versions) ? JsonNode.Parse(versions.GetRawText()) : null,
+				["dependencies"] = root.TryGetProperty("dependencies", out JsonElement dependencies) ? JsonNode.Parse(dependencies.GetRawText()) : null,
+			};
+
+			entry.Detail = detail;
+
+			return entry;
 		}
 		catch (JsonException)
 		{
