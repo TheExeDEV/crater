@@ -1,0 +1,68 @@
+{
+  "tools": {
+    "asphalt": {
+      "repository": "jackTabsCode/asphalt",
+      "description": "Upload images and sounds to Roblox and generate a Luau module with their ids"
+    },
+    "blink": {
+      "repository": "1Axen/blink",
+      "description": "Generate fast, typed networking code from a schema"
+    },
+    "darklua": {
+      "repository": "seaofvoices/darklua",
+      "description": "Transform and minify Luau code"
+    },
+    "lune": {
+      "repository": "lune-org/lune",
+      "description": "Run Luau scripts outside Roblox"
+    },
+    "luau": {
+      "repository": "luau-lang/luau",
+      "description": "The Luau command line: run, analyze and compile Luau"
+    },
+    "luau-lsp": {
+      "repository": "JohnnyMorganz/luau-lsp",
+      "description": "Language server and type checker for Luau"
+    },
+    "mantle": {
+      "repository": "blake-mealey/mantle",
+      "description": "Deploy Roblox places and experiences from configuration"
+    },
+    "pesde": {
+      "repository": "pesde-pkg/pesde",
+      "description": "The pesde package manager"
+    },
+    "rojo": {
+      "repository": "rojo-rbx/rojo",
+      "description": "Sync files into Roblox Studio and build places and models"
+    },
+    "run-in-roblox": {
+      "repository": "rojo-rbx/run-in-roblox",
+      "description": "Run a place in Roblox Studio and print its output"
+    },
+    "selene": {
+      "repository": "Kampfkarren/selene",
+      "description": "Lint Luau and Lua code"
+    },
+    "stylua": {
+      "repository": "JohnnyMorganz/StyLua",
+      "description": "Format Luau and Lua code"
+    },
+    "tarmac": {
+      "repository": "Roblox/tarmac",
+      "description": "Upload images to Roblox and generate a Luau module with their ids"
+    },
+    "wally": {
+      "repository": "UpliftGames/wally",
+      "description": "The Wally package manager, for projects that still use wally.toml"
+    },
+    "wally-package-types": {
+      "repository": "JohnnyMorganz/wally-package-types",
+      "description": "Re-export types of Wally packages for luau-lsp"
+    },
+    "zap": {
+      "repository": "red-blox/zap",
+      "description": "Generate fast, typed networking code from a schema"
+    }
+  }
+}

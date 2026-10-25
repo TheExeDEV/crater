@@ -2,6 +2,7 @@ using System.Formats.Tar;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Crater.Util;
 
 namespace Crater.Tools;
@@ -67,7 +68,8 @@ public static class ToolStore
 			.Select(asset => (asset.GetProperty("name").GetString()!, asset.GetProperty("browser_download_url").GetString()!))
 			.ToList();
 
-		(string Name, string Url) chosen = PickAsset(assets)
+		ToolEntry? entry = await CatalogEntryAsync(spec);
+		(string Name, string Url) chosen = PickAsset(assets, entry?.AssetPattern(Platform))
 			?? throw new CraterException(
 				$"{Fmt.Val(spec.ToString())} has no build for {RuntimeInformation.OSDescription} {RuntimeInformation.OSArchitecture}. " +
 				$"Assets: {string.Join(", ", assets.Select(asset => asset.Name))}");
@@ -75,7 +77,7 @@ public static class ToolStore
 		byte[] data = await Http.GetBytesOrNullAsync(chosen.Url, (done, total) => spinner.Text = $"Installing {name} {spec.Version} ({done / 1048576.0:0.0} MB)")
 			?? throw new CraterException($"Could not download {Fmt.File(chosen.Url)}");
 
-		byte[] executable = ExtractExecutable(chosen.Name, data, name, spec.Repo)
+		byte[] executable = ExtractExecutable(chosen.Name, data, entry?.Executable ?? name, spec.Repo)
 			?? throw new CraterException($"{Fmt.File(chosen.Name)} does not contain a {Fmt.Val(name)} executable.");
 
 		Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -94,8 +96,37 @@ public static class ToolStore
 		return target;
 	}
 
-	public static (string Name, string Url)? PickAsset(IEnumerable<(string Name, string Url)> assets)
+	public static string Platform =>
+		(OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "macos" : "linux") +
+		(RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "-arm64" : "-x64");
+
+	static async Task<ToolEntry?> CatalogEntryAsync(ToolSpec spec)
 	{
+		try
+		{
+			return (await ToolCatalog.LoadAsync()).ForRepository(spec.Slug);
+		}
+		catch (CraterException)
+		{
+			return ToolCatalog.Cached()?.ForRepository(spec.Slug);
+		}
+	}
+
+	public static (string Name, string Url)? PickAsset(IEnumerable<(string Name, string Url)> assets, string? pattern = null)
+	{
+		if (!string.IsNullOrWhiteSpace(pattern))
+		{
+			Regex glob = new("^" + Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$", RegexOptions.IgnoreCase);
+
+			foreach ((string Name, string Url) asset in assets)
+			{
+				if (glob.IsMatch(asset.Name))
+				{
+					return asset;
+				}
+			}
+		}
+
 		string system = OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "macos" : "linux";
 		bool arm = RuntimeInformation.OSArchitecture == Architecture.Arm64;
 

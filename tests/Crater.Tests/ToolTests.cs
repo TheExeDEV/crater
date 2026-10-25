@@ -43,13 +43,41 @@ public sealed class ToolTests
 	[InlineData("JohnnyMorganz/StyLua@v2.6.0", "stylua", "JohnnyMorganz/StyLua", "2.6.0")]
 	public void ParsesToolRequests(string request, string name, string repository, string? version)
 	{
-		Assert.Equal((name, repository, version), ToolSpec.ParseRequest(request));
+		Assert.Equal((name, repository, version), ToolSpec.ParseRequest(request, Catalog()));
 	}
 
 	[Fact]
 	public void RejectsUnknownToolNames()
 	{
-		Assert.Throws<CraterException>(() => ToolSpec.ParseRequest("notatool"));
+		Assert.Throws<CraterException>(() => ToolSpec.ParseRequest("notatool", Catalog()));
 		Assert.Throws<CraterException>(() => ToolSpec.Parse("rojo", "rojo-rbx/rojo"));
+	}
+
+	static ToolCatalog Catalog() => ToolCatalog.Parse(
+		"""
+		{ "tools": {
+			"rojo": { "repository": "rojo-rbx/rojo" },
+			"luau-lsp": { "repository": "JohnnyMorganz/luau-lsp" },
+			"odd": { "repository": "someone/odd", "assets": { "windows-x64": "odd-*-pc.zip" } }
+		} }
+		""", "test");
+
+	[Fact]
+	public void TheToolListInTheRepositoryIsValid()
+	{
+		string path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "tools.json");
+		ToolCatalog catalog = ToolCatalog.Parse(File.ReadAllText(path), path);
+
+		Assert.Equal("rojo-rbx/rojo", catalog.Find("rojo")?.Repository);
+		Assert.True(catalog.Tools.Count >= 10);
+	}
+
+	[Fact]
+	public void CatalogPatternsChooseTheAsset()
+	{
+		(string, string)[] assets = [("odd-1.0-windows-x86_64.zip", "a"), ("odd-1.0-pc.zip", "b")];
+
+		Assert.Equal("odd-1.0-pc.zip", ToolStore.PickAsset(assets, Catalog().Find("odd")!.AssetPattern("windows-x64"))?.Name);
+		Assert.Throws<CraterException>(() => ToolCatalog.Parse("""{ "tools": { "bad": { "repository": "nope" } } }""", "test"));
 	}
 }

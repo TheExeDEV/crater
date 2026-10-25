@@ -70,9 +70,40 @@ public sealed class CommandTests : IDisposable
 		Assert.Equal(["Promise", "evaera/promise"], Complete("c:", "remove"));
 		Assert.Equal(["Promise", "evaera/promise"], Complete("c:", "rm", "--dev"));
 		Assert.Equal(["serve"], Complete("c:", "run"));
-		Assert.Equal(["add", "install", "list", "remove", "run"], Complete("c:", "tool"));
+		Assert.Equal(["add", "install", "known", "list", "remove", "run"], Complete("c:", "tool"));
+
+		Directory.CreateDirectory(Path.Combine(root, "cache"));
+		File.WriteAllText(Path.Combine(root, "cache", "tools.json"), "{\"tools\":{\"rojo\":{\"repository\":\"rojo-rbx/rojo\"}}}");
 		Assert.Contains("rojo", Complete("c:ro", "tool", "add"));
 		Assert.Empty(Complete("c:", "version"));
+	}
+
+	[Fact]
+	public void InitWritesEveryField()
+	{
+		Assert.Equal(0, Crater("init", "--name", "t/game", "-y").ExitCode);
+
+		JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.json")))!.AsObject();
+		JsonObject settings = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.settings.json")))!.AsObject();
+
+		foreach (string key in new[] { "icon", "registries", "overrides", "workspace", "tools", "block_package_scripts", "allow_scripts_from", "exclude", "allow_files" })
+		{
+			Assert.True(manifest.ContainsKey(key), key);
+		}
+
+		Assert.True(settings.ContainsKey("link_style"));
+		Assert.Equal(0, Crater("install", "-y").ExitCode);
+	}
+
+	[Fact]
+	public void AuditNeedsAnInstall()
+	{
+		Project(_ => { });
+		Assert.Equal(0, Crater("audit", "--strict").ExitCode);
+
+		Project(manifest => manifest["import_client"] = new JsonArray("Promise:evaera/promise^4"));
+
+		Assert.Equal(1, Crater("audit").ExitCode);
 	}
 
 	[Fact]

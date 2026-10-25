@@ -182,6 +182,9 @@ public static class Program
 			case "graph":
 				return GraphCommand.Run(args);
 
+			case "audit":
+				return await AuditCommand.RunAsync(args);
+
 			case "history":
 				return await HistoryCommand.RunAsync(args);
 

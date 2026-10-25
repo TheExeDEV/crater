@@ -13,7 +13,7 @@ public static class CompletionCommand
 
 	static readonly string[] Commands =
 	[
-		"init", "import", "bump", "run", "dev", "doctor",
+		"init", "import", "bump", "run", "dev", "doctor", "audit",
 		"install", "update", "add", "remove", "outdated", "list", "graph", "why", "patch", "unused", "size", "licenses",
 		"search", "info", "versions", "pack", "publish", "deprecate", "owner", "history", "login", "logout", "whoami", "registry", "tool",
 		"cache", "completion", "self-update", "version",
@@ -35,6 +35,7 @@ public static class CompletionCommand
 		["history"] = ["--limit", "--registry"],
 		["login"] = ["--private", "--force"],
 		["dev"] = ["--no-serve"],
+		["audit"] = ["--strict"],
 		["graph"] = ["--output", "--client", "--server", "--dev", "--depth"],
 		["search"] = ["--registry"],
 		["info"] = ["--registry"],
@@ -47,7 +48,7 @@ public static class CompletionCommand
 
 	static readonly Dictionary<string, string[]> Subcommands = new()
 	{
-		["tool"] = ["add", "list", "remove", "install", "run"],
+		["tool"] = ["add", "list", "remove", "install", "run", "known"],
 		["registry"] = ["init", "check", "catalog", "scan", "site"],
 		["cache"] = ["clean"],
 		["bump"] = ["patch", "minor", "major"],
@@ -109,7 +110,7 @@ public static class CompletionCommand
 			("remove" or "update" or "why" or "outdated", _) => Dependencies(),
 			("patch" or "info" or "versions", _) => Dependencies(),
 			("run", null) => Scripts(),
-			("tool", "add") => ToolSpec.KnownNames,
+			("tool", "add") => ToolCatalog.Cached()?.Tools.Keys ?? Enumerable.Empty<string>(),
 			("tool", "remove" or "run") => Tools(),
 			("import", null) => ["wally.toml", "pesde.toml"],
 			_ => [],

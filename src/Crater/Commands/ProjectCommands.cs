@@ -95,12 +95,21 @@ public static partial class ProjectCommands
 			["repository"] = "",
 			["can_publish"] = true,
 			["import_to"] = "shared",
+			["registries"] = new JsonObject(),
 			["path_to_main"] = "src/init.luau",
+			["icon"] = "",
 			["path_to_definition_files"] = new JsonArray(),
 			["import_client"] = new JsonArray(),
 			["import_server"] = new JsonArray(),
 			["import_develop"] = new JsonArray(),
+			["overrides"] = new JsonArray(),
+			["workspace"] = new JsonArray(),
 			["scripts"] = new JsonObject(),
+			["tools"] = new JsonObject(),
+			["block_package_scripts"] = false,
+			["allow_scripts_from"] = new JsonArray(),
+			["exclude"] = new JsonArray(),
+			["allow_files"] = new JsonArray(),
 		};
 	}
 
