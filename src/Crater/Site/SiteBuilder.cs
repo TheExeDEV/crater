@@ -89,6 +89,7 @@ public static class SiteBuilder
 			string pagePath = Path.Combine(data, "packages", page.Name.Replace('/', Path.DirectorySeparatorChar) + ".json");
 
 			Json.WriteText(pagePath, Json.Serialize(page));
+			CopyArchives(indexPath, page, data);
 		}
 
 		File.WriteAllText(Path.Combine(target, ".nojekyll"), "");
@@ -129,6 +130,22 @@ public static class SiteBuilder
 		}
 
 		return icons;
+	}
+
+	static void CopyArchives(string indexPath, PackagePage page, string data)
+	{
+		string folder = Path.Combine(data, "archives", page.Name.Replace('/', Path.DirectorySeparatorChar));
+
+		foreach (RegistryRelease release in page.Versions)
+		{
+			string archivePath = Path.Combine(Path.GetDirectoryName(indexPath)!, release.Version + ".zip");
+
+			if (File.Exists(archivePath))
+			{
+				Directory.CreateDirectory(folder);
+				File.Copy(archivePath, Path.Combine(folder, release.Version + ".zip"), overwrite: true);
+			}
+		}
 	}
 
 	static PackagePage BuildPage(string indexPath)
