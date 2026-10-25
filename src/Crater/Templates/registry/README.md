@@ -1,6 +1,6 @@
 # {{NAME}}
 
-A package registry for [crater](https://github.com/{{CRATER_REPO}}), the package manager for Luau and Roblox.
+A package registry for [crater](https://github.com/{{CRATER_REPO}}), the project manager for Luau and Roblox.
 
 Browse packages: {{SITE_URL}}
 
