@@ -91,6 +91,10 @@ public static class SiteBuilder
 			Json.WriteText(pagePath, Json.Serialize(page));
 		}
 
+		List<RecentRelease> recent = SiteFeed.Recent(root, icons);
+
+		Json.WriteText(Path.Combine(data, SiteFeed.RecentFile), Json.Serialize(recent));
+		File.WriteAllText(Path.Combine(target, SiteFeed.FeedFile), SiteFeed.Rss(info, recent));
 		File.WriteAllText(Path.Combine(target, ".nojekyll"), "");
 
 		return catalog.Packages.Count;

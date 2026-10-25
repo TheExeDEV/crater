@@ -20,6 +20,7 @@ public sealed partial class HttpRegistry : IRegistry
 	readonly Lazy<Task<WallyRegistry?>> wally;
 	readonly Lazy<Task<PesdeRegistry?>> pesde;
 	readonly Lazy<Task<Access>> access;
+	readonly Lazy<Task<string?>> statsUrl;
 
 	[GeneratedRegex(@"^[^./][^/]*/[^/]+/index\.json$")]
 	private static partial Regex IndexPath();
@@ -31,6 +32,7 @@ public sealed partial class HttpRegistry : IRegistry
 		wally = new Lazy<Task<WallyRegistry?>>(() => WallyRegistry.DetectAsync(baseUrl));
 		pesde = new Lazy<Task<PesdeRegistry?>>(() => PesdeRegistry.DetectAsync(baseUrl));
 		access = new Lazy<Task<Access>>(ProbeAccessAsync);
+		statsUrl = new Lazy<Task<string?>>(LoadStatsUrlAsync);
 	}
 
 	public string Location => baseUrl;
@@ -92,8 +94,45 @@ public sealed partial class HttpRegistry : IRegistry
 		}
 
 		string url = $"{baseUrl}/{fullName}/{version}.zip";
+		byte[] archive = await BytesAsync(url) ?? throw new CraterException($"{Fmt.File(url)}: HTTP 404 Not Found");
 
-		return await BytesAsync(url) ?? throw new CraterException($"{Fmt.File(url)}: HTTP 404 Not Found");
+		await ReportDownloadAsync(fullName, version);
+
+		return archive;
+	}
+
+	async Task ReportDownloadAsync(string fullName, string version)
+	{
+		if (IsPrivate || Environment.GetEnvironmentVariable("CRATER_NO_STATS") is { Length: > 0 } || await statsUrl.Value is not string stats)
+		{
+			return;
+		}
+
+		await Http.PingAsync($"{stats.TrimEnd('/')}/download/{fullName}/{Uri.EscapeDataString(version)}");
+	}
+
+	async Task<string?> LoadStatsUrlAsync()
+	{
+		string url = $"{baseUrl}/{RegistryInfo.FileName}";
+		string? text = await TextAsync(url);
+
+		if (text is null)
+		{
+			return null;
+		}
+
+		try
+		{
+			string? stats = Json.Parse<RegistryInfo>(text, url).StatsUrl;
+
+			bool secure = stats is not null && Uri.TryCreate(stats, UriKind.Absolute, out Uri? uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.IsLoopback);
+
+			return secure ? stats : null;
+		}
+		catch (CraterException)
+		{
+			return null;
+		}
 	}
 
 	public async Task<Catalog?> GetCatalogAsync(string query)

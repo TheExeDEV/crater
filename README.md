@@ -1187,9 +1187,10 @@ Builds a static site (`index.html`, `assets/`, `data/`) from the registry, with 
 
 - **Home:** one "Popular packages" list from every registry (this one, Wally, pesde and Forest), each package shown once with the registry it comes from: packages of this registry that others use first, then the most downloaded ones. Packages that Forest only mirrors from Wally are shown as Wally packages. Below it, all packages of this registry with sorting (recent, most used, A-Z).
 - **One search for everything:** packages of this registry, plus Wally and pesde searched live from their own servers as you type. Every result shows where it comes from, with that registry's avatar. Packages marked as originals come first.
-- **Package pages:** README and Changelog tabs (the [changelog](#changelog) of every version for packages of this registry, `CHANGELOG.md` from the package archive for Wally packages), install snippets with copy buttons, owners, dependencies, "used by" and versions. The versions list on the side switches between versions; an older version says which one is the newest. Packages from other registries get pages on this site too, with `wally#` / `pesde#` / `forest#` install snippets:
-  - **Wally:** versions and dependencies from the Wally index, README, changelog and the file list from the package archive itself, read live.
-  - **pesde:** versions, dependencies, description and README from the pesde registry, read live.
+- **New:** the latest 50 releases of this registry, grouped by day, with new packages marked. The same list is published as an RSS feed, `feed.xml`, so anyone can follow the registry in an RSS reader or post new packages to Discord with an RSS bot.
+- **Package pages:** README, Changelog and Files tabs (Files shows the file tree and the content of every file of the version you look at, read from the package archive; the open tab and file stay when you switch versions) (the [changelog](#changelog) of every version for packages of this registry, `CHANGELOG.md` from the package archive for Wally packages), install snippets with copy buttons, owners, dependencies, "used by" and versions. The versions list on the side switches between versions; an older version says which one is the newest. Packages from other registries get pages on this site too, with `wally#` / `pesde#` / `forest#` install snippets:
+  - **Wally:** versions and dependencies from the Wally index, README, changelog and the files from the package archive itself, read live.
+  - **pesde:** versions, dependencies, description and README from the pesde registry, and the files from the package archive, read live.
   - **Forest:** README, versions, dependencies, downloads and likes of the popular packages, saved when the site is built (Forest does not let other sites read it live). Other Forest packages open on forest.dev.
 - **Originals:** many popular packages have forks under other names. List the real ones in `originals.json` in the registry root and the site marks them with an "Original" badge and shows them first in search:
 
@@ -1199,6 +1200,44 @@ Builds a static site (`index.html`, `assets/`, `data/`) from the registry, with 
 
   `scope/name` marks the package in every registry, `wally#`, `pesde#`, `forest#` or `crater#` only in one. `crater registry init` creates the file with a few well-known Roblox packages; the registry check rejects entries that are not package names, and only maintainers can change it.
 - Nothing from Wally, pesde or Forest is copied into the registry repository. The Forest list is fetched when the site is built and lives only in the published site; set `CRATER_SITE_NO_EXTERNAL=1` to leave it out.
+
+### Downloads, views and likes
+
+With a stats server, the site shows downloads (all time and the last 7 days), views and likes for packages of this registry, adds a "Most downloaded" sorting and a like button on every package page. `crater install` reports each package archive it downloads from the registry. Nothing else is sent: no names, no projects, only `POST <stats_url>/download/<scope>/<name>/<version>`. Visitors and installs are counted once per day per IP address, and the server stores only a salted hash of the address. Set `CRATER_NO_STATS=1` to turn reporting off; private registries are never reported.
+
+The server is a small Cloudflare Worker with a D1 database in [`workers/stats`](workers/stats), free on the Cloudflare free plan. To run your own:
+
+```bash
+cd workers/stats
+npx wrangler login
+npx wrangler d1 create crater-stats
+```
+
+Put the `database_id` it prints into `wrangler.toml`, set `ALLOWED_ORIGINS` (your site, for example `https://you.github.io`) and `REGISTRY_URL` (the raw URL of your registry), then:
+
+```bash
+npx wrangler d1 execute crater-stats --remote --file schema.sql
+npx wrangler secret put SALT
+npx wrangler deploy
+```
+
+`SALT` is any long random string. Add the Worker URL to `registry.json` of the registry and rebuild the site:
+
+```json
+"stats_url": "https://crater-stats.you.workers.dev"
+```
+
+| Endpoint | What it does |
+|---|---|
+| `GET /stats` | Counts of every package. |
+| `GET /stats/<scope>/<name>` | Counts of one package and whether this visitor liked it. |
+| `POST /view/<scope>/<name>` | Count a view (only from `ALLOWED_ORIGINS`). |
+| `POST /download/<scope>/<name>/<version>` | Count a download (only from crater). |
+| `POST` / `DELETE /like/<scope>/<name>` | Like or unlike (only from `ALLOWED_ORIGINS`). |
+
+Only packages that exist in the registry are counted. `npm test` in `workers/stats` runs its tests on Node's built-in SQLite.
+
+### Highlighting and links
 
 Code in READMEs and changelogs is highlighted (Luau, bash, JSON, TOML, TypeScript) in the colors of the site. Every README gets the matching `crater add` command (with `wally#`, `pesde#` or `forest#` when needed): under its "Installation" heading, otherwise right before its first install example (`wally.toml`, `npm install` and the like), otherwise at the top.
 
@@ -1307,6 +1346,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `CRATER_NO_UPDATE_CHECK` | Do not check once a day whether a newer crater is out. |
 | `CRATER_OFFLINE` | Same as `--offline`: use only the cache. |
 | `CRATER_HOME` | Where tools and launchers live. Default `%LOCALAPPDATA%\crater` or `~/.crater`. |
+| `CRATER_NO_STATS` | Do not report downloads to the registry's [stats server](#downloads-views-and-likes). |
 
 ---
 
