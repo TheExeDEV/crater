@@ -195,6 +195,24 @@ public static class Http
 
 	public sealed record Reply(int Status, byte[] Body);
 
+	public static async Task PingAsync(string url)
+	{
+		if (Offline)
+		{
+			return;
+		}
+
+		try
+		{
+			using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(2));
+			using HttpRequestMessage request = new(HttpMethod.Post, url);
+			using HttpResponseMessage response = await Client.SendAsync(request, timeout.Token);
+		}
+		catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+		{
+		}
+	}
+
 	public static async Task<Reply> SendAsync(HttpMethod method, string url, HttpContent? content, IReadOnlyDictionary<string, string>? headers = null)
 	{
 		if (Offline)

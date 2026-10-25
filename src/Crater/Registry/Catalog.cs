@@ -160,6 +160,7 @@ public sealed class RegistryInfo
 	[JsonPropertyName("site_url")] public string SiteUrl { get; set; } = "";
 	[JsonPropertyName("repository")] public string Repository { get; set; } = "";
 	[JsonPropertyName("maintainers")] public List<string> Maintainers { get; set; } = [];
+	[JsonPropertyName("stats_url")] public string? StatsUrl { get; set; }
 
 	public static RegistryInfo Load(string registryRoot)
 	{
