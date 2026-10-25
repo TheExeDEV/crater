@@ -17,6 +17,7 @@ public static class SiteBuilder
 		[JsonPropertyName("versions")] public List<RegistryRelease> Versions { get; set; } = [];
 		[JsonPropertyName("readme")] public string? Readme { get; set; }
 		[JsonPropertyName("used_by")] public List<string> UsedBy { get; set; } = [];
+		[JsonPropertyName("icon")] public string? Icon { get; set; }
 	}
 
 	static readonly string[] ReadmeNames = ["README.md", "readme.md", "Readme.md", "README"];
@@ -61,6 +62,13 @@ public static class SiteBuilder
 			entry.Dependents = dependents.GetValueOrDefault(entry.Name)?.Count ?? 0;
 		}
 
+		Dictionary<string, string> icons = WriteIcons(root, target);
+
+		foreach (CatalogEntry entry in catalog.Packages)
+		{
+			entry.Icon = icons.GetValueOrDefault(entry.Name);
+		}
+
 		Json.WriteText(Path.Combine(data, RegistryInfo.FileName), Json.Serialize(info));
 		Json.WriteText(Path.Combine(data, Originals.FileName), Json.Serialize(new Originals { Packages = Originals.Load(root).Normalized() }));
 		Json.WriteText(Path.Combine(data, Catalog.FileName), Json.Serialize(catalog));
@@ -77,6 +85,7 @@ public static class SiteBuilder
 		{
 			PackagePage page = BuildPage(indexPath);
 			page.UsedBy = dependents.GetValueOrDefault(page.Name)?.ToList() ?? [];
+			page.Icon = icons.GetValueOrDefault(page.Name);
 			string pagePath = Path.Combine(data, "packages", page.Name.Replace('/', Path.DirectorySeparatorChar) + ".json");
 
 			Json.WriteText(pagePath, Json.Serialize(page));
@@ -85,6 +94,41 @@ public static class SiteBuilder
 		File.WriteAllText(Path.Combine(target, ".nojekyll"), "");
 
 		return catalog.Packages.Count;
+	}
+
+	static Dictionary<string, string> WriteIcons(string root, string target)
+	{
+		Dictionary<string, string> icons = new(StringComparer.Ordinal);
+
+		foreach (string indexPath in Catalog.FindIndexFiles(root))
+		{
+			RegistryIndex index = Json.ReadFile<RegistryIndex>(indexPath).Normalize(indexPath);
+			RegistryRelease? latest = index.Latest;
+			string? icon = latest?.Manifest.Icon;
+			string extension = Path.GetExtension(icon ?? "").ToLowerInvariant();
+			string archivePath = Path.Combine(Path.GetDirectoryName(indexPath)!, (latest?.Version ?? "") + ".zip");
+
+			if (icon is null || !Packer.IconExtensions.Contains(extension) || !File.Exists(archivePath))
+			{
+				continue;
+			}
+
+			byte[]? data = Packer.ReadBytes(File.ReadAllBytes(archivePath), icon, Packer.MaxIconBytes);
+
+			if (data is null)
+			{
+				continue;
+			}
+
+			string relative = $"data/icons/{index.Name}{extension}";
+			string path = Path.Combine(target, relative.Replace('/', Path.DirectorySeparatorChar));
+
+			Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+			File.WriteAllBytes(path, data);
+			icons[index.Name] = relative;
+		}
+
+		return icons;
 	}
 
 	static PackagePage BuildPage(string indexPath)

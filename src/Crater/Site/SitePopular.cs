@@ -21,6 +21,7 @@ public sealed class PopularEntry
 	[JsonPropertyName("weekly_downloads")] public long? WeeklyDownloads { get; set; }
 	[JsonPropertyName("likes")] public long? Likes { get; set; }
 	[JsonPropertyName("updated_at")] public DateTimeOffset? UpdatedAt { get; set; }
+	[JsonPropertyName("icon")] public string? Icon { get; set; }
 	[JsonIgnore] public JsonObject? Detail { get; set; }
 }
 
@@ -101,6 +102,7 @@ public static partial class SitePopular
 				License = entry.License,
 				Dependents = dependents[entry.Name].Count,
 				UpdatedAt = entry.UpdatedAt,
+				Icon = entry.Icon,
 			});
 
 		List<PopularEntry> external = ExternalAsync().GetAwaiter().GetResult();
@@ -182,6 +184,7 @@ public static partial class SitePopular
 				Downloads = Number(root, "downloads"),
 				WeeklyDownloads = Number(root, "weeklyDownloads"),
 				Likes = Number(root, "likes"),
+				Icon = String(root, "imageUrl") is string image && image.StartsWith("https://", StringComparison.Ordinal) ? image : null,
 			};
 
 			if (await MirroredFromWallyAsync(scope, name, entry.Latest) && await WallyEntryAsync(entry) is PopularEntry wally)
@@ -198,6 +201,7 @@ public static partial class SitePopular
 				["downloads"] = entry.Downloads,
 				["weekly_downloads"] = entry.WeeklyDownloads,
 				["likes"] = entry.Likes,
+				["icon"] = entry.Icon,
 				["readme"] = String(root, "readme"),
 				["versions"] = root.TryGetProperty("versions", out JsonElement versions) ? JsonNode.Parse(versions.GetRawText()) : null,
 				["dependencies"] = root.TryGetProperty("dependencies", out JsonElement dependencies) ? JsonNode.Parse(dependencies.GetRawText()) : null,

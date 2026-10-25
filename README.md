@@ -219,6 +219,7 @@ Every project and every package has a `crater.json`.
 | `block_package_scripts`, `allow_scripts_from` | Refuse packages that run scripts in your game, except the listed ones. See [Packages that run scripts](#packages-that-run-scripts). |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
+| `icon` | Optional picture of the package for the registry website, a path inside the package like `"assets/icon.png"`: `.png`, `.jpg`, `.webp`, `.gif` or `.svg`, at most 256 KB (256x256 pixels is plenty). `crater pack` and `crater publish` check it. Packages without an icon, and packages from Wally and pesde, which have no icons, get a neutral placeholder. |
 | `path_to_definition_files` | `.d.luau` files added to VS Code settings on install. Each entry is a file, a folder (every `.d.luau` inside it) or a pattern with `*` / `**`. Empty means every `*.d.luau` in the package (up to 10). The old single-file field `path_to_definition_file` still works. |
 | `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
