@@ -1141,6 +1141,8 @@ Builds a static site (`index.html`, `assets/`, `data/`) from the registry, with 
 
 Code in READMEs and changelogs is highlighted (Luau, bash, JSON, TOML, TypeScript) in the colors of the site. Every README gets the matching `crater add` command (with `wally#`, `pesde#` or `forest#` when needed): under its "Installation" heading, otherwise right before its first install example (`wally.toml`, `npm install` and the like), otherwise at the top.
 
+Links inside READMEs keep working: links to sections scroll to them, links to files of a Wally package open the file from its archive on the site, links in packages of this registry go to their `source/` folder on GitHub, and links to files the site cannot reach become plain text instead of broken links. Images with relative paths are loaded the same way.
+
 README files are rendered with marked and sanitized with DOMPurify; all other data, including everything from other registries, is inserted as text.
 
 Preview it locally:
