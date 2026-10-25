@@ -25,10 +25,22 @@ public static partial class PackageScanner
 	const int MaxFindingsPerRule = 5;
 	const int LongLine = 2000;
 
-	sealed record Rule(Severity Severity, Regex Pattern, string Description, bool OnRawText = false);
+	sealed record Rule(Severity Severity, Regex Pattern, string Description, bool OnRawText = false, bool OnJoinedText = false);
 
-	[GeneratedRegex(@"\brequire\s*\(\s*\d{5,}\s*\)")]
+	[GeneratedRegex(@"\brequire\s*\(\s*(?:0[xX][0-9a-fA-F]{4,}|\d{5,}|tonumber\s*\()")]
 	private static partial Regex AssetRequire();
+
+	[GeneratedRegex(@"\b([A-Za-z_]\w*)\s*=\s*(?:0[xX][0-9a-fA-F]{4,}|\d{5,})\s*(?:;|$)")]
+	private static partial Regex NumberAssignment();
+
+	[GeneratedRegex(@"\brequire\s*\(\s*([A-Za-z_]\w*)\s*\)")]
+	private static partial Regex RequireOfName();
+
+	[GeneratedRegex(@"([""'])\s*\.\.\s*([""'])")]
+	private static partial Regex Concatenation();
+
+	[GeneratedRegex(@"(?:\[\s*|\brawget\s*\([^,]*,\s*)([""'])(loadstring|load|require|getfenv|setfenv)\1")]
+	private static partial Regex NamedLookup();
 
 	[GeneratedRegex(@"\bloadstring\s*\(")]
 	private static partial Regex Loadstring();
@@ -67,6 +79,7 @@ public static partial class PackageScanner
 	[
 		new(Severity.Danger, AssetRequire(), "requires a Roblox asset by id, the most common backdoor"),
 		new(Severity.Danger, Loadstring(), "runs code built from a string"),
+		new(Severity.Danger, NamedLookup(), "looks up loadstring, require or getfenv by name, a way to hide them", OnJoinedText: true),
 		new(Severity.Danger, AssetLoading(), "loads models from the Roblox website at runtime"),
 		new(Severity.Warning, FunctionEnvironment(), "changes function environments, often used to hide code"),
 		new(Severity.Warning, Purchase(), "prompts players to buy something"),
@@ -202,10 +215,11 @@ public static partial class PackageScanner
 	{
 		string[] rawLines = source.Replace("\r", "").Split('\n');
 		string[] codeLines = LuauLexer.Lex(source.Replace("\r", "")).Kept.Split('\n');
+		string[] joinedLines = codeLines.Select(line => Concatenation().Replace(line, "")).ToArray();
 
 		foreach (Rule rule in Rules)
 		{
-			string[] lines = rule.OnRawText ? rawLines : codeLines;
+			string[] lines = rule.OnJoinedText ? joinedLines : rule.OnRawText ? rawLines : codeLines;
 			int count = 0;
 
 			for (int index = 0; index < lines.Length && count < MaxFindingsPerRule; index++)
@@ -220,6 +234,23 @@ public static partial class PackageScanner
 				count++;
 
 				yield return new Finding(rule.Severity, packageId, path, index + 1, rule.Description, Snippet(rawLines[index], match.Index));
+			}
+		}
+
+		HashSet<string> assetIds = codeLines
+			.SelectMany(line => NumberAssignment().Matches(line))
+			.Select(match => match.Groups[1].Value)
+			.ToHashSet(StringComparer.Ordinal);
+
+		for (int index = 0, count = 0; index < codeLines.Length && count < MaxFindingsPerRule && assetIds.Count > 0; index++)
+		{
+			Match match = RequireOfName().Match(codeLines[index]);
+
+			if (match.Success && assetIds.Contains(match.Groups[1].Value))
+			{
+				count++;
+
+				yield return new Finding(Severity.Danger, packageId, path, index + 1, $"requires a Roblox asset by an id stored in {match.Groups[1].Value}, the most common backdoor", Snippet(rawLines[index], match.Index));
 			}
 		}
 

@@ -903,7 +903,7 @@ To help with that, the check unpacks every new version and scans it. The report 
 | Level | Looks for |
 |---|---|
 | blocked | executables in the archive; the pull request fails |
-| danger | `require(<asset id>)` (the most common Roblox backdoor), `loadstring`, `InsertService` / `LoadAsset` / `GetObjects` |
+| danger | `require(<asset id>)` (the most common Roblox backdoor), also as hex, through `tonumber("...")` or a variable that holds the id, `loadstring`, looking up `loadstring` / `require` / `getfenv` by name (`_G["load" .. "string"]`, `rawget(getfenv(), "require")`), `InsertService` / `LoadAsset` / `GetObjects` |
 | warning | `getfenv` / `setfenv`, purchase prompts, obfuscation (long escaped strings, `string.char` chains, encoded blobs, very long lines), `.rbxm` / `.rbxl` model files |
 | info | `HttpService`, web addresses, `TeleportService`, `IsStudio` checks |
 
