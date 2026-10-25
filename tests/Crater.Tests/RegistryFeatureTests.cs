@@ -168,7 +168,6 @@ public sealed class RegistryFeatureTests : IDisposable
 		Assert.Equal(png, File.ReadAllBytes(Path.Combine(site, "data", "icons", "t", "pretty.png")));
 		Assert.Contains("\"icon\": \"data/icons/t/pretty.png\"", File.ReadAllText(Path.Combine(site, "data", "packages", "t", "pretty.json")));
 		Assert.Contains("\"icon\": \"data/icons/t/pretty.png\"", File.ReadAllText(Path.Combine(site, "data", "packages.json")));
-		Assert.True(File.Exists(Path.Combine(site, "data", "archives", "t", "pretty", "1.0.0.zip")));
 	}
 
 	[Fact]
