@@ -1139,6 +1139,8 @@ Builds a static site (`index.html`, `assets/`, `data/`) from the registry, with 
   `scope/name` marks the package in every registry, `wally#`, `pesde#`, `forest#` or `crater#` only in one. `crater registry init` creates the file with a few well-known Roblox packages; the registry check rejects entries that are not package names, and only maintainers can change it.
 - Nothing from Wally, pesde or Forest is copied into the registry repository. The Forest list is fetched when the site is built and lives only in the published site; set `CRATER_SITE_NO_EXTERNAL=1` to leave it out.
 
+Code in READMEs and changelogs is highlighted (Luau, bash, JSON, TOML, TypeScript) in the colors of the site. When the README of a Wally, pesde or Forest package has an "Installation" section, the site adds the matching `crater add` command at its top.
+
 README files are rendered with marked and sanitized with DOMPurify; all other data, including everything from other registries, is inserted as text.
 
 Preview it locally:
