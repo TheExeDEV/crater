@@ -34,11 +34,36 @@ public static class PackageFiles
 
 		bool fromPesde = File.Exists(Path.Combine(content, "pesde.toml"));
 
+		RemovePrograms(content, manifest, id);
 		Prepare(id, content, folderName, manifest, quiet);
 
 		if (fromPesde)
 		{
 			WritePesdeLinks(content, manifest);
+		}
+	}
+
+	static void RemovePrograms(string content, Manifest manifest, string id)
+	{
+		Manifest own = ManifestIn(content);
+		List<Packer.Pattern> allowed = (own.AllowFiles ?? []).Select(Packer.Pattern.Create).ToList();
+		List<string> removed = [];
+
+		foreach (string file in Directory.EnumerateFiles(content, "*", SearchOption.AllDirectories))
+		{
+			string relative = Path.GetRelativePath(content, file).Replace('\\', '/');
+			ProgramKind kind = Executables.Classify(file, relative);
+
+			if (kind == ProgramKind.Binary || (kind == ProgramKind.Script && !allowed.Any(pattern => pattern.Excludes(relative))))
+			{
+				File.Delete(file);
+				removed.Add(relative);
+			}
+		}
+
+		if (removed.Count > 0)
+		{
+			Out.Warn($"{Fmt.Pkg(id)} contained {Fmt.Plural(removed.Count, "program or archive", "programs or archives")}, crater did not install them: {string.Join(", ", removed.Take(5).Select(path => Fmt.File(path)))}");
 		}
 	}
 
@@ -81,12 +106,15 @@ public static class PackageFiles
 			.Where(path => !path.EndsWith('/'))
 			.ToList();
 
+		return NeededFilter(paths, ProjectTop(zip, paths));
+	}
+
+	public static Func<string, bool> NeededFilter(List<string> paths, string? codeTop)
+	{
 		HashSet<string> definitionTops = paths
 			.Where(path => path.EndsWith(".d.luau", StringComparison.OrdinalIgnoreCase) && path.Contains('/'))
 			.Select(path => path.Split('/')[0])
 			.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-		string? codeTop = ProjectTop(zip, paths);
 
 		return path =>
 		{

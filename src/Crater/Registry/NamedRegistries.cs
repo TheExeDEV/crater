@@ -7,17 +7,19 @@ public static class NamedRegistries
 {
 	public const string WallyIndex = "https://github.com/UpliftGames/wally-index";
 	public const string PesdeIndex = "https://github.com/pesde-pkg/index";
+	public const string ForestApi = ForestRegistry.DefaultApi;
 
 	static Dictionary<string, string> Builtin => new(StringComparer.OrdinalIgnoreCase)
 	{
 		["wally"] = WallyIndex,
 		["pesde"] = PesdeIndex,
+		["forest"] = ForestApi,
 		["crater"] = BuildInfo.DefaultRegistry,
 	};
 
 	public static bool IsBuiltin(string name) => Builtin.ContainsKey(name);
 
-	public static IEnumerable<string> BuiltinNames => ["crater", "wally", "pesde"];
+	public static IEnumerable<string> BuiltinNames => ["crater", "wally", "pesde", "forest"];
 
 	public static string? NameOf(string location, Manifest? manifest)
 	{
@@ -63,7 +65,7 @@ public static class NamedRegistries
 		}
 
 		throw new CraterException(
-			$"Unknown registry {Fmt.Val(name)}. Built in: {Fmt.Val("crater")}, {Fmt.Val("wally")}, {Fmt.Val("pesde")}. " +
+			$"Unknown registry {Fmt.Val(name)}. Built in: {Fmt.Val("crater")}, {Fmt.Val("wally")}, {Fmt.Val("pesde")}, {Fmt.Val("forest")}. " +
 			$"Add your own in {Fmt.File(Manifest.FileName)}: {Fmt.Cmd($"\"registries\": {{ \"{name}\": \"https://github.com/Owner/Repo\" }}")}");
 	}
 }
