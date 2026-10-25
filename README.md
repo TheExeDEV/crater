@@ -225,6 +225,7 @@ Every project and every package has a `crater.json`.
 | `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
 | `scripts` | Commands for `crater run`. |
 | `exclude` | Extra glob patterns left out of the published archive, on top of `.gitignore` and `.craterignore`. |
+| `allow_files` | Scripts (`.sh`, `.bat`, `.ps1`...) to keep in the published archive, see [What goes into the package](#what-goes-into-the-package). Programs cannot be allowed. |
 
 ---
 
@@ -908,7 +909,7 @@ To help with that, the check unpacks every new version and scans it. The report 
 
 Comments are ignored, so `-- require(123)` in a comment is not reported. A finding is not a verdict: an HTTP library uses `HttpService` on purpose. Read the flagged lines and decide.
 
-The same scan runs on your machine before `crater publish` (an executable stops the publish) and on demand:
+The same scan runs on your machine before `crater publish` and on demand:
 
 ```bash
 crater registry scan path/to/package
@@ -1063,7 +1064,18 @@ crater does not download the registry for this: it reads the index of your packa
 
 ### What goes into the package
 
-Everything in the package folder except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the installed package folders, whatever your `.gitignore` and `.craterignore` files ignore, and the patterns in `exclude`. Archives use fixed timestamps, so the same files always give the same sha256. Before sending, crater scans the files like the registry check does; an executable stops the publish.
+Everything in the package folder except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the installed package folders, whatever your `.gitignore` and `.craterignore` files ignore, and the patterns in `exclude`. Archives use fixed timestamps, so the same files always give the same sha256.
+
+Every other file type goes into the package as it is: data files, `.gpp`, `.cpp`, images, anything that is not a program. Programs of every system are left out automatically, and `pack` and `publish` list what they skipped:
+
+- **Programs** (never allowed): Windows (`.exe`, `.dll`, `.msi`, `.scr`...), Linux (`.so`, `.AppImage`, `.deb`, `.rpm`...), macOS (`.dylib`, `.app` bundles, `.pkg`, `.dmg`), `.jar`, `.apk`, `.wasm`, and any file whose content is a Windows, Linux or macOS program, even renamed to `.gpp` or `.txt`.
+- **Scripts** (allowed on request): `.sh`, `.bat`, `.cmd`, `.ps1`, `.vbs`, `.command` and files without an extension that start with `#!`. To ship one on purpose, list it in `crater.json`:
+
+```json
+"allow_files": ["scripts/setup.sh", "tools/*.bat"]
+```
+
+A script that is actually a program inside (binary content) is still left out. The registry check reads `allow_files` from the package too: allowed scripts get a warning for the reviewer, any other script or program blocks the pull request, even if `allow_files` lists it. Before sending, crater runs the same scan on your machine.
 
 `.gitignore` and `.craterignore` follow git's rules: `*`, `**`, `?`, `[...]`, a leading `/` to anchor to the file's folder, a trailing `/` for folders only, `!` to bring a file back and `#` for comments. Files in subfolders apply to that subfolder. `.craterignore` is read after `.gitignore` in the same folder, so it can add rules just for packages or bring back something git ignores:
 

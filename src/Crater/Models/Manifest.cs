@@ -61,6 +61,7 @@ public sealed class Manifest
 	[JsonPropertyName("block_package_scripts")] public bool? BlockPackageScripts { get; set; }
 	[JsonPropertyName("allow_scripts_from")] public List<string>? AllowScriptsFrom { get; set; }
 	[JsonPropertyName("exclude")] public List<string>? Exclude { get; set; }
+	[JsonPropertyName("allow_files")] public List<string>? AllowFiles { get; set; }
 
 	[JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }
 
