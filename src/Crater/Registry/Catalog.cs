@@ -97,6 +97,7 @@ public sealed class CatalogEntry
 	[JsonPropertyName("repository")] public string Repository { get; set; } = "";
 	[JsonPropertyName("updated_at")] public DateTimeOffset? UpdatedAt { get; set; }
 	[JsonPropertyName("deprecated")] public string? Deprecated { get; set; }
+	[JsonPropertyName("dependents")] public int? Dependents { get; set; }
 
 	public static CatalogEntry From(RegistryIndex index, RegistryRelease latest)
 	{
