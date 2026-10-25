@@ -62,12 +62,13 @@ public static class SiteBuilder
 		}
 
 		Json.WriteText(Path.Combine(data, RegistryInfo.FileName), Json.Serialize(info));
+		Json.WriteText(Path.Combine(data, Originals.FileName), Json.Serialize(new Originals { Packages = Originals.Load(root).Normalized() }));
 		Json.WriteText(Path.Combine(data, Catalog.FileName), Json.Serialize(catalog));
 		PopularPackages popular = SitePopular.Build(catalog, dependents);
 
 		Json.WriteText(Path.Combine(data, PopularPackages.FileName), Json.Serialize(popular));
 
-		foreach (PopularEntry entry in popular.Forest.Where(entry => entry.Detail is not null))
+		foreach (PopularEntry entry in popular.Packages.Where(entry => entry.Source == "forest" && entry.Detail is not null))
 		{
 			Json.WriteText(Path.Combine(data, "forest", entry.Name.Replace('/', Path.DirectorySeparatorChar) + ".json"), Json.Serialize(entry.Detail!));
 		}

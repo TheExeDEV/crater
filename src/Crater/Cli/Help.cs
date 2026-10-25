@@ -42,6 +42,7 @@ public static class Help
 			new("publish [--dry-run]", "send the package to the registry for review"),
 			new("deprecate <scope/name>[@version] [message] [--undo]", "mark a package or one version as deprecated"),
 			new("owner add|remove|list <scope/name> [login]", "let a friend publish your package"),
+			new("history [scope/name] [--limit n]", "who published, deprecated or changed what, and when"),
 			new("registry init|check|catalog|site", "manage a registry repository"),
 		]),
 		("Crater", [

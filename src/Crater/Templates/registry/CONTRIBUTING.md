@@ -8,7 +8,7 @@
 - Keep a `CHANGELOG.md` with a `## <version>` section; `crater publish` stores it in the index and the website shows it.
 - Packages may depend only on registry packages, not on local folders or git repositories.
 - Packages must not contain executables or code that loads other code at runtime (`require(<asset id>)`, `loadstring`).
-- Do not edit `packages.json`, `registry.json` or `.github/`. The catalog is generated after merge.
+- Do not edit `packages.json`, `registry.json`, `originals.json` or `.github/`. The catalog is generated after merge.
 
 ## What the check verifies
 

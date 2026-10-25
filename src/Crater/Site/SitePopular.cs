@@ -11,6 +11,7 @@ namespace Crater.Site;
 
 public sealed class PopularEntry
 {
+	[JsonPropertyName("source")] public string Source { get; set; } = "crater";
 	[JsonPropertyName("name")] public string Name { get; set; } = "";
 	[JsonPropertyName("description")] public string Description { get; set; } = "";
 	[JsonPropertyName("latest")] public string Latest { get; set; } = "";
@@ -19,7 +20,6 @@ public sealed class PopularEntry
 	[JsonPropertyName("downloads")] public long? Downloads { get; set; }
 	[JsonPropertyName("weekly_downloads")] public long? WeeklyDownloads { get; set; }
 	[JsonPropertyName("likes")] public long? Likes { get; set; }
-	[JsonPropertyName("url")] public string? Url { get; set; }
 	[JsonPropertyName("updated_at")] public DateTimeOffset? UpdatedAt { get; set; }
 	[JsonIgnore] public JsonObject? Detail { get; set; }
 }
@@ -29,14 +29,16 @@ public sealed class PopularPackages
 	public const string FileName = "popular.json";
 
 	[JsonPropertyName("generated_at")] public DateTimeOffset GeneratedAt { get; set; }
-	[JsonPropertyName("crater")] public List<PopularEntry> Crater { get; set; } = [];
-	[JsonPropertyName("forest")] public List<PopularEntry> Forest { get; set; } = [];
+	[JsonPropertyName("packages")] public List<PopularEntry> Packages { get; set; } = [];
 }
 
 public static partial class SitePopular
 {
 	const int Count = 8;
 	const string ForestSite = "https://forest.dev/";
+	const string WallyApi = "https://api.wally.run/v1";
+
+	static readonly string[] SourceOrder = ["crater", "wally", "pesde", "forest"];
 
 	[GeneratedRegex(@"/p/roblox/([A-Za-z0-9_\-]+)/([A-Za-z0-9_\-]+)")]
 	private static partial Regex ForestLink();
@@ -88,32 +90,41 @@ public static partial class SitePopular
 
 	public static PopularPackages Build(Catalog catalog, Dictionary<string, SortedSet<string>> dependents)
 	{
-		List<PopularEntry> crater = catalog.Packages
-			.Where(entry => entry.Deprecated is null)
-			.OrderByDescending(entry => dependents.GetValueOrDefault(entry.Name)?.Count ?? 0)
-			.ThenByDescending(entry => entry.Versions)
-			.ThenByDescending(entry => entry.UpdatedAt)
-			.Take(Count)
+		IEnumerable<PopularEntry> crater = catalog.Packages
+			.Where(entry => entry.Deprecated is null && dependents.GetValueOrDefault(entry.Name)?.Count > 0)
 			.Select(entry => new PopularEntry
 			{
+				Source = "crater",
 				Name = entry.Name,
 				Description = entry.Description,
 				Latest = entry.Latest,
 				License = entry.License,
-				Dependents = dependents.GetValueOrDefault(entry.Name)?.Count ?? 0,
+				Dependents = dependents[entry.Name].Count,
 				UpdatedAt = entry.UpdatedAt,
-			})
-			.ToList();
+			});
+
+		List<PopularEntry> external = ExternalAsync().GetAwaiter().GetResult();
 
 		return new PopularPackages
 		{
 			GeneratedAt = DateTimeOffset.UtcNow,
-			Crater = crater,
-			Forest = ForestAsync().GetAwaiter().GetResult(),
+			Packages = Combine(crater.Concat(external)),
 		};
 	}
 
-	static async Task<List<PopularEntry>> ForestAsync()
+	public static List<PopularEntry> Combine(IEnumerable<PopularEntry> entries)
+	{
+		return entries
+			.GroupBy(entry => entry.Name.ToLowerInvariant())
+			.Select(group => group.OrderBy(entry => Array.IndexOf(SourceOrder, entry.Source)).First())
+			.OrderByDescending(entry => entry.Source == "crater" ? 1 : 0)
+			.ThenByDescending(entry => entry.Dependents ?? 0)
+			.ThenByDescending(entry => entry.WeeklyDownloads ?? entry.Downloads ?? 0)
+			.Take(Count)
+			.ToList();
+	}
+
+	static async Task<List<PopularEntry>> ExternalAsync()
 	{
 		if (Http.Offline || Environment.GetEnvironmentVariable("CRATER_SITE_NO_EXTERNAL") is { Length: > 0 })
 		{
@@ -132,21 +143,21 @@ public static partial class SitePopular
 			List<(string Scope, string Name)> names = ForestLink().Matches(html)
 				.Select(match => (match.Groups[1].Value, match.Groups[2].Value))
 				.Distinct()
-				.Take(Count)
+				.Take(Count * 2)
 				.ToList();
 
-			PopularEntry?[] entries = await Task.WhenAll(names.Select(item => ForestEntryAsync(item.Scope, item.Name)));
+			PopularEntry?[] entries = await Task.WhenAll(names.Select(item => ExternalEntryAsync(item.Scope, item.Name)));
 
 			return entries.OfType<PopularEntry>().ToList();
 		}
 		catch (CraterException exception)
 		{
-			Out.Dim($"  Forest packages left out of the site: {exception.Message}");
+			Out.Dim($"  Popular packages from other registries left out of the site: {exception.Message}");
 			return [];
 		}
 	}
 
-	static async Task<PopularEntry?> ForestEntryAsync(string scope, string name)
+	static async Task<PopularEntry?> ExternalEntryAsync(string scope, string name)
 	{
 		string url = $"{ForestRegistry.DefaultApi}/ai/package/roblox/{Uri.EscapeDataString(scope)}/{Uri.EscapeDataString(name)}";
 		string? text = await Http.GetTextOrNullAsync(url);
@@ -163,6 +174,7 @@ public static partial class SitePopular
 
 			PopularEntry entry = new()
 			{
+				Source = "forest",
 				Name = $"{scope}/{name}".ToLowerInvariant(),
 				Description = String(root, "description") ?? "",
 				Latest = String(root, "latest") ?? String(root, "version") ?? "",
@@ -170,10 +182,14 @@ public static partial class SitePopular
 				Downloads = Number(root, "downloads"),
 				WeeklyDownloads = Number(root, "weeklyDownloads"),
 				Likes = Number(root, "likes"),
-				Url = $"{ForestSite}p/roblox/{scope}/{name}",
 			};
 
-			JsonObject detail = new()
+			if (await MirroredFromWallyAsync(scope, name, entry.Latest) && await WallyEntryAsync(entry) is PopularEntry wally)
+			{
+				return wally;
+			}
+
+			entry.Detail = new JsonObject
 			{
 				["name"] = entry.Name,
 				["description"] = entry.Description,
@@ -182,13 +198,10 @@ public static partial class SitePopular
 				["downloads"] = entry.Downloads,
 				["weekly_downloads"] = entry.WeeklyDownloads,
 				["likes"] = entry.Likes,
-				["url"] = entry.Url,
 				["readme"] = String(root, "readme"),
 				["versions"] = root.TryGetProperty("versions", out JsonElement versions) ? JsonNode.Parse(versions.GetRawText()) : null,
 				["dependencies"] = root.TryGetProperty("dependencies", out JsonElement dependencies) ? JsonNode.Parse(dependencies.GetRawText()) : null,
 			};
-
-			entry.Detail = detail;
 
 			return entry;
 		}
@@ -198,9 +211,74 @@ public static partial class SitePopular
 		}
 	}
 
+	static async Task<bool> MirroredFromWallyAsync(string scope, string name, string version)
+	{
+		string url = $"{ForestRegistry.DefaultApi}/v1/package/{Uri.EscapeDataString(scope)}/roblox/{Uri.EscapeDataString(name)}/{Uri.EscapeDataString(version)}";
+		string? text = await Http.GetTextOrNullAsync(url);
+
+		if (text is null)
+		{
+			return false;
+		}
+
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(text);
+
+			return String(document.RootElement, "mirroredFrom") == "wally";
+		}
+		catch (JsonException)
+		{
+			return false;
+		}
+	}
+
+	static async Task<PopularEntry?> WallyEntryAsync(PopularEntry forest)
+	{
+		string? text = await Http.GetTextOrNullAsync($"{WallyApi}/package-metadata/{forest.Name}");
+
+		if (text is null)
+		{
+			return null;
+		}
+
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(text);
+			List<JsonElement> packages = document.RootElement.GetProperty("versions").EnumerateArray()
+				.Select(version => version.GetProperty("package"))
+				.ToList();
+			JsonElement? newest = packages
+				.Where(package => SemVer.TryParse(String(package, "version"), out _))
+				.OrderByDescending(package => SemVer.Parse(String(package, "version")!))
+				.Cast<JsonElement?>()
+				.FirstOrDefault();
+
+			if (newest is not JsonElement package)
+			{
+				return null;
+			}
+
+			return new PopularEntry
+			{
+				Source = "wally",
+				Name = forest.Name,
+				Description = String(package, "description") ?? "",
+				Latest = String(package, "version") ?? forest.Latest,
+				License = String(package, "license"),
+				Downloads = forest.Downloads,
+				WeeklyDownloads = forest.WeeklyDownloads,
+			};
+		}
+		catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
+		{
+			return null;
+		}
+	}
+
 	static string? String(JsonElement root, string property)
 	{
-		return root.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+		return root.ValueKind == JsonValueKind.Object && root.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 	}
 
 	static long? Number(JsonElement root, string property)

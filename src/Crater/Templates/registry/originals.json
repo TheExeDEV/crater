@@ -1,0 +1,13 @@
+{
+  "packages": [
+    "wally#evaera/promise",
+    "wally#evaera/cmdr",
+    "wally#sleitnick/knit",
+    "wally#sleitnick/signal",
+    "wally#sleitnick/comm",
+    "wally#elttob/fusion",
+    "wally#littensy/charm",
+    "wally#howmanysmall/janitor",
+    "wally#ukendio/jecs"
+  ]
+}

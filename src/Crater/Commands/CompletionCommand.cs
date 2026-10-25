@@ -15,7 +15,7 @@ public static class CompletionCommand
 	[
 		"init", "import", "bump", "run", "dev", "doctor",
 		"install", "update", "add", "remove", "outdated", "list", "graph", "why", "patch", "unused", "size", "licenses",
-		"search", "info", "versions", "pack", "publish", "deprecate", "owner", "login", "logout", "whoami", "registry", "tool",
+		"search", "info", "versions", "pack", "publish", "deprecate", "owner", "history", "login", "logout", "whoami", "registry", "tool",
 		"cache", "completion", "self-update", "version",
 	];
 
@@ -32,6 +32,7 @@ public static class CompletionCommand
 		["outdated"] = ["--all"],
 		["publish"] = ["--dry-run", "--workspace"],
 		["deprecate"] = ["--undo", "--registry", "--dry-run"],
+		["history"] = ["--limit", "--registry"],
 		["login"] = ["--private", "--force"],
 		["dev"] = ["--no-serve"],
 		["graph"] = ["--output", "--client", "--server", "--dev", "--depth"],

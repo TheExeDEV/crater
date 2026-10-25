@@ -12,7 +12,7 @@ public sealed partial class RegistryChecker(string root)
 	{
 		".git", ".github", ".gitignore", ".gitattributes", "_site",
 		"README.md", "CONTRIBUTING.md", "LICENSE", "LICENSE.md",
-		RegistryInfo.FileName, Catalog.FileName,
+		RegistryInfo.FileName, Catalog.FileName, Originals.FileName,
 	};
 
 	[GeneratedRegex("^[a-z0-9_-]+$")]
@@ -46,6 +46,16 @@ public sealed partial class RegistryChecker(string root)
 			}
 
 			CheckScope(entry, name);
+		}
+
+		string originalsPath = Path.Combine(root, Originals.FileName);
+
+		if (File.Exists(originalsPath) && Try(() => Json.ReadFile<Originals>(originalsPath), Originals.FileName) is Originals originals)
+		{
+			foreach (string invalid in originals.Invalid())
+			{
+				Errors.Add($"{Fmt.File(Originals.FileName)}: {Fmt.Val(invalid)} is not a package. Expected {Fmt.Val("scope/name")} or {Fmt.Val("wally#scope/name")}.");
+			}
 		}
 
 		string catalogPath = Path.Combine(root, Catalog.FileName);

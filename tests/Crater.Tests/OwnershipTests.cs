@@ -178,6 +178,57 @@ public sealed class OwnershipTests : IDisposable
 	}
 
 	[Fact]
+	public void HistoryShowsWhoChangedAPackage()
+	{
+		string registry = Path.Combine(root, "registry");
+		Directory.CreateDirectory(registry);
+		Git(registry, "init", "-q", "-b", "main");
+
+		string lib = Project("alice/lib", "../registry", []);
+
+		Assert.Equal(0, Crater(lib, "publish", "-y").ExitCode);
+		Commit(registry, "Publish alice/lib@1.0.0");
+		Assert.Equal(0, Crater(lib, "deprecate", "alice/lib", "use alice/better", "-y").ExitCode);
+		Commit(registry, "alice/lib is deprecated: use alice/better");
+
+		string history = Out.Plain(Crater(lib, "history", "alice/lib").Output);
+
+		Assert.Contains("Publish alice/lib@1.0.0", history);
+		Assert.Contains("alice/lib is deprecated: use alice/better", history);
+		Assert.Contains("test", history);
+		Assert.Equal(1, Crater(lib, "history", "not a package").ExitCode);
+	}
+
+	[Fact]
+	public void RegistryCheckValidatesOriginals()
+	{
+		string registry = Path.Combine(root, "registry");
+		Directory.CreateDirectory(registry);
+		File.WriteAllText(Path.Combine(registry, "originals.json"), "{\"packages\":[\"wally#evaera/promise\",\"sleitnick/knit\",\"not a package\",\"npm#left/pad\"]}");
+
+		RegistryChecker checker = new(registry);
+		checker.CheckContents();
+
+		Assert.Equal(2, checker.Errors.Count);
+		Assert.Empty(checker.Warnings);
+		Assert.Equal(["sleitnick/knit", "wally#evaera/promise"], Originals.Load(registry).Normalized());
+	}
+
+	[Fact]
+	public void PopularPackagesAreNotRepeatedAcrossRegistries()
+	{
+		List<global::Crater.Site.PopularEntry> combined = global::Crater.Site.SitePopular.Combine(
+		[
+			new() { Source = "forest", Name = "evaera/promise", Downloads = 900 },
+			new() { Source = "wally", Name = "evaera/promise", WeeklyDownloads = 600 },
+			new() { Source = "forest", Name = "acorn/signal", WeeklyDownloads = 50 },
+			new() { Source = "crater", Name = "alice/lib", Dependents = 2 },
+		]);
+
+		Assert.Equal(["crater:alice/lib", "wally:evaera/promise", "forest:acorn/signal"], combined.Select(entry => $"{entry.Source}:{entry.Name}").ToList());
+	}
+
+	[Fact]
 	public void OwnerCommandValidatesInput()
 	{
 		string registry = Path.Combine(root, "registry");
