@@ -234,7 +234,7 @@ public sealed class OwnershipTests : IDisposable
 		(int exitCode, string output) = Crater(lib, "pack", "-o", Path.Combine(root, "tools.zip"));
 
 		Assert.Equal(0, exitCode);
-		Assert.Contains("Left out 3 executable files", output);
+		Assert.Contains("Left out 3 executable files or archives", output);
 
 		using System.IO.Compression.ZipArchive zip = System.IO.Compression.ZipFile.OpenRead(Path.Combine(root, "tools.zip"));
 

@@ -167,7 +167,7 @@ public static partial class PackageScanner
 
 		if (kind == ProgramKind.Binary)
 		{
-			yield return new Finding(Severity.Blocked, packageId, path, 0, "executable file, packages must not ship programs", "");
+			yield return new Finding(Severity.Blocked, packageId, path, 0, "program or archive, packages must not ship programs or archives that can hide them", "");
 			yield break;
 		}
 
