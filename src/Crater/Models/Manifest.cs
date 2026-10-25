@@ -31,6 +31,7 @@ public sealed class Manifest
 	[JsonPropertyName("import_to")] public string ImportTo { get; set; } = "shared";
 
 	[JsonPropertyName("path_to_main")] public string PathToMain { get; set; } = "";
+	[JsonPropertyName("icon")] public string? Icon { get; set; }
 	[JsonPropertyName("path_to_definition_files")] public List<string> DefinitionFiles { get; set; } = [];
 	[JsonPropertyName("path_to_definition_file")] public string? LegacyDefinitionFile { get; set; }
 

@@ -138,6 +138,48 @@ public sealed class RegistryFeatureTests : IDisposable
 		Assert.Contains("Renamed `run` to `start`", output);
 	}
 
+	[Fact]
+	public void PackageIconIsCheckedAndShownOnTheSite()
+	{
+		byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];
+		string lib = Project("t/pretty", [], manifest => manifest["icon"] = "assets/icon.png");
+
+		Assert.Equal(1, Crater(lib, "pack", "-o", Path.Combine(root, "pretty.zip")).ExitCode);
+
+		Directory.CreateDirectory(Path.Combine(lib, "assets"));
+		File.WriteAllBytes(Path.Combine(lib, "assets", "icon.png"), new byte[300 * 1024]);
+		Assert.Equal(1, Crater(lib, "pack", "-o", Path.Combine(root, "pretty.zip")).ExitCode);
+
+		File.WriteAllBytes(Path.Combine(lib, "assets", "icon.png"), png);
+		Assert.Equal(0, Crater(lib, "publish", "-y").ExitCode);
+
+		string site = Path.Combine(root, "site");
+		Environment.SetEnvironmentVariable("CRATER_SITE_NO_EXTERNAL", "1");
+
+		try
+		{
+			global::Crater.Site.SiteBuilder.Build(Path.Combine(root, "registry"), site, "TheExeDEV/crater");
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("CRATER_SITE_NO_EXTERNAL", null);
+		}
+
+		Assert.Equal(png, File.ReadAllBytes(Path.Combine(site, "data", "icons", "t", "pretty.png")));
+		Assert.Contains("\"icon\": \"data/icons/t/pretty.png\"", File.ReadAllText(Path.Combine(site, "data", "packages", "t", "pretty.json")));
+		Assert.Contains("\"icon\": \"data/icons/t/pretty.png\"", File.ReadAllText(Path.Combine(site, "data", "packages.json")));
+	}
+
+	[Fact]
+	public void IconMustBeAnImage()
+	{
+		string lib = Project("t/odd", [], manifest => manifest["icon"] = "icon.txt");
+
+		File.WriteAllText(Path.Combine(lib, "icon.txt"), "not an image");
+		Assert.Equal(1, Crater(lib, "pack", "-o", Path.Combine(root, "odd.zip")).ExitCode);
+		Assert.False(File.Exists(Path.Combine(root, "odd.zip")));
+	}
+
 	[Theory]
 	[InlineData("## 1.2.0\n\n- a\n\n## 1.1.0\n\n- b", "1.2.0", "- a")]
 	[InlineData("## [1.2.0] - 2026-01-01\n- a\n### Fixed\n- c\n## [1.1.0]\n- b", "1.2.0", "- a\n### Fixed\n- c")]

@@ -68,6 +68,7 @@ public static class Packer
 		}
 
 		RequirePath(project, files, project.Manifest.PathToMain, "path_to_main");
+		RequireIcon(project, files);
 		RequireDefinitions(project, files);
 
 		using MemoryStream stream = new();
@@ -165,19 +166,63 @@ public static class Packer
 
 	public static string? ReadText(byte[] archiveData, string entryName, int maxBytes = 512 * 1024)
 	{
+		byte[]? data = ReadBytes(archiveData, entryName, maxBytes);
+
+		return data is null ? null : new StreamReader(new MemoryStream(data)).ReadToEnd();
+	}
+
+	public static byte[]? ReadBytes(byte[] archiveData, string entryName, int maxBytes)
+	{
 		using ZipArchive archive = new(new MemoryStream(archiveData), ZipArchiveMode.Read);
 
+		string wanted = Links.NormalizeRelative(entryName);
 		ZipArchiveEntry? entry = archive.Entries.FirstOrDefault(
-			item => item.FullName.Replace('\\', '/').Equals(entryName, StringComparison.OrdinalIgnoreCase));
+			item => item.FullName.Replace('\\', '/').Equals(wanted, StringComparison.OrdinalIgnoreCase));
 
 		if (entry is null || entry.Length > maxBytes)
 		{
 			return null;
 		}
 
-		using StreamReader reader = new(entry.Open());
+		using Stream stream = entry.Open();
+		using MemoryStream buffer = new();
 
-		return reader.ReadToEnd();
+		stream.CopyTo(buffer);
+
+		return buffer.ToArray();
+	}
+
+	public static readonly string[] IconExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"];
+
+	public const int MaxIconBytes = 256 * 1024;
+
+	static void RequireIcon(Project project, List<string> files)
+	{
+		string? icon = project.Manifest.Icon;
+
+		if (string.IsNullOrWhiteSpace(icon))
+		{
+			return;
+		}
+
+		string relative = Links.NormalizeRelative(icon);
+
+		if (!IconExtensions.Contains(Path.GetExtension(relative), StringComparer.OrdinalIgnoreCase))
+		{
+			throw new CraterException($"icon = {Fmt.File(icon)}: use a .png, .jpg, .webp, .gif or .svg image.");
+		}
+
+		if (!files.Contains(relative))
+		{
+			throw new CraterException($"icon = {Fmt.File(icon)}: file not found or excluded from the archive.");
+		}
+
+		long size = new FileInfo(Path.Combine(project.Directory, relative)).Length;
+
+		if (size > MaxIconBytes)
+		{
+			throw new CraterException($"icon = {Fmt.File(icon)} is {size / 1024} KB. Keep it under {MaxIconBytes / 1024} KB, 256x256 pixels is plenty.");
+		}
 	}
 
 	static void RequireDefinitions(Project project, List<string> files)
