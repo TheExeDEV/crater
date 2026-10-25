@@ -86,7 +86,7 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 		{
 			if (!isOwner)
 			{
-				await GitHubApi.SendAsync(HttpMethod.Post, $"repos/{target}/merge-upstream", new JsonObject { ["branch"] = registry.Branch });
+				await SyncCopyAsync(target, head);
 			}
 
 			string commit = await CreateCommitAsync(target, head, files, title);
@@ -152,6 +152,26 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 				Directory.Delete(staging, recursive: true);
 			}
 		}
+	}
+
+	async Task SyncCopyAsync(string copy, string head)
+	{
+		await GitHubApi.SendAsync(HttpMethod.Post, $"repos/{copy}/merge-upstream", new JsonObject { ["branch"] = registry.Branch });
+
+		GitHubApi.Result current = await GitHubApi.SendAsync(HttpMethod.Get, $"repos/{copy}/git/ref/heads/{registry.Branch}");
+		string? sha = current.Success && current.Json is { } json && json.TryGetProperty("object", out JsonElement target)
+			? target.GetProperty("sha").GetString()
+			: null;
+
+		if (sha == head)
+		{
+			return;
+		}
+
+		throw new CraterException(
+			$"Your copy of the registry ({Fmt.Val(copy)}) is behind {Fmt.Val(registry.Slug)}, and GitHub did not let crater update it. " +
+			$"This happens when the registry changed its {Fmt.File(".github/workflows")} files. " +
+			$"Open {Fmt.File($"https://github.com/{copy}")}, click {Fmt.Val("Sync fork")}, then {Fmt.Val("Update branch")}, and run {Fmt.Cmd("crater publish")} again.");
 	}
 
 	static async Task<string> CreateCommitAsync(string target, string head, List<PackageFile> files, string message)
