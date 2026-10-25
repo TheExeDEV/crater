@@ -106,6 +106,56 @@ public sealed class ExecutableTests : IDisposable
 		Assert.Equal(ProgramKind.Binary, Executables.Classify(path, content));
 	}
 
+	[Theory]
+	[InlineData("level.gpp", new byte[] { 0x50, 0x4B, 0x03, 0x04 })]
+	[InlineData("notes.txt", new byte[] { 0x50, 0x4B, 0x03, 0x04 })]
+	[InlineData("data.bin2", new byte[] { 0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C })]
+	[InlineData("music.ogg", new byte[] { 0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00 })]
+	[InlineData("save.dat", new byte[] { 0x1F, 0x8B, 0x08, 0x00 })]
+	[InlineData("map.gpp", new byte[] { 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00 })]
+	[InlineData("frame.gpp", new byte[] { 0x28, 0xB5, 0x2F, 0xFD })]
+	[InlineData("setup.gpp", new byte[] { 0x4D, 0x53, 0x43, 0x46 })]
+	[InlineData("files.7z", new byte[] { 0x00 })]
+	public void ArchivesUnderAnyNameAreBlocked(string path, byte[] content)
+	{
+		Assert.Equal(ProgramKind.Binary, Executables.Classify(path, content));
+	}
+
+	[Fact]
+	public void TarArchivesAreFoundByTheirHeader()
+	{
+		byte[] tar = new byte[512];
+		"ustar"u8.CopyTo(tar.AsSpan(257));
+
+		Assert.Equal(ProgramKind.Binary, Executables.Classify("level.gpp", tar));
+		Assert.Equal(ProgramKind.None, Executables.Classify("README.md", Text("BZh is a word here")));
+	}
+
+	[Fact]
+	public void ZipWithAProgramInsideIsLeftOutAndBlocked()
+	{
+		using MemoryStream inner = new();
+
+		using (ZipArchive zip = new(inner, ZipArchiveMode.Create, leaveOpen: true))
+		{
+			Add(zip, "rojo.exe", [0x4D, 0x5A, 0x90, 0x00]);
+		}
+
+		string lib = Package(["*"], new() { ["assets/level.gpp"] = inner.ToArray() });
+
+		Assert.Equal(["crater.json", "init.luau"], Packed(lib));
+
+		using MemoryStream archive = new();
+
+		using (ZipArchive zip = new(archive, ZipArchiveMode.Create, leaveOpen: true))
+		{
+			Add(zip, "crater.json", Text("{\"name\":\"t/evil\",\"version\":\"1.0.0\",\"allow_files\":[\"*\"]}"));
+			Add(zip, "assets/level.gpp", inner.ToArray());
+		}
+
+		Assert.Contains(PackageScanner.ScanArchive(archive.ToArray(), "t/evil@1.0.0"), finding => finding.File == "assets/level.gpp" && finding.Severity == Severity.Blocked);
+	}
+
 	[Fact]
 	public void AnyNonProgramFileIsPublished()
 	{

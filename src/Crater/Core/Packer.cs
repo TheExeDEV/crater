@@ -54,7 +54,7 @@ public static class Packer
 			string shown = string.Join(", ", programs.Take(5).Select(item => Fmt.File(item.Path)));
 			string more = programs.Count > 5 ? $" and {programs.Count - 5} more" : "";
 
-			Out.Warn($"Left out {Fmt.Plural(programs.Count, "executable file", "executable files")}, packages do not ship programs: {shown}{more}");
+			Out.Warn($"Left out {Fmt.Plural(programs.Count, "executable file or archive", "executable files or archives")}, packages do not ship programs: {shown}{more}");
 
 			if (programs.Any(item => item.Kind == ProgramKind.Script))
 			{

@@ -17,6 +17,7 @@ public static class Executables
 		".so", ".run", ".bin", ".appimage", ".deb", ".rpm", ".elf",
 		".dylib", ".pkg", ".dmg",
 		".jar", ".apk", ".wasm", ".node",
+		".7z", ".rar", ".tar", ".gz", ".tgz", ".xz", ".bz2", ".zst", ".cab", ".iso",
 	};
 
 	static readonly HashSet<string> ScriptExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -34,7 +35,21 @@ public static class Executables
 		[0xCF, 0xFA, 0xED, 0xFE],
 		[0xCA, 0xFE, 0xBA, 0xBE],
 		[0x00, 0x61, 0x73, 0x6D],
+		[0x50, 0x4B, 0x03, 0x04],
+		[0x50, 0x4B, 0x05, 0x06],
+		[0x50, 0x4B, 0x07, 0x08],
+		[0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C],
+		[0x52, 0x61, 0x72, 0x21, 0x1A, 0x07],
+		[0x1F, 0x8B],
+		[0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00],
+		[0x42, 0x5A, 0x68],
+		[0x28, 0xB5, 0x2F, 0xFD],
+		[0x4D, 0x53, 0x43, 0x46],
 	];
+
+	static readonly byte[] TarMagic = "ustar"u8.ToArray();
+
+	const int TarMagicOffset = 257;
 
 	static readonly HashSet<string> TextExtensions = new(StringComparer.OrdinalIgnoreCase)
 	{
@@ -63,8 +78,13 @@ public static class Executables
 		{
 			if (content.StartsWith(magic))
 			{
-				return magic.Length == 2 && TextExtensions.Contains(extension) ? ProgramKind.None : ProgramKind.Binary;
+				return magic.Length <= 3 && TextExtensions.Contains(extension) ? ProgramKind.None : ProgramKind.Binary;
 			}
+		}
+
+		if (content.Length >= TarMagicOffset + TarMagic.Length && content[TarMagicOffset..].StartsWith(TarMagic))
+		{
+			return ProgramKind.Binary;
 		}
 
 		bool script = ScriptExtensions.Contains(extension) || (extension.Length == 0 && content.StartsWith("#!"u8));
