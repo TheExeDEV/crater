@@ -197,6 +197,7 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/TheExeDEV/crater/main/schemas/crater.schema.json",
   "name": "theexedev/my-game",
   "authors": ["TheExeDEV"],
   "description": "My game",
@@ -206,21 +207,33 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 
   "registry": "https://github.com/TheExeDEV/crater-registry",
   "repository": "https://github.com/TheExeDEV/my-game",
+  "registries": { "team": "https://github.com/MyStudio/team-registry" },
 
   "can_publish": true,
   "import_to": "shared",
 
   "path_to_main": "src/init.luau",
+  "icon": "assets/icon.png",
   "path_to_definition_files": ["types/api.d.luau", "defs", "extra/*.d.luau"],
 
-  "import_client": ["beta/adof+0.12.44", "Promise:evaera/promise^4"],
+  "import_client": ["beta/adof+0.12.44", "Promise:evaera/promise^4", "team#mystudio/combat^1"],
   "import_server": ["dep/dependency^"],
   "import_develop": ["roblox/testez^0.4"],
 
   "overrides": ["evaera/promise^4.1.0"],
   "workspace": ["packages/*"],
   "scripts": { "build": "rojo build -o build.rbxl" },
-  "exclude": ["tests/"]
+  "tools": { "rojo": "rojo-rbx/rojo@7.7.1", "luau-lsp": "JohnnyMorganz/luau-lsp@1.70.1" },
+
+  "block_package_scripts": false,
+  "allow_scripts_from": ["sleitnick/cmdr"],
+  "exclude": ["tests/"],
+  "allow_files": ["scripts/setup.sh"],
+
+  "monorepository": false,
+  "monorepository-elements": {},
+  "interface": false,
+  "realized_interfaces": []
 }
 ```
 
@@ -231,6 +244,7 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `version` | Three numbers, `MAJOR.MINOR.PATCH`, for example `1.0.0` (not `1.0`), optional `-prerelease`. A project that is never published can keep any value. |
 | `registry` | Where dependencies come from and where `publish` goes. One registry or a list of them, see [Several registries](#several-registries). `crater init` fills in the default registry. See [Registry locations](#registry-locations). |
 | `repository` | Source code URL, shown on the website. |
+| `registries` | Short names for extra registries, used as a prefix in dependencies: with `"team": "https://github.com/MyStudio/team-registry"` you write `team#mystudio/combat^1`. `crater`, `wally`, `pesde`, `forest` and `ember` are built in. See [Several registries](#several-registries). |
 | `can_publish` | `true` lets `crater publish` send the package. `crater init` sets `true`; use `false` for games that are never published. |
 | `block_package_scripts`, `allow_scripts_from` | Refuse packages that run scripts in your game, except the listed ones. See [Packages that run scripts](#packages-that-run-scripts). |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
@@ -241,6 +255,7 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
 | `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
 | `scripts` | Commands for `crater run`. |
+| `tools` | Tools pinned to the project, `owner/repo@version`, written by `crater tool add`. See [Tools](#tools). |
 | `exclude` | Extra glob patterns left out of the published archive, on top of `.gitignore` and `.craterignore`. |
 | `allow_files` | Scripts (`.sh`, `.bat`, `.ps1`...) to keep in the published archive, see [What goes into the package](#what-goes-into-the-package). Programs cannot be allowed. |
 | `monorepository`, `monorepository-elements` | Marks the package as a collection of separate packages, see [Monorepositories](#monorepositories). |
