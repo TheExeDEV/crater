@@ -55,6 +55,10 @@ public static partial class ProjectCommands
 			Out.Ok($"Created {Fmt.File(ProjectConfig.FileName)}");
 		}
 
+		CraterDeclare.Write(directory);
+		Out.Dim($"  wrote {CraterDeclare.FileName}, a hidden file that tells other tools crater manages this folder");
+		Out.Dim("  hover a field in VS Code to see what it does");
+
 		if (template is not null)
 		{
 			string shortName = name[(name.IndexOf('/') + 1)..];
@@ -85,6 +89,7 @@ public static partial class ProjectCommands
 	{
 		return new JsonObject
 		{
+			["$schema"] = SchemaUrl("crater.schema.json"),
 			["name"] = name,
 			["authors"] = new JsonArray(),
 			["description"] = "",
@@ -97,7 +102,6 @@ public static partial class ProjectCommands
 			["import_to"] = "shared",
 			["registries"] = new JsonObject(),
 			["path_to_main"] = "src/init.luau",
-			["icon"] = "",
 			["path_to_definition_files"] = new JsonArray(),
 			["import_client"] = new JsonArray(),
 			["import_server"] = new JsonArray(),
@@ -110,13 +114,25 @@ public static partial class ProjectCommands
 			["allow_scripts_from"] = new JsonArray(),
 			["exclude"] = new JsonArray(),
 			["allow_files"] = new JsonArray(),
+			["monorepository"] = false,
+			["monorepository-elements"] = new JsonObject(),
+			["interface"] = false,
+			["realized_interfaces"] = new JsonArray(),
 		};
+	}
+
+	public static string SchemaUrl(string file)
+	{
+		string repository = BuildInfo.UpdateRepo.Length > 0 ? BuildInfo.UpdateRepo : "TheExeDEV/crater";
+
+		return $"https://raw.githubusercontent.com/{repository}/main/schemas/{file}";
 	}
 
 	public static JsonObject SettingsTemplate()
 	{
 		return new JsonObject
 		{
+			["$schema"] = SchemaUrl("crater.settings.schema.json"),
 			["import_client_path"] = ProjectConfig.SuggestedFolder(Realm.Client),
 			["import_server_path"] = ProjectConfig.SuggestedFolder(Realm.Server),
 			["import_develop_path"] = ProjectConfig.SuggestedFolder(Realm.Develop),

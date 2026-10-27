@@ -29,7 +29,7 @@ public static class Registries
 
 			if (!Opened.TryGetValue(url, out IRegistry? remote))
 			{
-				remote = ForestRegistry.IsForest(url) ? new ForestRegistry(url) : new HttpRegistry(url);
+				remote = ForestRegistry.IsForest(url) ? new ForestRegistry(url) : EmberRegistry.IsEmber(url) ? new EmberRegistry(url) : new HttpRegistry(url);
 				Opened[url] = remote;
 			}
 

@@ -39,6 +39,7 @@ public sealed class Project
 		Manifest manifest = Manifest.Load(Path.Combine(fullPath, Manifest.FileName));
 
 		manifest.ValidateCommon();
+		CraterDeclare.Ensure(fullPath, quiet: false);
 
 		return new Project
 		{

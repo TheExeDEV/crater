@@ -4,7 +4,7 @@
 
 A project manager for Luau and Roblox, written in C# on .NET 10.
 
-One `crater.json` describes the whole project: the packages it uses, the tools it needs (Rojo, luau-lsp, StyLua and others), its scripts and how it is published. crater creates the project from a template, installs packages from the crater registry, Wally, pesde and Forest, pins the same tool versions for the whole team, runs Rojo with a live reinstall and checks the project with `doctor` and `audit`.
+One `crater.json` describes the whole project: the packages it uses, the tools it needs (Rojo, luau-lsp, StyLua and others), its scripts and how it is published. crater creates the project from a template, installs packages from the crater registry, Wally, pesde, Forest and Ember, pins the same tool versions for the whole team, runs Rojo with a live reinstall and checks the project with `doctor` and `audit`.
 
 It started as a package manager like Wally or pesde, borrows ideas from Cargo and npm, and keeps its registry in a plain GitHub repository where anyone can publish through a pull request.
 
@@ -14,7 +14,7 @@ It started as a package manager like Wally or pesde, borrows ideas from Cargo an
 - Pinned tools: `crater tool add rojo luau-lsp` puts the versions into `crater.json`, everyone who clones the project gets the same ones. The list of known tools lives in [`tools.json`](tools.json) and grows without a release
 - `crater run` for project scripts, `crater dev` for Rojo plus a reinstall every time `crater.json` changes
 - `crater doctor` checks the setup, `crater audit` checks the packages: deprecated versions, scripts that run in your game, licenses, backdoor patterns, updates
-- Workspaces for monorepos, `crater bump` for versions, `crater self-update`, Tab completion for PowerShell, bash, zsh and fish
+- Workspaces, [monorepositories](#monorepositories) you pick parts from, [interfaces](#interfaces) with `crater find-interface`, `crater bump` for versions, `crater self-update`, Tab completion for PowerShell, bash, zsh and fish
 
 **The packages**
 
@@ -24,7 +24,7 @@ It started as a package manager like Wally or pesde, borrows ideas from Cargo an
 - Every package is installed once per folder, and `overrides` force one version for the whole tree
 - Link files re-export `export type` declarations, so luau-lsp sees package types
 - Lock file with sha256 checks, parallel downloads, a summary of what changed
-- Installs from the crater registry, Wally, pesde and Forest, also mixed in one project
+- Installs from the crater registry, Wally, pesde, Forest and Ember, also mixed in one project
 - `outdated`, interactive `update -i`, `why`, `graph`, `search`, `info`, `patch`, `unused`, `size`, `licenses`
 - Changelogs and deprecation messages from package authors, shown on install, update and the website
 - Optional updates of `.luaurc` aliases and the luau-lsp definition files in VS Code
@@ -43,12 +43,12 @@ It started as a package manager like Wally or pesde, borrows ideas from Cargo an
 1. [Installation](#installation)
 2. [Quick start](#quick-start)
 3. [crater.json](#craterjson)
-4. [crater.settings.json](#cratersettingsjson)
+4. [crater.settings.json](#cratersettingsjson) and [.crater-declare](#crater-declare)
 5. [Dependency syntax](#dependency-syntax)
 6. [Aliases](#aliases)
 7. [One copy per package and overrides](#one-copy-per-package-and-overrides)
 8. [Local and git dependencies](#local-and-git-dependencies)
-9. [Workspaces](#workspaces)
+9. [Workspaces](#workspaces), [Monorepositories](#monorepositories), [Interfaces](#interfaces)
 10. [Realms and transitive dependencies](#realms-and-transitive-dependencies)
 11. [What gets installed](#what-gets-installed)
 12. [Editor integration](#editor-integration)
@@ -124,7 +124,7 @@ curl -fsSL https://raw.githubusercontent.com/TheExeDEV/crater/main/installers/un
 Installed as a .NET tool instead? Run `dotnet tool uninstall -g crater`.
 
 
-The default registry is [TheExeDEV/crater-registry](https://github.com/TheExeDEV/crater-registry), browse it at [theexedev.github.io/crater-registry](https://theexedev.github.io/crater-registry/). It works without any config.
+The default registry is [TheExeDEV/crater-registry](https://github.com/TheExeDEV/crater-registry), browse it at [registry.crater-dev.workers.dev](https://registry.crater-dev.workers.dev/). It works without any config.
 
 **As a .NET tool** (needs the .NET 10 SDK):
 
@@ -193,7 +193,7 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 
 ## crater.json
 
-Every project and every package has a `crater.json`. `crater init` writes every field below, empty ones included, so you can see what exists and fill in what you need.
+Every project and every package has a `crater.json`. `crater init` writes every field below (except `icon`), empty ones included, so you can see what exists and fill in what you need. Its first line, `"$schema"`, points at [`schemas/crater.schema.json`](schemas/crater.schema.json): VS Code and other editors then explain every field when you hover it, suggest fields as you type and underline mistakes. `crater.settings.json` gets [its own schema](schemas/crater.settings.schema.json). JSON has no comments, and crater rewrites `crater.json` on `add` and `remove`, so the explanations live in the schema instead.
 
 ```json
 {
@@ -243,6 +243,9 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `scripts` | Commands for `crater run`. |
 | `exclude` | Extra glob patterns left out of the published archive, on top of `.gitignore` and `.craterignore`. |
 | `allow_files` | Scripts (`.sh`, `.bat`, `.ps1`...) to keep in the published archive, see [What goes into the package](#what-goes-into-the-package). Programs cannot be allowed. |
+| `monorepository`, `monorepository-elements` | Marks the package as a collection of separate packages, see [Monorepositories](#monorepositories). |
+| `interface`, `realized_interfaces` | Marks the package as an interface, or lists the interfaces it implements, see [Interfaces](#interfaces). |
+| `$schema` | Lets editors show the descriptions of the fields. crater ignores it. |
 
 ---
 
@@ -298,6 +301,23 @@ Older projects keep working: `crater.config.json` is still read when there is no
 `Enter` or `y` does it, `n` skips it (refusing to build a package folder cancels the install), `a` says yes to everything for this run. Without a terminal the action is skipped with a warning, so use `-y` in CI.
 
 ---
+
+## .crater-declare
+
+`crater init` also writes `.crater-declare`, a small JSON file that says crater manages this folder and where its files are:
+
+```json
+{
+  "path_to_crater_settings": "crater.settings.json",
+  "path_to_package_info": "crater.json",
+  "api_version": 1,
+  "features": ["dependencies", "tools", "scripts", "workspaces", "monorepository", "interfaces"]
+}
+```
+
+It is meant for other tools, for example package managers that migrate projects to or from crater: they read this file instead of guessing. It is hidden (a dot file, and marked hidden on Windows, so you only see it with "show hidden items" turned on), it stays out of published packages, and it should be committed with the project.
+
+crater checks it on every command. When the file is missing, broken, points at files that do not exist or describes an older API, crater says so and writes it again. `api_version` and `features` change when the format of crater files changes, so other tools can tell what they are reading.
 
 ## Dependency syntax
 
@@ -428,6 +448,58 @@ A monorepo lists its packages in the root `crater.json`:
 - `crater publish --workspace` publishes every member with `can_publish: true`, dependencies first.
 - Each member keeps its own `crater.settings.json` and `crater.lock`.
 
+## Monorepositories
+
+A monorepository is a package that only points at other packages, so people can pick the parts they need:
+
+```json
+{
+  "name": "studio/kit",
+  "version": "1.0.0",
+  "monorepository": true,
+  "monorepository-elements": {
+    "Signal": "studio/signal^1",
+    "Promise": "studio/promise^2",
+    "net": "studio/net^1"
+  }
+}
+```
+
+Each element is a short name and a dependency; a short name that differs from the package name becomes its alias. Elements without a registry come from the registry of the monorepository. `crater add studio/kit` lists them:
+
+```
+studio/kit@1.0.0 is a monorepository of 3 packages.
+   0  all of them
+   1  [ ] Signal  studio/signal^1
+   2  [x] Promise  Promise:studio/promise^2
+   3  [x] net  studio/net^1
+? Type numbers to pick packages, then apply:
+```
+
+Type numbers to pick or unpick (`0` picks all of them), then `apply`. crater asks where they go: `import_client`, `import_server`, `import_develop`, or **require as package says**, which puts each package where its own `import_to` points (server packages into `import_server`, the rest into `import_client`). `--client`, `--server` or `--dev` skip that question. With `-y` (or without a terminal) crater adds all of them, as each package says. The monorepository itself is not installed.
+
+## Interfaces
+
+An interface is a package that describes an API, usually types, that other packages implement:
+
+```json
+{ "name": "studio/logger-api", "version": "1.0.0", "interface": true }
+```
+
+```json
+{
+  "name": "studio/file-logger",
+  "version": "1.0.0",
+  "path_to_main": "src/init.luau",
+  "realized_interfaces": ["studio/logger-api"]
+}
+```
+
+- An implementation needs an entry file named `init.luau` or `main.luau` (in `path_to_main`, or a folder with one). It cannot be a [collection of modules](#packages-without-a-main-module); `crater pack` and `crater publish` refuse it.
+- An interface cannot implement other interfaces.
+- `crater find-interface studio/logger-api` lists every package that implements it. The website shows the implementations on the page of the interface and the interfaces on the page of an implementation.
+- `crater search logger interface` finds only interfaces, `crater search logger package` only packages, `crater search lint tool` the [tools](#tools) you can pin. `--type interface` works too.
+
 ---
 
 ## Realms and transitive dependencies
@@ -462,7 +534,7 @@ Packages/
 - When a package uses another name for its dependency (an alias like `Janitor` or `Promise`), crater adds a one-line `Name.luau` file that returns the real folder.
 - If the main module is not in the package root (`path_to_main` is `src/init.luau`), crater writes an `init.luau` into the package folder that returns `src`. When a package has a `default.project.json` that points at a folder (common for packages from other tools, like `lib/`), crater moves that folder's contents up into the package folder and drops the project file, so the package is called by its own name everywhere: in Rojo, in luau-lsp with or without a sourcemap, and in auto-import (`Promise`, not `lib`).
 - When a package needs a dependency under a name another package already uses (your `Promise` is `evaera/promise`, but Janitor's `Promise` is `howmanysmall/typed-promise`), crater moves that package into `_Isolated/<name>/` together with its own links, so its `script.Parent.Promise` gets the right package. `Packages.janitor` still works from your code. Only two of your own dependencies under one name is an error.
-- Programs and archives are never installed, from any registry (crater, Wally, pesde, Forest): `.exe`, `.dll`, `.so`, zip and the rest are recognized by their content and deleted right after download, with a warning. Scripts like `.sh` stay only if the package lists them in `allow_files`.
+- Programs and archives are never installed, from any registry (crater, Wally, pesde, Forest, Ember): `.exe`, `.dll`, `.so`, zip and the rest are recognized by their content and deleted right after download, with a warning. Scripts like `.sh` stay only if the package lists them in `allow_files`.
 - Only what a package needs is kept: its code, license and definition files. READMEs, changelogs, docs, tests, examples and tool configs are dropped. The package's own manifest (`crater.json`, or one from another tool) is turned into a small `.crater-package` file with its name, version, license, dependencies in crater syntax and definition files; Rojo does not sync it, so no stray `crater` or manifest modules appear inside packages.
 - Packages that were not made with crater (Wally and others) get their entry found automatically: `default.project.json`, then `init` in the root, then `src` (or `lib`, `Source`): its `init`, a module named like the package, or a collection of its modules; then the nearest `init` or module named like the package (case does not matter), skipping tests, docs and examples.
 
@@ -810,7 +882,7 @@ crater-registry/
       1.0.0.zip
   .github/workflows/
     check.yml                validates pull requests
-    publish.yml              updates the catalog and the website after merge
+    publish.yml              asks the website to rebuild after merge
 ```
 
 Why lowercase: GitHub logins are case insensitive, but raw file URLs are not, so `TheExeDEV` and `theexedev` must map to one folder.
@@ -865,6 +937,16 @@ Packages from [Forest](https://forest.dev) install the same way:
 
 crater reads versions and dependencies from the public Forest API (`api.forest.dev`, no account needed) and downloads only the files a package needs: its code, type definitions and license. Docs, tests, examples and programs are not downloaded at all. Packages that Forest mirrors from Wally are unpacked to their original Wally layout, so their dependencies resolve like any Wally package. `crater search --registry forest knit`, `crater info forest#sleitnick/knit` and `crater add --packages-list` work too. Publishing to Forest is done with `forest publish`.
 
+### Ember packages
+
+Packages from [Ember](https://emberpm.dev) install with the `ember#` prefix:
+
+```json
+"import_client": ["ember#chief/core^0.2"]
+```
+
+crater reads the public Ember index (`github.com/ember-luau/index`), takes the Roblox builds (`roblox`, `shared` and server targets) and downloads the archive each version lists. The entry module comes from the `[target] main` of the `ember.toml` (or `lpm.toml`) inside the archive, so packages built into `out/` work. Dependencies keep their aliases, and dependencies on Wally, pesde or Forest packages are converted to `wally#`, `pesde#` and `forest#`. Publishing to Ember is done with `embr publish`.
+
 ### Several registries
 
 `registry` can be one registry or a list:
@@ -888,7 +970,7 @@ A dependency can also name a registry before `#`, which skips the search:
 ]
 ```
 
-Built in names: `crater` (the default crater registry), `wally` (the Wally index), `pesde` (the pesde index) and `forest` (the Forest registry). Add your own in `crater.json`:
+Built in names: `crater` (the default crater registry), `wally` (the Wally index), `pesde` (the pesde index), `forest` (the Forest registry) and `ember` (the Ember index). Add your own in `crater.json`:
 
 ```json
 "registries": {
@@ -932,11 +1014,11 @@ crater first asks GitHub without a token. A private repository answers "not foun
 crater registry init crater-registry --repo TheExeDEV/crater-registry --crater-repo TheExeDEV/crater
 ```
 
-This writes the README, contributing rules, pull request template, `.gitattributes`, `registry.json` (with you as maintainer), an empty catalog and the two workflows. Then:
+This writes the README, contributing rules, pull request template, `.gitattributes`, `registry.json` (with you as maintainer), an empty catalog and the check workflow. Then:
 
 1. Create the GitHub repository and push the folder to `main`.
-2. In *Settings → Pages* choose *GitHub Actions* as the source.
-3. Make sure the crater repository named in `--crater-repo` is public: the workflows build crater from it.
+2. Make sure the crater repository named in `--crater-repo` is public: the check workflow builds crater from it.
+3. For a website, see [The package website](#the-package-website).
 
 ### Pull request checks
 
@@ -956,7 +1038,7 @@ Maintainers in `registry.json` (as it is on `main`, not in the pull request) may
 crater registry check . --base origin/main --author yourlogin
 ```
 
-After merge `publish.yml` builds the website, including the catalog (`data/packages.json`) used by `crater search`, and deploys it to GitHub Pages. Nothing is committed back, so `main` changes only through merged pull requests.
+After merge `publish.yml` asks the website to rebuild, including the catalog (`data/packages.json`) used by `crater search`. Nothing is committed back, so `main` changes only through merged pull requests.
 
 ### Reviewing pull requests
 
@@ -1179,36 +1261,43 @@ If `registry` in `crater.json` is a local folder (for example `"../my-registry"`
 
 ## The package website
 
+The website of the crater registry runs on Cloudflare at `https://registry.crater-dev.workers.dev`. Its frontend (the HTML, styles and scripts) and its backend (the stats API) live in a private repository; crater itself only builds the data the site shows:
+
 ```bash
-crater registry site . --output _site
+crater registry site . --output public --frontend <site folder>
 ```
 
-Builds a static site (`index.html`, `assets/`, `data/`) from the registry, with a dark and a light theme (it follows the system, the button in the top bar switches it):
+This writes `data/` (the catalog, every package page, popular packages, the latest releases, the Ember package list and package icons), `feed.xml` and, with `--frontend`, the files of the site folder with `{{NAME}}`, `{{DESCRIPTION}}`, `{{REPO_URL}}`, `{{CRATER_REPO}}`, `{{YEAR}}` and `{{ASSET_VERSION}}` filled in. Without `--frontend` you get only the data, for example to build your own site on top of it. `--serve --port 8080` previews the result.
 
-- **Home:** one "Popular packages" list from every registry (this one, Wally, pesde and Forest), each package shown once with the registry it comes from: packages of this registry that others use first, then the most downloaded ones. Packages that Forest only mirrors from Wally are shown as Wally packages. Below it, all packages of this registry with sorting (recent, most used, A-Z).
-- **One search for everything:** packages of this registry, plus Wally and pesde searched live from their own servers as you type. Every result shows where it comes from, with that registry's avatar. Packages marked as originals come first.
+What the site offers:
+
+- **Home:** one "Popular packages" list from every registry (this one, Wally, pesde and Forest), each package shown once with the registry it comes from: packages of this registry that others use first, then the most downloaded ones. Packages that Forest only mirrors from Wally are shown as Wally packages. Below it, all packages of this registry with sorting (recent, most downloaded, most used, A-Z).
+- **One search for everything:** packages of this registry, Wally and pesde searched live from their own servers as you type, Forest and Ember from lists saved when the site is built. Every result shows where it comes from, with that registry's avatar. Packages marked as originals come first.
 - **New:** the latest 50 releases of this registry, grouped by day, with new packages marked. The same list is published as an RSS feed, `feed.xml`, so anyone can follow the registry in an RSS reader or post new packages to Discord with an RSS bot.
-- **Package pages:** README, Changelog and Files tabs (Files shows the file tree and the content of every file of the version you look at, read from the package archive; the open tab and file stay when you switch versions) (the [changelog](#changelog) of every version for packages of this registry, `CHANGELOG.md` from the package archive for Wally packages), install snippets with copy buttons, owners, dependencies, "used by" and versions. The versions list on the side switches between versions; an older version says which one is the newest. Packages from other registries get pages on this site too, with `wally#` / `pesde#` / `forest#` install snippets:
-  - **Wally:** versions and dependencies from the Wally index, README, changelog and the files from the package archive itself, read live.
-  - **pesde:** versions, dependencies, description and README from the pesde registry, and the files from the package archive, read live.
-  - **Forest:** README, versions, dependencies, downloads and likes of the popular packages, saved when the site is built (Forest does not let other sites read it live). Other Forest packages open on forest.dev.
+- **Package pages:** README, Changelog and Files tabs (Files shows the file tree and the content of every file of the version you look at, read from the package archive; the open tab and file stay when you switch versions), install snippets with copy buttons, owners, dependencies, "used by", versions, downloads, views and a like button. Interfaces list their implementations, implementations list their interfaces, monorepositories list their packages. Packages from other registries get pages too, with `wally#` / `pesde#` / `forest#` / `ember#` install snippets:
+  - **Wally:** versions and dependencies from the Wally index, README, changelog and files from the package archive, read live.
+  - **pesde:** versions, dependencies, description and README from the pesde registry, files from the package archive, read live.
+  - **Forest:** README, versions, dependencies, downloads and likes of the popular packages, saved when the site is built (Forest does not let other sites read it live).
+  - **Ember:** versions and dependencies from the Ember index, README, changelog and files from the package archive, read live (the archive comes through the site's backend, because Ember's file server does not allow other sites).
 - **Originals:** many popular packages have forks under other names. List the real ones in `originals.json` in the registry root and the site marks them with an "Original" badge and shows them first in search:
 
   ```json
   { "packages": ["wally#evaera/promise", "wally#sleitnick/knit", "theexedev/signal"] }
   ```
 
-  `scope/name` marks the package in every registry, `wally#`, `pesde#`, `forest#` or `crater#` only in one. `crater registry init` creates the file with a few well-known Roblox packages; the registry check rejects entries that are not package names, and only maintainers can change it.
-- Nothing from Wally, pesde or Forest is copied into the registry repository. The Forest list is fetched when the site is built and lives only in the published site; set `CRATER_SITE_NO_EXTERNAL=1` to leave it out.
+  `scope/name` marks the package in every registry, `wally#`, `pesde#`, `forest#`, `ember#` or `crater#` only in one. `crater registry init` creates the file with a few well-known Roblox packages; the registry check rejects entries that are not package names, and only maintainers can change it.
+- Nothing from Wally, pesde, Forest or Ember is copied into the registry repository. The Forest and Ember lists are fetched when the site is built; set `CRATER_SITE_NO_EXTERNAL=1` to leave them out.
+
+The site is rebuilt when the registry changes (the registry asks the private repository to deploy) and once a day for the lists of the other registries.
 
 ### Downloads, views and likes
 
 With a stats server, the site shows downloads (all time and the last 7 days), views and likes for packages of this registry, adds a "Most downloaded" sorting and a like button on every package page. `crater install` reports each package archive it downloads from the registry. Nothing else is sent: no names, no projects, only `POST <stats_url>/download/<scope>/<name>/<version>`. Visitors and installs are counted once per day per IP address, and the server stores only a salted hash of the address. Set `CRATER_NO_STATS=1` to turn reporting off; private registries are never reported.
 
-The stats server of this registry runs at `https://stats.crater-dev.workers.dev`; its code is kept private. A registry turns stats on with the server address in `registry.json`, and the site picks it up on the next build:
+The stats API of this registry is part of its website backend, at `https://registry.crater-dev.workers.dev/api`. A registry turns stats on with the address in `registry.json`, and the site picks it up on the next build:
 
 ```json
-"stats_url": "https://stats.example.workers.dev"
+"stats_url": "https://registry.example.workers.dev/api"
 ```
 
 Any server that answers these requests works, so another registry can run its own:
@@ -1230,14 +1319,6 @@ Code in READMEs and changelogs is highlighted (Luau, bash, JSON, TOML, TypeScrip
 Links inside READMEs keep working: links to sections scroll to them, links to files of a Wally package open the file from its archive on the site, links in packages of this registry go to their `source/` folder on GitHub, and links to files the site cannot reach become plain text instead of broken links. Images with relative paths are loaded the same way.
 
 README files are rendered with marked and sanitized with DOMPurify; all other data, including everything from other registries, is inserted as text.
-
-Preview it locally:
-
-```bash
-crater registry site . --serve --port 8080
-```
-
-The publish workflow deploys it to GitHub Pages after every merge.
 
 ---
 
@@ -1283,7 +1364,8 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `list` (`ls`) | Installed tree. |
 | `why <scope/name>` | Why a package is installed. |
 | `graph [-o file.md] [--client\|--server\|--dev] [--depth n]` | Mermaid diagram of the installed tree. |
-| `search [query]` | Search the registry catalog. |
+| `search [query] [package\|interface\|tool]` | Search the registry catalog, only interfaces, only packages, or the tools you can pin. |
+| `find-interface <author/name>` | Packages that implement an interface, see [Interfaces](#interfaces). |
 | `info <scope/name>` | Package details. |
 | `versions <scope/name>` | Published versions. |
 | `run [script] [-- args]` | Run a script. |

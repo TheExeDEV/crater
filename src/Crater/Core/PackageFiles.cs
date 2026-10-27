@@ -9,7 +9,7 @@ public static class PackageFiles
 	public const string PesdeLinkFolder = "roblox_packages";
 
 	static readonly string[] LicensePrefixes = ["license", "licence", "copying", "notice", "unlicense"];
-	static readonly string[] Manifests = ["crater.json", "wally.toml", "pesde.toml"];
+	static readonly string[] Manifests = ["crater.json", "wally.toml", "pesde.toml", "ember.toml", "lpm.toml"];
 	static readonly string[] DocumentPrefixes = ["readme", "changelog", "changes", "history", "contributing", "code_of_conduct", "security", "authors"];
 
 	static readonly HashSet<string> ToolFiles = new(StringComparer.OrdinalIgnoreCase)
@@ -137,7 +137,7 @@ public static class PackageFiles
 				return false;
 			}
 
-			if (segments[..^1].Any(DevFolders.Contains))
+			if ((codeTop is null ? segments[..^1] : segments[1..^1]).Any(DevFolders.Contains))
 			{
 				return false;
 			}
@@ -151,13 +151,29 @@ public static class PackageFiles
 		};
 	}
 
+	static string? EmberTop(System.IO.Compression.ZipArchive zip, List<string> paths)
+	{
+		System.IO.Compression.ZipArchiveEntry? entry = zip.Entries.FirstOrDefault(item => Crater.Registry.EmberRegistry.ManifestFiles.Contains(item.FullName));
+
+		if (entry is null)
+		{
+			return null;
+		}
+
+		using StreamReader reader = new(entry.Open());
+		string normalized = Links.NormalizeRelative(Crater.Registry.EmberRegistry.MainFromManifest(reader.ReadToEnd(), entry.FullName) ?? "");
+		bool exists = normalized.Contains('/') && paths.Any(path => path.StartsWith(normalized + "/", StringComparison.Ordinal) || path.StartsWith(normalized + ".", StringComparison.Ordinal));
+
+		return exists ? normalized.Split('/')[0] : null;
+	}
+
 	static string? ProjectTop(System.IO.Compression.ZipArchive zip, List<string> paths)
 	{
 		System.IO.Compression.ZipArchiveEntry? entry = zip.Entries.FirstOrDefault(item => item.FullName == PackageEntry.RojoProject);
 
 		if (entry is null)
 		{
-			return null;
+			return EmberTop(zip, paths);
 		}
 
 		try

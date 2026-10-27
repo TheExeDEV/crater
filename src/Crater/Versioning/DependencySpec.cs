@@ -154,6 +154,8 @@ public sealed partial class DependencySpec
 
 	public DependencySpec WithReq(VersionReq req) => new(Alias, RegistryName, Scope, Name, req, Source);
 
+	public DependencySpec WithNames(string? alias, string? registryName) => new(alias, registryName, Scope, Name, Req, Source);
+
 	public bool Matches(string nameOrAlias)
 	{
 		if (FullName == nameOrAlias.ToLowerInvariant())

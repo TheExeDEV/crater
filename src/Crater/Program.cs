@@ -145,6 +145,10 @@ public static class Program
 				await InspectCommands.SearchAsync(args);
 				return 0;
 
+			case "find-interface":
+				await InspectCommands.FindInterfaceAsync(args);
+				return 0;
+
 			case "info":
 				await InspectCommands.InfoAsync(args);
 				return 0;
