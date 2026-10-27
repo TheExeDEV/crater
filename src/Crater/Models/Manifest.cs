@@ -63,6 +63,16 @@ public sealed class Manifest
 	[JsonPropertyName("allow_scripts_from")] public List<string>? AllowScriptsFrom { get; set; }
 	[JsonPropertyName("exclude")] public List<string>? Exclude { get; set; }
 	[JsonPropertyName("allow_files")] public List<string>? AllowFiles { get; set; }
+	[JsonPropertyName("monorepository")] public bool? Monorepository { get; set; }
+	[JsonPropertyName("monorepository-elements")] public Dictionary<string, string>? MonorepositoryElements { get; set; }
+	[JsonPropertyName("interface")] public bool? Interface { get; set; }
+	[JsonPropertyName("realized_interfaces")] public List<string>? RealizedInterfaces { get; set; }
+
+	[JsonIgnore] public bool IsMonorepository => Monorepository == true && MonorepositoryElements is { Count: > 0 };
+
+	[JsonIgnore] public bool IsInterface => Interface == true;
+
+	public static readonly string[] EntryFileNames = ["init.luau", "main.luau"];
 
 	[JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }
 
@@ -129,6 +139,28 @@ public sealed class Manifest
 		}
 
 		ParseOverrides();
+
+		foreach ((string element, string raw) in MonorepositoryElements ?? [])
+		{
+			DependencySpec.Parse(raw, $"monorepository-elements.{element} in {FileName}");
+		}
+
+		if (Monorepository == true && MonorepositoryElements is not { Count: > 0 })
+		{
+			throw new CraterException($"{Fmt.Val("monorepository")} is true, but {Fmt.Val("monorepository-elements")} lists no packages.");
+		}
+
+		string? badInterface = (RealizedInterfaces ?? []).FirstOrDefault(name => !DependencySpec.IsValidPackageName(name.ToLowerInvariant()));
+
+		if (badInterface is not null)
+		{
+			throw new CraterException($"realized_interfaces: {Fmt.Val(badInterface)} is not an interface name. Expected author/name.");
+		}
+
+		if (IsInterface && RealizedInterfaces is { Count: > 0 })
+		{
+			throw new CraterException($"An interface cannot implement other interfaces. Remove {Fmt.Val("realized_interfaces")} or set {Fmt.Val("interface")} to false.");
+		}
 	}
 
 	public void ValidateForPublish()
@@ -151,7 +183,7 @@ public sealed class Manifest
 		{
 			throw new CraterException(
 				$"{Fmt.Val(custom)} uses your own registry name {Fmt.Val(custom.RegistryName!)}. People who install this package do not have it (and may have no access to a private registry); " +
-				$"published packages can only use {Fmt.Val("crater#")}, {Fmt.Val("wally#")}, {Fmt.Val("pesde#")} or {Fmt.Val("forest#")}.");
+				$"published packages can only use {Fmt.Val("crater#")}, {Fmt.Val("wally#")}, {Fmt.Val("pesde#")}, {Fmt.Val("forest#")} or {Fmt.Val("ember#")}.");
 		}
 
 		DependencySpec? local = AllDependencies().FirstOrDefault(spec => spec.Source is not null);

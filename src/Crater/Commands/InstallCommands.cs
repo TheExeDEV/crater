@@ -71,27 +71,35 @@ public static class InstallCommands
 				specs.Add(await AddPicker.ChooseRegistryAsync(project, DependencySpec.Parse(raw), interactive));
 			}
 		}
+		List<MonorepositoryPicker.Choice> choices = [];
+
+		foreach (DependencySpec spec in specs)
+		{
+			List<MonorepositoryPicker.Choice>? expanded = await MonorepositoryPicker.ExpandAsync(project, spec, Common.RealmFlag(args), realm, interactive);
+
+			choices.AddRange(expanded ?? [new MonorepositoryPicker.Choice(spec, realm)]);
+		}
+
 		JsonObject manifest = Json.ReadObject(project.ManifestPath);
-		JsonArray list = ManifestEditor.ListFor(manifest, realm.ManifestField());
 
-		foreach (DependencySpec spec in specs)
+		foreach (MonorepositoryPicker.Choice choice in choices)
 		{
-			ManifestEditor.RemoveWhere(list, existing => existing.LinkName.Equals(spec.LinkName, StringComparison.OrdinalIgnoreCase));
+			JsonArray list = ManifestEditor.ListFor(manifest, choice.Realm.ManifestField());
+
+			ManifestEditor.RemoveWhere(list, existing => existing.LinkName.Equals(choice.Spec.LinkName, StringComparison.OrdinalIgnoreCase));
+			list.Add(choice.Spec.ToString());
 		}
 
-		foreach (DependencySpec spec in specs)
-		{
-			list.Add(spec.ToString());
-		}
+		string names = string.Join(", ", choices
+			.GroupBy(choice => choice.Realm)
+			.Select(group => $"{string.Join(", ", group.Select(choice => Fmt.Pkg(choice.Spec)))} to {Fmt.Val(group.Key.ManifestField())}"));
 
-		string names = string.Join(", ", specs.Select(spec => Fmt.Pkg(spec)));
-
-		if (!prompt.Confirm($"Add {names} to {Fmt.Val(realm.ManifestField())} in {Fmt.File(Manifest.FileName)}"))
+		if (!prompt.Confirm($"Add {names} in {Fmt.File(Manifest.FileName)}"))
 		{
 			throw new CraterException("Cancelled.");
 		}
 
-		HashSet<string> update = specs.Select(spec => spec.FullName).ToHashSet();
+		HashSet<string> update = choices.Select(choice => choice.Spec.FullName).ToHashSet();
 
 		await ManifestEditor.SaveAndInstallAsync(project, manifest, updated => new Installer(updated, prompt).InstallAsync(update));
 	}

@@ -86,13 +86,45 @@ public sealed class CommandTests : IDisposable
 		JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.json")))!.AsObject();
 		JsonObject settings = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.settings.json")))!.AsObject();
 
-		foreach (string key in new[] { "icon", "registries", "overrides", "workspace", "tools", "block_package_scripts", "allow_scripts_from", "exclude", "allow_files" })
+		foreach (string key in new[] { "$schema", "registries", "overrides", "workspace", "tools", "block_package_scripts", "allow_scripts_from", "exclude", "allow_files", "monorepository", "monorepository-elements", "interface", "realized_interfaces" })
 		{
 			Assert.True(manifest.ContainsKey(key), key);
 		}
 
+		Assert.False(manifest.ContainsKey("icon"));
 		Assert.True(settings.ContainsKey("link_style"));
 		Assert.Equal(0, Crater("install", "-y").ExitCode);
+	}
+
+	[Fact]
+	public void DeclareFileIsWrittenCheckedAndRepaired()
+	{
+		Assert.Equal(0, Crater("init", "--name", "t/game", "-y").ExitCode);
+
+		string path = Path.Combine(root, ".crater-declare");
+		JsonObject declared = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+
+		Assert.Equal("crater.json", declared["path_to_package_info"]!.GetValue<string>());
+		Assert.Equal("crater.settings.json", declared["path_to_crater_settings"]!.GetValue<string>());
+		Assert.Equal(1, declared["api_version"]!.GetValue<int>());
+
+		if (OperatingSystem.IsWindows())
+		{
+			Assert.True(File.GetAttributes(path).HasFlag(FileAttributes.Hidden));
+		}
+
+		Assert.Null(global::Crater.Core.CraterDeclare.Problem(root));
+
+		File.SetAttributes(path, FileAttributes.Normal);
+		File.WriteAllText(path, "{\"path_to_crater_settings\": \"gone.json\", \"path_to_package_info\": \"crater.json\"}");
+		Assert.Contains("gone.json", global::Crater.Core.CraterDeclare.Problem(root));
+
+		Assert.Equal(0, Crater("list").ExitCode);
+		Assert.Null(global::Crater.Core.CraterDeclare.Problem(root));
+
+		File.Delete(path);
+		Assert.Equal(0, Crater("list").ExitCode);
+		Assert.True(File.Exists(path));
 	}
 
 	[Fact]

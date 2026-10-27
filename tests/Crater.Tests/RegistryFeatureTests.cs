@@ -77,6 +77,55 @@ public sealed class RegistryFeatureTests : IDisposable
 	RegistryIndex Index(string name) => Json.ReadFile<RegistryIndex>(Path.Combine(root, "registry", name, "index.json"));
 
 	[Fact]
+	public void MonorepositoryAddsItsPackagesWhereTheySay()
+	{
+		Assert.Equal(0, Crater(Project("t/a", []), "publish", "-y").ExitCode);
+		Assert.Equal(0, Crater(Project("t/b", [], manifest => manifest["import_to"] = "server"), "publish", "-y").ExitCode);
+		Assert.Equal(0, Crater(Project("t/kit", [], manifest =>
+		{
+			manifest["monorepository"] = true;
+			manifest["monorepository-elements"] = new JsonObject { ["Alpha"] = "t/a^1", ["b"] = "t/b^1" };
+		}), "publish", "-y").ExitCode);
+
+		string game = Project("t/game", []);
+
+		Assert.Equal(0, Crater(game, "add", "t/kit", "-y").ExitCode);
+
+		JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(game, "crater.json")))!.AsObject();
+
+		Assert.Equal(["Alpha:t/a^1"], manifest["import_client"]!.AsArray().Select(item => item!.GetValue<string>()));
+		Assert.Equal(["t/b^1"], manifest["import_server"]!.AsArray().Select(item => item!.GetValue<string>()));
+		Assert.True(Directory.Exists(Path.Combine(game, "Packages", "Alpha")) || File.Exists(Path.Combine(game, "Packages", "Alpha.luau")));
+	}
+
+	[Fact]
+	public void InterfacesAndTheirImplementationsAreFound()
+	{
+		Assert.Equal(0, Crater(Project("t/logger-api", [], manifest => manifest["interface"] = true), "publish", "-y").ExitCode);
+		Assert.Equal(0, Crater(Project("t/logger", [], manifest => manifest["realized_interfaces"] = new JsonArray("t/logger-api")), "publish", "-y").ExitCode);
+
+		string library = Project("t/bad-logger", [], manifest =>
+		{
+			manifest["realized_interfaces"] = new JsonArray("t/logger-api");
+			manifest["path_to_main"] = "";
+		});
+
+		File.Delete(Path.Combine(library, "init.luau"));
+		Directory.CreateDirectory(Path.Combine(library, "lib"));
+		File.WriteAllText(Path.Combine(library, "lib", "a.luau"), "return {}\n");
+		Assert.Equal(1, Crater(library, "pack", "-o", Path.Combine(root, "bad.zip")).ExitCode);
+
+		string game = Project("t/game", []);
+		(int exitCode, string output) = Crater(game, "find-interface", "t/logger-api");
+
+		Assert.Equal(0, exitCode);
+		Assert.Contains("t/logger ", output);
+		Assert.DoesNotContain("t/bad-logger", output);
+		Assert.Contains("t/logger-api", Crater(game, "search", "logger", "interface").Output);
+		Assert.DoesNotContain("t/logger-api", Crater(game, "search", "logger", "package").Output);
+	}
+
+	[Fact]
 	public void DeprecatedVersionsAreSkippedAndMarked()
 	{
 		string lib = Project("t/lib", []);

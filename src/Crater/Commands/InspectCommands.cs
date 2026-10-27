@@ -2,6 +2,7 @@ using Crater.Cli;
 using Crater.Core;
 using Crater.Models;
 using Crater.Registry;
+using Crater.Tools;
 using Crater.Util;
 using Crater.Versioning;
 
@@ -227,10 +228,82 @@ public static class InspectCommands
 		return chains;
 	}
 
+	static readonly string[] SearchKinds = ["package", "interface", "tool"];
+
 	public static async Task SearchAsync(Args args)
 	{
+		List<string> words = [.. args.Positional];
+		string? kind = args.Value("type")?.ToLowerInvariant();
+
+		if (kind is null && words.Count > 0 && SearchKinds.Contains(words[^1].ToLowerInvariant()))
+		{
+			kind = words[^1].ToLowerInvariant();
+			words.RemoveAt(words.Count - 1);
+		}
+
+		if (kind is not null && !SearchKinds.Contains(kind))
+		{
+			throw new CraterException($"Unknown type {Fmt.Val(kind)}. Use {Fmt.Val("package")}, {Fmt.Val("interface")} or {Fmt.Val("tool")}.");
+		}
+
+		string query = string.Join(' ', words);
+
+		if (kind == "tool")
+		{
+			await SearchToolsAsync(query);
+			return;
+		}
+
+		List<CatalogEntry> results = (await SearchCatalogAsync(args, query))
+			.Where(entry => kind is null || (kind == "interface") == (entry.Interface == true))
+			.ToList();
+
+		if (results.Count == 0)
+		{
+			Out.Info($"No {(kind is null ? "packages" : kind + "s")} match {Fmt.Val(query)}.");
+			return;
+		}
+
+		PrintPackages(results);
+	}
+
+	public static async Task FindInterfaceAsync(Args args)
+	{
+		string name = (args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater find-interface <author/name>")}")).ToLowerInvariant();
+
+		if (!DependencySpec.IsValidPackageName(name))
+		{
+			throw new CraterException($"{Fmt.Val(name)} is not an interface name. Expected author/name.");
+		}
+
+		List<CatalogEntry> catalog = await SearchCatalogAsync(args, "");
+		CatalogEntry? declared = catalog.FirstOrDefault(entry => entry.Name == name);
+		List<CatalogEntry> implementations = catalog
+			.Where(entry => entry.RealizedInterfaces?.Contains(name) == true)
+			.ToList();
+
+		if (declared is null)
+		{
+			Out.Warn($"{Fmt.Pkg(name)} is not in this registry.");
+		}
+		else if (declared.Interface != true)
+		{
+			Out.Warn($"{Fmt.Pkg(name)} is a package, not an interface.");
+		}
+
+		if (implementations.Count == 0)
+		{
+			Out.Info($"No packages implement {Fmt.Pkg(name)} yet.");
+			return;
+		}
+
+		Out.Heading($"{Fmt.Plural(implementations.Count, "package implements", "packages implement")} {name}");
+		PrintPackages(implementations);
+	}
+
+	static async Task<List<CatalogEntry>> SearchCatalogAsync(Args args, string query)
+	{
 		IRegistry registry = OpenRegistry(args);
-		string query = string.Join(' ', args.Positional);
 		Catalog? catalog;
 
 		using (new Spinner("Searching"))
@@ -245,28 +318,67 @@ public static class InspectCommands
 				$"Its maintainer can create it with {Fmt.Cmd("crater registry catalog")}.");
 		}
 
-		List<CatalogEntry> results = catalog.Search(query);
+		return catalog.Search(query);
+	}
 
-		if (results.Count == 0)
+	static async Task SearchToolsAsync(string query)
+	{
+		ToolCatalog tools;
+
+		using (new Spinner("Searching tools"))
 		{
-			Out.Info($"No packages match {Fmt.Val(query)}.");
+			tools = await ToolCatalog.LoadAsync();
+		}
+
+		List<KeyValuePair<string, ToolEntry>> found = tools.Tools
+			.Where(pair => query.Length == 0
+				|| pair.Key.Contains(query, StringComparison.OrdinalIgnoreCase)
+				|| pair.Value.Repository.Contains(query, StringComparison.OrdinalIgnoreCase)
+				|| (pair.Value.Description ?? "").Contains(query, StringComparison.OrdinalIgnoreCase))
+			.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+			.ToList();
+
+		if (found.Count == 0)
+		{
+			Out.Info($"No tools match {Fmt.Val(query)}. Any GitHub release works: {Fmt.Cmd("crater tool add owner/repo")}.");
 			return;
 		}
 
+		Table.Print(["Tool", "Repository", "Description"], found.Select(pair => (IReadOnlyList<string>)
+		[
+			Fmt.Pkg(pair.Key),
+			pair.Value.Repository,
+			Truncate(pair.Value.Description ?? "", 60),
+		]).ToList());
+	}
+
+	static void PrintPackages(List<CatalogEntry> results)
+	{
 		List<IReadOnlyList<string>> rows = results.Take(50).Select(entry => (IReadOnlyList<string>)
 		[
 			Fmt.Pkg(entry.Name),
 			Fmt.Val(entry.Latest),
+			Kind(entry),
 			entry.ImportTo,
 			Truncate(entry.Description, 60),
 		]).ToList();
 
-		Table.Print(["Package", "Latest", "Realm", "Description"], rows);
+		Table.Print(["Package", "Latest", "Type", "Realm", "Description"], rows);
 
 		if (results.Count > 50)
 		{
 			Out.Dim($"  and {results.Count - 50} more, refine the query");
 		}
+	}
+
+	static string Kind(CatalogEntry entry)
+	{
+		if (entry.Interface == true)
+		{
+			return "interface";
+		}
+
+		return entry.Monorepository == true ? "monorepository" : "package";
 	}
 
 	public static async Task InfoAsync(Args args)
@@ -309,6 +421,9 @@ public static class InspectCommands
 		PrintField("repository", manifest.Repository);
 		PrintField("published", latest.PublishedAt?.ToString("yyyy-MM-dd") ?? "");
 		PrintField("versions", string.Join(", ", index.Versions.OrderByDescending(release => release.SemVer).Take(10).Select(release => release.Version)));
+		PrintField("type", manifest.IsInterface ? "interface" : manifest.IsMonorepository ? "monorepository" : "package");
+		PrintField("implements", string.Join(", ", (manifest.RealizedInterfaces ?? []).Select(item => Fmt.Pkg(item))));
+		PrintField("packages", string.Join(", ", (manifest.MonorepositoryElements ?? []).Select(pair => $"{pair.Key} {Fmt.Pkg(pair.Value)}")));
 
 		foreach (Realm realm in new[] { Realm.Client, Realm.Server })
 		{

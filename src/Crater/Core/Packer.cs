@@ -18,6 +18,7 @@ public static class Packer
 		"*.zip",
 		".crater-staging/",
 		LockFile.FileName,
+		CraterDeclare.FileName,
 		ProjectConfig.FileName,
 		ProjectConfig.LegacyFileName,
 	];
@@ -71,6 +72,7 @@ public static class Packer
 		RequireIcon(project, files);
 		RequireDefinitions(project, files);
 		DocLanguage.Require(project.Directory, files);
+		RequireImplementationEntry(project, files);
 
 		using MemoryStream stream = new();
 
@@ -246,6 +248,26 @@ public static class Packer
 				throw new CraterException(
 					$"path_to_definition_files entry {Fmt.File(pattern)} matches no {DefinitionLookup.Extension} file in the archive.");
 			}
+		}
+	}
+
+	static void RequireImplementationEntry(Project project, List<string> files)
+	{
+		List<string> interfaces = project.Manifest.RealizedInterfaces ?? [];
+
+		if (interfaces.Count == 0)
+		{
+			return;
+		}
+
+		string main = Links.NormalizeRelative(project.Manifest.PathToMain);
+		bool hasEntry = Manifest.EntryFileNames.Any(name =>
+			main.Length == 0 ? files.Contains(name) : main == name || main.EndsWith("/" + name) || files.Contains($"{main}/{name}"));
+
+		if (!hasEntry)
+		{
+			throw new CraterException(
+				$"This package implements {string.Join(", ", interfaces.Select(name => Fmt.Pkg(name)))}, so it needs an entry file: set {Fmt.Val("path_to_main")} to an {Fmt.File("init.luau")} or {Fmt.File("main.luau")}, or a folder with one. Implementations cannot be collections of modules.");
 		}
 	}
 

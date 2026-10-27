@@ -99,6 +99,9 @@ public sealed class CatalogEntry
 	[JsonPropertyName("deprecated")] public string? Deprecated { get; set; }
 	[JsonPropertyName("dependents")] public int? Dependents { get; set; }
 	[JsonPropertyName("icon")] public string? Icon { get; set; }
+	[JsonPropertyName("interface")] public bool? Interface { get; set; }
+	[JsonPropertyName("realized_interfaces")] public List<string>? RealizedInterfaces { get; set; }
+	[JsonPropertyName("monorepository")] public bool? Monorepository { get; set; }
 
 	public static CatalogEntry From(RegistryIndex index, RegistryRelease latest)
 	{
@@ -115,6 +118,9 @@ public sealed class CatalogEntry
 			Repository = latest.Manifest.Repository,
 			UpdatedAt = index.Versions.Max(release => release.PublishedAt),
 			Deprecated = index.Deprecated,
+			Interface = latest.Manifest.IsInterface ? true : null,
+			RealizedInterfaces = latest.Manifest.RealizedInterfaces is { Count: > 0 } realized ? realized.Select(name => name.ToLowerInvariant()).ToList() : null,
+			Monorepository = latest.Manifest.IsMonorepository ? true : null,
 		};
 	}
 

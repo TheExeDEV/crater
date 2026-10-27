@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/TheExeDEV/crater/main/schemas/crater.settings.schema.json",
+  "title": "crater.settings.json",
+  "description": "How crater installs packages in this project: folder names, aliases and what it may change.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Lets editors show these descriptions. crater ignores it."
+    },
+    "import_client_path": {
+      "type": "string",
+      "description": "Folder for import_client packages, for example Packages."
+    },
+    "import_server_path": {
+      "type": "string",
+      "description": "Folder for import_server packages, for example ServerPackages."
+    },
+    "import_develop_path": {
+      "type": "string",
+      "description": "Folder for import_develop packages, for example DevPackages."
+    },
+    "import_client_alias": {
+      "type": "string",
+      "description": "Name of the .luaurc alias for the client folder, so require(\"@Packages/Promise\") works. Empty uses the folder name."
+    },
+    "import_server_alias": {
+      "type": "string",
+      "description": "Name of the .luaurc alias for the server folder. Empty uses the folder name."
+    },
+    "import_develop_alias": {
+      "type": "string",
+      "description": "Name of the .luaurc alias for the dev folder. Empty uses the folder name."
+    },
+    "on_install_update_luaurc": {
+      "type": "boolean",
+      "description": "true adds the package folder aliases to .luaurc on every install."
+    },
+    "luaurc_path": {
+      "type": "string",
+      "description": "Which .luaurc to update."
+    },
+    "on_install_update_vscode_luau_definition_files": {
+      "type": "boolean",
+      "description": "true adds the .d.luau files of installed packages to .vscode/settings.json for luau-lsp."
+    },
+    "on_install_should_i_ask_your_permission_to_do_any_action": {
+      "type": "boolean",
+      "description": "true asks before every action that changes files. -y skips the question once."
+    },
+    "link_style": {
+      "type": "string",
+      "enum": ["roblox", "string"],
+      "description": "How link files require packages: roblox uses script.Parent paths, string uses require(\"./name\") paths."
+    }
+  }
+}

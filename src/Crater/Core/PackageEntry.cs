@@ -89,7 +89,7 @@ public sealed record PackageEntry(EntryKind Kind, List<string> Segments, List<Co
 	{
 		if (!HasRojoProject(contentDirectory))
 		{
-			return null;
+			return EmberMain(contentDirectory);
 		}
 
 		try
@@ -106,6 +106,21 @@ public sealed record PackageEntry(EntryKind Kind, List<string> Segments, List<Co
 		{
 			return null;
 		}
+	}
+
+	static string? EmberMain(string contentDirectory)
+	{
+		foreach (string name in Crater.Registry.EmberRegistry.ManifestFiles)
+		{
+			string path = Path.Combine(contentDirectory, name);
+
+			if (File.Exists(path))
+			{
+				return Crater.Registry.EmberRegistry.MainFromManifest(File.ReadAllText(path), name);
+			}
+		}
+
+		return null;
 	}
 
 	static List<CollectionMember> CollectMembers(string folder)

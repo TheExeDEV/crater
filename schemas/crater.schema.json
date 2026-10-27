@@ -1,0 +1,163 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/TheExeDEV/crater/main/schemas/crater.schema.json",
+  "title": "crater.json",
+  "description": "A crater project or package: what it is, what it depends on and how it is published.",
+  "type": "object",
+  "definitions": {
+    "dependency": {
+      "type": "string",
+      "description": "A dependency: scope/name with a version, for example \"evaera/promise^4\", \"Promise:wally#evaera/promise^4\" (alias Promise, from Wally), \"me/lib@path:../lib\" or \"me/lib@git+https://host/repo.git#v1\". Version forms: ^ latest, ^1.2.3 compatible, ~1.2.3 patch updates only, =1.2.3 exactly, +1.2.3 or newer.",
+      "minLength": 3
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/dependency" },
+      "uniqueItems": true
+    },
+    "packageName": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+/[a-z0-9_-]+$"
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Lets editors show these descriptions. crater ignores it."
+    },
+    "name": {
+      "$ref": "#/definitions/packageName",
+      "description": "Package name as scope/name, lowercase letters, digits, _ and -. In a GitHub registry the scope is your GitHub login or organization in lowercase."
+    },
+    "authors": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "People who made the package. Shown by crater info and on the website."
+    },
+    "description": {
+      "type": "string",
+      "description": "One line about the package, shown in search results and on the website."
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license id, for example MIT or Apache-2.0. crater licenses and crater audit warn about packages without one."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$",
+      "description": "MAJOR.MINOR.PATCH, for example 1.0.0, with an optional -prerelease. crater bump raises it."
+    },
+    "keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Words that help people find the package in search."
+    },
+    "registry": {
+      "description": "Where dependencies come from and where crater publish sends the package. One registry or a list, tried in order.",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "repository": {
+      "type": "string",
+      "description": "Source code URL, shown on the website."
+    },
+    "can_publish": {
+      "type": "boolean",
+      "description": "true lets crater publish send this package. Keep false for games and plugins that are never published."
+    },
+    "registries": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Short names for extra registries, used as a prefix in dependencies: { \"team\": \"https://github.com/Studio/team-registry\" } lets you write \"team#studio/combat^1\". crater, wally, pesde, forest and ember are built in."
+    },
+    "import_to": {
+      "type": "string",
+      "enum": ["shared", "client", "server"],
+      "description": "Where this package may run in Roblox. A server package cannot go into import_client and a client package cannot go into import_server. Monorepository elements added \"as the package says\" go where this points."
+    },
+    "path_to_main": {
+      "type": "string",
+      "description": "Entry module, for example src/init.luau. Empty or a folder without init.luau makes the package a collection of modules."
+    },
+    "icon": {
+      "type": "string",
+      "description": "Optional picture for the registry website, a path inside the package (.png, .jpg, .webp, .gif or a plain .svg, at most 256 KB)."
+    },
+    "path_to_definition_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": ".d.luau files added to VS Code settings on install. A file, a folder or a pattern with * and **. Empty means every .d.luau in the package."
+    },
+    "import_client": {
+      "$ref": "#/definitions/dependencies",
+      "description": "Dependencies for client and shared code, installed into the client folder from crater.settings.json."
+    },
+    "import_server": {
+      "$ref": "#/definitions/dependencies",
+      "description": "Dependencies for server code, installed into the server folder."
+    },
+    "import_develop": {
+      "$ref": "#/definitions/dependencies",
+      "description": "Dependencies only for development (tests, tools), installed into the dev folder and never passed on to projects that use this package."
+    },
+    "overrides": {
+      "$ref": "#/definitions/dependencies",
+      "description": "Force one version (or a local or git copy) of a package for the whole dependency tree, for example when two packages need different versions of Promise: [\"evaera/promise^4.1.0\"]."
+    },
+    "workspace": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Folders of other crater packages in this repository (a monorepo), for example [\"packages/*\"]. crater install --workspace installs them all."
+    },
+    "scripts": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Commands for crater run, for example { \"build\": \"rojo build -o game.rbxl\" }."
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Tools pinned to this project, owner/repo@version. Added by crater tool add, installed by crater install."
+    },
+    "block_package_scripts": {
+      "type": "boolean",
+      "description": "true refuses packages that put Script or LocalScript instances into your game (they would run code by themselves). Allow the ones you trust in allow_scripts_from."
+    },
+    "allow_scripts_from": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/packageName" },
+      "description": "Packages that may run scripts in your game even with block_package_scripts, for example [\"sleitnick/cmdr\"]."
+    },
+    "exclude": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Extra glob patterns left out of the published package, on top of .gitignore and .craterignore."
+    },
+    "allow_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Script files (.sh, .bat, .ps1 and the like) to keep in the published package. crater pack leaves them out unless they are listed here. Programs can never be shipped."
+    },
+    "monorepository": {
+      "type": "boolean",
+      "description": "true marks this package as a monorepository: a collection of separate packages listed in monorepository-elements. crater add offers to pick which of them to add."
+    },
+    "monorepository-elements": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/dependency" },
+      "description": "The packages of a monorepository: a short name for each and the dependency to add, for example { \"Signal\": \"studio/signal^1\", \"Promise\": \"studio/promise^2\" }."
+    },
+    "interface": {
+      "type": "boolean",
+      "description": "true marks this package as an interface: it describes an API (types) that other packages implement. Find implementations with crater find-interface."
+    },
+    "realized_interfaces": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/packageName" },
+      "description": "Interfaces this package implements, as author/name. An implementation needs an entry file named init.luau or main.luau in path_to_main and cannot be a collection of modules."
+    }
+  },
+  "required": ["name", "version"]
+}

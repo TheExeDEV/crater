@@ -22,7 +22,9 @@ public static class SiteBuilder
 
 	static readonly string[] ReadmeNames = ["README.md", "readme.md", "Readme.md", "README"];
 
-	public static int Build(string registryRoot, string output, string craterRepository)
+	static readonly string[] TextExtensions = [".html", ".js", ".css", ".svg", ".json", ".txt", ".xml", ""];
+
+	public static int Build(string registryRoot, string output, string craterRepository, string? frontend = null)
 	{
 		string root = Path.GetFullPath(registryRoot);
 		string target = Path.GetFullPath(output);
@@ -48,10 +50,13 @@ public static class SiteBuilder
 			["CRATER_REPO"] = Html(craterRepository),
 			["REPO_URL"] = Html(repositoryUrl),
 			["YEAR"] = DateTime.UtcNow.Year.ToString(),
-			["ASSET_VERSION"] = AssetVersion(),
+			["ASSET_VERSION"] = frontend is null ? "" : AssetVersion(frontend),
 		};
 
-		Templates.WriteTo("site", target, values, overwrite: true);
+		if (frontend is not null)
+		{
+			CopyFrontend(Path.GetFullPath(frontend), target, values);
+		}
 
 		string data = Path.Combine(target, "data");
 
@@ -91,11 +96,20 @@ public static class SiteBuilder
 			Json.WriteText(pagePath, Json.Serialize(page));
 		}
 
+		if (!Http.Offline && Environment.GetEnvironmentVariable("CRATER_SITE_NO_EXTERNAL") is not { Length: > 0 })
+		{
+			Catalog? ember = new EmberRegistry(EmberRegistry.RawIndex).ListAsync("", 500).GetAwaiter().GetResult();
+
+			if (ember is not null)
+			{
+				Json.WriteText(Path.Combine(data, "ember.json"), Json.Serialize(ember));
+			}
+		}
+
 		List<RecentRelease> recent = SiteFeed.Recent(root, icons);
 
 		Json.WriteText(Path.Combine(data, SiteFeed.RecentFile), Json.Serialize(recent));
 		File.WriteAllText(Path.Combine(target, SiteFeed.FeedFile), SiteFeed.Rss(info, recent));
-		File.WriteAllText(Path.Combine(target, ".nojekyll"), "");
 
 		return catalog.Packages.Count;
 	}
@@ -184,13 +198,38 @@ public static class SiteBuilder
 		}
 	}
 
-	static string AssetVersion()
+	static void CopyFrontend(string frontend, string target, IReadOnlyDictionary<string, string> values)
+	{
+		if (!Directory.Exists(frontend))
+		{
+			throw new CraterException($"Frontend folder {Fmt.File(frontend)} not found.");
+		}
+
+		foreach (string file in Directory.EnumerateFiles(frontend, "*", SearchOption.AllDirectories))
+		{
+			string relative = Path.GetRelativePath(frontend, file);
+			string destination = Path.Combine(target, relative);
+
+			Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+
+			if (TextExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
+			{
+				File.WriteAllText(destination, Templates.Fill(File.ReadAllText(file), values));
+			}
+			else
+			{
+				File.Copy(file, destination, overwrite: true);
+			}
+		}
+	}
+
+	static string AssetVersion(string frontend)
 	{
 		StringBuilder content = new();
 
-		foreach ((string path, string text) in Templates.Under("site"))
+		foreach (string file in Directory.EnumerateFiles(frontend, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
 		{
-			content.Append(path).Append('\n').Append(text);
+			content.Append(Path.GetRelativePath(frontend, file)).Append('\n').Append(File.ReadAllText(file));
 		}
 
 		return PackageCache.Sha256(Encoding.UTF8.GetBytes(content.ToString()))[..10];

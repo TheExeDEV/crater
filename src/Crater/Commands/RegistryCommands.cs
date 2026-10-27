@@ -74,7 +74,7 @@ public static class RegistryCommands
 		string branch = args.Value("branch") ?? "main";
 		string craterRepository = args.Value("crater-repo") ?? (BuildInfo.UpdateRepo.Length > 0 ? BuildInfo.UpdateRepo : "Owner/crater");
 		bool isPrivate = args.Has("private");
-		string siteUrl = isPrivate ? "" : $"https://{owner.ToLowerInvariant()}.github.io/{name}/";
+		string siteUrl = isPrivate ? "" : args.Value("site-url") ?? "";
 
 		Dictionary<string, string> values = new()
 		{
@@ -84,24 +84,13 @@ public static class RegistryCommands
 			["BRANCH"] = branch,
 			["LOCATION"] = branch == "main" ? $"https://github.com/{owner}/{name}" : $"https://github.com/{owner}/{name}/tree/{branch}",
 			["CRATER_REPO"] = craterRepository,
-			["SITE_URL"] = isPrivate ? "this registry is private, list its packages with `crater search --registry <its url>`" : siteUrl,
+			["SITE_URL"] = isPrivate ? "this registry is private, list its packages with `crater search --registry <its url>`" : siteUrl.Length > 0 ? siteUrl : "`crater search --registry <its url>`",
 			["YEAR"] = DateTime.UtcNow.Year.ToString(),
 		};
 
 		Directory.CreateDirectory(target);
 		Out.Step($"Writing registry template to {Fmt.File(target)}");
 		Templates.WriteTo("registry", target, values, overwrite: args.Has("force"));
-
-		if (isPrivate)
-		{
-			string siteWorkflow = Path.Combine(target, ".github", "workflows", "publish.yml");
-
-			if (File.Exists(siteWorkflow))
-			{
-				File.Delete(siteWorkflow);
-				Out.Dim("  skipped .github/workflows/publish.yml, a private registry has no public website");
-			}
-		}
 
 		string infoPath = Path.Combine(target, RegistryInfo.FileName);
 
@@ -135,9 +124,9 @@ public static class RegistryCommands
 		}
 
 		Out.Info($"  1. Create the GitHub repository {Fmt.Val(repository)} and push this folder to {Fmt.Val(branch)}.");
-		Out.Info($"  2. In Settings → Pages, set Source to {Fmt.Val("GitHub Actions")}.");
-		Out.Info($"  3. Make sure {Fmt.Val(craterRepository)} is the public crater repository the workflows build from.");
-		Out.Info($"  4. Users set {Fmt.Cmd($"\"registry\": \"{values["LOCATION"]}\"")} in their crater.json.");
+		Out.Info($"  2. Make sure {Fmt.Val(craterRepository)} is the public crater repository the checks build from.");
+		Out.Info($"  3. Users set {Fmt.Cmd($"\"registry\": \"{values["LOCATION"]}\"")} in their crater.json.");
+		Out.Info($"  4. For a website, build its data with {Fmt.Cmd("crater registry site . --frontend <your site folder>")} and put the address into {Fmt.File(RegistryInfo.FileName)} as {Fmt.Val("site_url")}.");
 	}
 
 
@@ -231,9 +220,15 @@ public static class RegistryCommands
 		string output = Path.GetFullPath(args.Value("o", "output") ?? Path.Combine(root, "_site"));
 		string craterRepository = args.Value("crater-repo") ?? (BuildInfo.UpdateRepo.Length > 0 ? BuildInfo.UpdateRepo : "Owner/crater");
 
-		int count = SiteBuilder.Build(root, output, craterRepository);
+		string? frontend = args.Value("frontend");
+		int count = SiteBuilder.Build(root, output, craterRepository, frontend);
 
-		Out.Ok($"Built the site with {Fmt.Plural(count, "package", "packages")} in {Fmt.File(output)}");
+		Out.Ok($"Built the site data with {Fmt.Plural(count, "package", "packages")} in {Fmt.File(output)}");
+
+		if (frontend is null)
+		{
+			Out.Dim($"  only data/, feed.xml and the icons; pass {Fmt.Cmd("--frontend <folder>")} to add the website files");
+		}
 
 		if (args.Has("serve"))
 		{
