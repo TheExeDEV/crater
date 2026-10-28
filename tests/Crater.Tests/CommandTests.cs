@@ -86,7 +86,7 @@ public sealed class CommandTests : IDisposable
 		JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.json")))!.AsObject();
 		JsonObject settings = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.settings.json")))!.AsObject();
 
-		foreach (string key in new[] { "$schema", "// package", "// dependencies", "registries", "overrides", "workspace", "tools", "package_scripts", "package_files", "monorepository-elements", "interface", "realized_interfaces" })
+		foreach (string key in new[] { "$schema", "registries", "overrides", "workspace", "tools", "package_scripts", "package_files", "monorepository-elements", "interface", "realized_interfaces" })
 		{
 			Assert.True(manifest.ContainsKey(key), key);
 		}
@@ -113,7 +113,8 @@ public sealed class CommandTests : IDisposable
 
 		string text = File.ReadAllText(path);
 
-		Assert.Contains("\n\n  \"// dependencies\": \"packages this project uses\",\n  \"import_client\": [],", text);
+		Assert.Contains("\n\n  \"import_client\": [],", text);
+		Assert.DoesNotContain("//", text.Replace("https://", ""));
 		Assert.Contains("\"scripts\": { \"build\": \"rojo build\" },", text);
 		Assert.Equal(text.TrimEnd('\n'), global::Crater.Models.ManifestFile.Format(JsonNode.Parse(text)!.AsObject()));
 

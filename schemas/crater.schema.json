@@ -234,11 +234,5 @@
   "required": [
     "name",
     "version"
-  ],
-  "patternProperties": {
-    "^//": {
-      "type": "string",
-      "description": "A label for the group of fields below it. crater writes these and ignores them."
-    }
-  }
+  ]
 }
