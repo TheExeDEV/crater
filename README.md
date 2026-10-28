@@ -320,7 +320,9 @@ Older projects keep working: `crater.config.json` is still read when there is no
   "registries": { "crater": "...", "wally": "https://github.com/UpliftGames/wally-index", "pesde": "...", "forest": "...", "ember": "..." },
   "realms": { "import_client": "client", "import_server": "server", "import_develop": "develop" },
   "dependency": { "pattern": "...", "operators": { ... }, "sources": { ... }, "registry": "..." },
-  "defaults": { "authors": [], "description": "", "registry": "crater", "package_scripts": { "block": false, "allow": [] }, ... }
+  "defaults": { "authors": [], "description": "", "registry": "crater", "package_scripts": { "block": false, "allow": [] }, ... },
+  "path_to_lock_file": "crater.lock",
+  "cli": { "json_output": ["changelog", "info", "list", "outdated", "search", "tags"] }
 }
 ```
 
@@ -334,10 +336,12 @@ Older projects keep working: `crater.config.json` is still read when there is no
 | `realms` | Which dependency list installs where. |
 | `dependency` | How to read a dependency string like `Promise:wally#evaera/promise^4`: a regular expression with named groups (`alias`, `registry`, `scope`, `name`, `op`, `ver`, `source`), what every version operator means, the `@path:` and `@git+` sources, and which registry a dependency without a prefix comes from. |
 | `defaults` | The value of every optional `crater.json` field that sets nothing: a field equal to it behaves as if it were missing, so a tool can drop it. An empty `registry` (`""` or `[]`) also means `crater`. |
+| `path_to_lock_file` | Where `crater.lock` is: the exact installed versions, their registries and sha256. |
+| `cli.json_output` | Commands that print JSON with `--json`, see [JSON output](#json-output). A tool can run `crater outdated --all --json` instead of reading the registry itself. |
 
 The file is hidden (a dot file, and marked hidden on Windows, so you only see it with "show hidden items" turned on), it stays out of published packages, and it should be committed with the project.
 
-crater checks it on every command. When the file is missing, broken, points at files that do not exist, is out of date or describes an older API, crater says so and writes it again. `api_version` and `features` change when the format of crater files changes, so other tools can tell what they are reading:
+crater checks it on every command. When the file is missing, broken, points at files that do not exist, is out of date or describes an older API, crater says so and writes it again. New crater versions only add keys to this file and never rename or remove the old ones; when only new keys are missing, crater adds them without a message. `api_version` and `features` change when the format of crater files changes, so other tools can tell what they are reading:
 
 | `api_version` | Format |
 |---|---|

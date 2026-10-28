@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Crater.Cli;
 using Crater.Commands;
 using Crater.Models;
 using Crater.Registry;
@@ -68,6 +69,16 @@ public static class CraterDeclare
 				["registry"] = "a dependency without registry# comes from the registry field of the package info",
 			},
 			["defaults"] = Defaults(),
+			["path_to_lock_file"] = LockFile.FileName,
+			["cli"] = new JsonObject
+			{
+				["json_output"] = new JsonArray(CommandList.Current.Commands
+					.Where(command => command.FindFlag("json") is not null)
+					.Select(command => command.Name)
+					.Order(StringComparer.Ordinal)
+					.Select(name => (JsonNode?)name)
+					.ToArray()),
+			},
 		};
 	}
 
@@ -195,6 +206,7 @@ public static class CraterDeclare
 		}
 
 		bool existed = File.Exists(PathIn(directory));
+		bool onlyNewKeys = existed && OnlyMissesNewKeys(directory);
 
 		try
 		{
@@ -206,10 +218,32 @@ public static class CraterDeclare
 			return;
 		}
 
-		if (existed && !quiet)
+		if (existed && !quiet && !onlyNewKeys)
 		{
 			Out.Warn($"{problem}. Fixed it.");
 		}
+	}
+
+	static bool OnlyMissesNewKeys(string directory)
+	{
+		try
+		{
+			return JsonNode.Parse(File.ReadAllText(PathIn(directory))) is JsonObject declared && Covers(For(directory), declared);
+		}
+		catch (JsonException)
+		{
+			return false;
+		}
+	}
+
+	static bool Covers(JsonNode? expected, JsonNode? declared)
+	{
+		if (expected is JsonObject expectedObject && declared is JsonObject declaredObject)
+		{
+			return declaredObject.All(pair => expectedObject.ContainsKey(pair.Key) && Covers(expectedObject[pair.Key], pair.Value));
+		}
+
+		return JsonNode.DeepEquals(expected, declared);
 	}
 
 	static string Text(JsonNode? node)

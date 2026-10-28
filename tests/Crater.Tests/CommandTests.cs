@@ -207,6 +207,29 @@ public sealed class CommandTests : IDisposable
 		File.Delete(path);
 		Assert.Equal(0, Crater("list").ExitCode);
 		Assert.True(File.Exists(path));
+
+		declared = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+
+		Assert.Equal("crater.lock", declared["path_to_lock_file"]!.GetValue<string>());
+		Assert.Contains("outdated", declared["cli"]!["json_output"]!.AsArray().Select(item => item!.GetValue<string>()));
+
+		declared.Remove("cli");
+		declared["features"]!.AsObject().Remove("registry_names");
+		File.SetAttributes(path, FileAttributes.Normal);
+		File.WriteAllText(path, declared.ToJsonString());
+
+		(int exitCode, string output) = Crater("list");
+
+		Assert.Equal(0, exitCode);
+		Assert.DoesNotContain(".crater-declare", output);
+		Assert.Null(global::Crater.Core.CraterDeclare.Problem(root));
+
+		declared = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+		declared["registries"]!["wally"] = "https://example.com/elsewhere";
+		File.SetAttributes(path, FileAttributes.Normal);
+		File.WriteAllText(path, declared.ToJsonString());
+
+		Assert.Contains("out of date. Fixed it.", Crater("list").Output);
 	}
 
 	[Fact]
