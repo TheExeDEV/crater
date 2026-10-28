@@ -41,9 +41,66 @@ public sealed class ProjectConfig
 		return !File.Exists(current) && File.Exists(legacy) ? legacy : current;
 	}
 
-	public static string FolderField(Realm realm) => $"import_{realm.Key()}_path";
+	public static string FolderField(Realm realm) => $"{realm.Key()}.path";
 
-	public static string AliasField(Realm realm) => $"import_{realm.Key()}_alias";
+	public static string AliasField(Realm realm) => $"{realm.Key()}.alias";
+
+	public static void Normalize(JsonObject settings)
+	{
+		foreach (Realm realm in Realms.All)
+		{
+			string key = realm.Key();
+			JsonNode? node = settings[key] ?? (realm == Realm.Develop ? settings["dev"] : null);
+
+			if (node is JsonObject folder)
+			{
+				if (folder["path"] is JsonNode path)
+				{
+					settings[$"import_{key}_path"] = path.DeepClone();
+				}
+
+				if (folder["alias"] is JsonNode alias)
+				{
+					settings[$"import_{key}_alias"] = alias.DeepClone();
+				}
+			}
+			else if (node is JsonValue value && value.TryGetValue(out string? text))
+			{
+				settings[$"import_{key}_path"] = text;
+			}
+
+			settings.Remove(key);
+		}
+
+		settings.Remove("dev");
+
+		if (settings["luaurc"] is JsonValue luaurc)
+		{
+			if (luaurc.TryGetValue(out bool enabled))
+			{
+				settings["on_install_update_luaurc"] = enabled;
+			}
+			else if (luaurc.TryGetValue(out string? path))
+			{
+				settings["on_install_update_luaurc"] = true;
+				settings["luaurc_path"] = path;
+			}
+		}
+
+		settings.Remove("luaurc");
+		Rename(settings, "vscode_definitions", "on_install_update_vscode_luau_definition_files");
+		Rename(settings, "confirm", "on_install_should_i_ask_your_permission_to_do_any_action");
+	}
+
+	static void Rename(JsonObject settings, string current, string internalName)
+	{
+		if (settings[current] is JsonNode value)
+		{
+			settings[internalName] = value.DeepClone();
+		}
+
+		settings.Remove(current);
+	}
 
 	public string AliasFor(Realm realm, string folder)
 	{
@@ -86,7 +143,7 @@ public sealed class ProjectConfig
 		{
 			throw new CraterException(
 				$"{Fmt.Val(realm.ManifestField())} has dependencies, but {Fmt.Val(FolderField(realm))} is not set. " +
-				$"Add it to {Fmt.File(FileName)}, for example {Fmt.Cmd($"\"{FolderField(realm)}\": \"{SuggestedFolder(realm)}\"")}.");
+				$"Add it to {Fmt.File(FileName)}, for example {Fmt.Cmd($"\"{realm.Key()}\": {{ \"path\": \"{SuggestedFolder(realm)}\" }}")}.");
 		}
 
 		return folder;
@@ -126,6 +183,8 @@ public sealed class ProjectConfig
 
 			JsonObject settings = Json.ReadObject(path);
 
+			Normalize(settings);
+
 			if (settings.ContainsKey("registry"))
 			{
 				Out.Warn($"{Fmt.File(path)}: {Fmt.Val("registry")} is ignored here, it now lives in {Fmt.File(Manifest.FileName)}");
@@ -150,7 +209,11 @@ public sealed class ProjectConfig
 			return new ProjectConfig();
 		}
 
-		return Json.ReadFile<ProjectConfig>(GlobalPath);
+		JsonObject settings = Json.ReadObject(GlobalPath);
+
+		Normalize(settings);
+
+		return Json.Parse<ProjectConfig>(Json.Serialize(settings), GlobalPath);
 	}
 
 	void Validate()

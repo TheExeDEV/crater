@@ -340,7 +340,7 @@ public sealed class LuauRcTests : IDisposable
 		string settingsPath = Path.Combine(game, "crater.settings.json");
 		JsonObject settings = JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
 
-		settings["luaurc_path"] = "src/config.luaurc";
+		settings["luaurc"] = "src/config.luaurc";
 		File.WriteAllText(settingsPath, settings.ToJsonString());
 		Directory.CreateDirectory(Path.Combine(game, "src"));
 		File.WriteAllText(Path.Combine(game, "src", "config.luaurc"), "{ \"languageMode\": \"strict\" }");
@@ -392,7 +392,7 @@ public sealed class LuauRcTests : IDisposable
 		Assert.Equal(0, Crater(game, "install", "-y"));
 
 		JsonObject settings = JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
-		settings["import_client_alias"] = "@Shared";
+		settings["client"]!["alias"] = "@Shared";
 		File.WriteAllText(settingsPath, settings.ToJsonString());
 
 		Assert.Equal(0, Crater(game, "install", "-y"));

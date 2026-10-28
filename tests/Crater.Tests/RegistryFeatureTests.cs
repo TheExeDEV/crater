@@ -83,7 +83,6 @@ public sealed class RegistryFeatureTests : IDisposable
 		Assert.Equal(0, Crater(Project("t/b", [], manifest => manifest["import_to"] = "server"), "publish", "-y").ExitCode);
 		Assert.Equal(0, Crater(Project("t/kit", [], manifest =>
 		{
-			manifest["monorepository"] = true;
 			manifest["monorepository-elements"] = new JsonObject { ["Alpha"] = "t/a^1", ["b"] = "t/b^1" };
 		}), "publish", "-y").ExitCode);
 

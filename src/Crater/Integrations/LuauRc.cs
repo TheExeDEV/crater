@@ -94,7 +94,7 @@ public static class LuauRc
 
 		if (FromVsCode(project) is not null && configured.Length > 0 && configured != FileName && configured != shown)
 		{
-			Out.Dim($"  {VsCodeSettings.BaseLuaurcKey} in .vscode/settings.json points to {shown}, so the aliases go there instead of luaurc_path ({configured})");
+			Out.Dim($"  {VsCodeSettings.BaseLuaurcKey} in .vscode/settings.json points to {shown}, so the aliases go there instead of luaurc ({configured})");
 		}
 		JsonObject root = Json.ReadObject(path);
 		string before = Json.Serialize(root);
