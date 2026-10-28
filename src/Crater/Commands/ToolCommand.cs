@@ -155,7 +155,7 @@ public static class ToolCommand
 			}
 
 			manifest["tools"] = tools;
-			Json.WriteText(project.ManifestPath, Json.Serialize(manifest));
+			ManifestFile.Write(project.ManifestPath, manifest);
 		}
 
 		WarnIfShimsHidden(added.Keys);
@@ -199,7 +199,7 @@ public static class ToolCommand
 				throw new CraterException($"{Fmt.Val(name)} is not in {Fmt.File(Manifest.FileName)}.");
 			}
 
-			Json.WriteText(project.ManifestPath, Json.Serialize(manifest));
+			ManifestFile.Write(project.ManifestPath, manifest);
 		}
 
 		Out.Ok($"Removed {name}");

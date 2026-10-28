@@ -29,7 +29,7 @@ public static class Packer
 	{
 		List<Pattern> patterns = DefaultExclude
 			.Concat(project.Config.ConfiguredFolders().Select(pair => pair.Folder + "/"))
-			.Concat(project.Manifest.Exclude ?? [])
+			.Concat(project.Manifest.ExcludedFiles)
 			.Select(Pattern.Create)
 			.ToList();
 
@@ -42,7 +42,7 @@ public static class Packer
 			.OrderBy(relative => relative, StringComparer.Ordinal)
 			.ToList();
 
-		List<Pattern> allowed = (project.Manifest.AllowFiles ?? []).Select(Pattern.Create).ToList();
+		List<Pattern> allowed = project.Manifest.AllowedFiles.Select(Pattern.Create).ToList();
 		List<(string Path, ProgramKind Kind)> programs = files
 			.Select(relative => (Path: relative, Kind: Executables.Classify(Path.Combine(project.Directory, relative), relative)))
 			.Where(item => item.Kind == ProgramKind.Binary || (item.Kind == ProgramKind.Script && !allowed.Any(pattern => pattern.Excludes(item.Path))))
@@ -59,7 +59,7 @@ public static class Packer
 
 			if (programs.Any(item => item.Kind == ProgramKind.Script))
 			{
-				Out.Dim($"  To ship a script on purpose, list it in {Fmt.Val("\"allow_files\"")} in {Fmt.File(Manifest.FileName)}, for example {Fmt.Val("\"allow_files\": [\"scripts/setup.sh\"]")}. Programs cannot be allowed.");
+				Out.Dim($"  To ship a script on purpose, list it in {Fmt.Val("\"package_files\"")} in {Fmt.File(Manifest.FileName)}, for example {Fmt.Val("\"package_files\": { \"allow\": [\"scripts/setup.sh\"] }")}. Programs cannot be allowed.");
 			}
 		}
 

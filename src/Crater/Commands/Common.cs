@@ -135,7 +135,7 @@ public static class ManifestEditor
 	{
 		string original = File.ReadAllText(project.ManifestPath);
 
-		Json.WriteText(project.ManifestPath, Json.Serialize(manifest));
+		ManifestFile.Write(project.ManifestPath, manifest);
 
 		try
 		{

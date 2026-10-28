@@ -193,43 +193,46 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 
 ## crater.json
 
-Every project and every package has a `crater.json`. `crater init` writes every field below (except `icon`), empty ones included, so you can see what exists and fill in what you need. Its first line, `"$schema"`, points at [`schemas/crater.schema.json`](schemas/crater.schema.json): VS Code and other editors then explain every field when you hover it, suggest fields as you type and underline mistakes. `crater.settings.json` gets [its own schema](schemas/crater.settings.schema.json). JSON has no comments, and crater rewrites `crater.json` on `add` and `remove`, so the explanations live in the schema instead.
+Every project and every package has a `crater.json`. `crater init` writes every field below (except `icon`), empty ones included, so you can see what exists and fill in what you need. crater keeps the fields in groups, each with a label line like `"// dependencies": "packages this project uses"`; JSON has no comments, so the labels are ordinary fields that crater ignores and writes back every time it saves the file. The first line, `"$schema"`, points at [`schemas/crater.schema.json`](schemas/crater.schema.json): VS Code and other editors then explain every field when you hover it, suggest fields as you type and underline mistakes. `crater.settings.json` gets [its own schema](schemas/crater.settings.schema.json).
 
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/TheExeDEV/crater/main/schemas/crater.schema.json",
+
+  "// package": "what this package is",
   "name": "theexedev/my-game",
-  "authors": ["TheExeDEV"],
-  "description": "My game",
-  "license": "MIT",
   "version": "1.0.0",
+  "description": "My game",
+  "authors": ["TheExeDEV"],
+  "license": "MIT",
   "keywords": ["game"],
-
-  "registry": "https://github.com/TheExeDEV/crater-registry",
   "repository": "https://github.com/TheExeDEV/my-game",
-  "registries": { "team": "https://github.com/MyStudio/team-registry" },
 
+  "// registries": "where packages come from and where this one is published",
+  "registry": ["crater", "team"],
+  "registries": { "team": "https://github.com/MyStudio/team-registry" },
   "can_publish": true,
   "import_to": "shared",
 
+  "// files": "the entry module and what goes into the published package",
   "path_to_main": "src/init.luau",
   "icon": "assets/icon.png",
   "path_to_definition_files": ["types/api.d.luau", "defs", "extra/*.d.luau"],
+  "package_files": { "exclude": ["tests/"], "allow": ["scripts/setup.sh"] },
 
+  "// dependencies": "packages this project uses",
   "import_client": ["beta/adof+0.12.44", "Promise:evaera/promise^4", "team#mystudio/combat^1"],
   "import_server": ["dep/dependency^"],
   "import_develop": ["roblox/testez^0.4"],
-
   "overrides": ["evaera/promise^4.1.0"],
+
+  "// project": "workspace, scripts, pinned tools and packages that may run scripts",
   "workspace": ["packages/*"],
   "scripts": { "build": "rojo build -o build.rbxl" },
   "tools": { "rojo": "rojo-rbx/rojo@7.7.1", "luau-lsp": "JohnnyMorganz/luau-lsp@1.70.1" },
+  "package_scripts": { "block": false, "allow": ["sleitnick/cmdr"] },
 
-  "block_package_scripts": false,
-  "allow_scripts_from": ["sleitnick/cmdr"],
-  "exclude": ["tests/"],
-  "allow_files": ["scripts/setup.sh"],
-
+  "// kind": "monorepository packages and interfaces",
   "monorepository-elements": {},
   "interface": false,
   "realized_interfaces": []
@@ -241,11 +244,11 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `name` | `scope/name`, lowercase letters, digits, `_` and `-`. In a GitHub registry the scope is your GitHub login in lowercase. |
 | `authors`, `description`, `license`, `keywords` | Shown by `info`, `search` and the website. |
 | `version` | Three numbers, `MAJOR.MINOR.PATCH`, for example `1.0.0` (not `1.0`), optional `-prerelease`. A project that is never published can keep any value. |
-| `registry` | Where dependencies come from and where `publish` goes. One registry or a list of them, see [Several registries](#several-registries). `crater init` fills in the default registry. See [Registry locations](#registry-locations). |
+| `registry` | Where dependencies without a prefix come from and where `publish` goes: a name (`crater`, `wally`, `pesde`, `forest`, `ember` or one from `registries`), a URL or a folder, or a list of them tried in order. `crater init` writes `"crater"`. See [Several registries](#several-registries) and [Registry locations](#registry-locations). |
 | `repository` | Source code URL, shown on the website. |
-| `registries` | Short names for extra registries, used as a prefix in dependencies: with `"team": "https://github.com/MyStudio/team-registry"` you write `team#mystudio/combat^1`. `crater`, `wally`, `pesde`, `forest` and `ember` are built in. See [Several registries](#several-registries). |
+| `registries` | Names for your own registries: with `"team": "https://github.com/MyStudio/team-registry"` you write `team#mystudio/combat^1` in dependencies and `"team"` in `registry`. `crater`, `wally`, `pesde`, `forest` and `ember` are built in. See [Several registries](#several-registries). |
 | `can_publish` | `true` lets `crater publish` send the package. `crater init` sets `true`; use `false` for games that are never published. |
-| `block_package_scripts`, `allow_scripts_from` | Refuse packages that run scripts in your game, except the listed ones. See [Packages that run scripts](#packages-that-run-scripts). |
+| `package_scripts` | `block: true` refuses packages that run scripts in your game, except the ones in `allow`. See [Packages that run scripts](#packages-that-run-scripts). The old fields `block_package_scripts` and `allow_scripts_from` still work and are combined with it. |
 | `import_to` | Where the package may run: `client`, `server` or `shared`. A `server` package cannot go into `import_client` and the other way round. |
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
 | `icon` | Optional picture of the package for the registry website, a path inside the package like `"assets/icon.png"`: `.png`, `.jpg`, `.webp`, `.gif` or `.svg`, at most 256 KB (256x256 pixels is plenty). `crater pack` and `crater publish` check it. Without an icon (and for Wally and pesde packages, which have none) the site shows the GitHub avatar of the scope, or a neutral placeholder. |
@@ -255,11 +258,11 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
 | `scripts` | Commands for `crater run`. |
 | `tools` | Tools pinned to the project, `owner/repo@version`, written by `crater tool add`. See [Tools](#tools). |
-| `exclude` | Extra glob patterns left out of the published archive, on top of `.gitignore` and `.craterignore`. |
-| `allow_files` | Scripts (`.sh`, `.bat`, `.ps1`...) to keep in the published archive, see [What goes into the package](#what-goes-into-the-package). Programs cannot be allowed. |
+| `package_files` | `exclude`: extra glob patterns left out of the published archive, on top of `.gitignore` and `.craterignore`. `allow`: scripts (`.sh`, `.bat`, `.ps1`...) to keep, see [What goes into the package](#what-goes-into-the-package); programs cannot be allowed. The old fields `exclude` and `allow_files` still work and are combined with it. |
 | `monorepository-elements` | The packages of a monorepository; not empty makes this package one, see [Monorepositories](#monorepositories). |
 | `interface`, `realized_interfaces` | Marks the package as an interface, or lists the interfaces it implements, see [Interfaces](#interfaces). |
 | `$schema` | Lets editors show the descriptions of the fields. crater ignores it. |
+| `"// ..."` | Group labels. crater ignores them and writes them back when it saves the file. |
 
 ---
 
@@ -312,25 +315,44 @@ Older projects keep working: `crater.config.json` is still read when there is no
 
 ## .crater-declare
 
-`crater init` also writes `.crater-declare`, a small JSON file that says crater manages this folder and where its files are:
+`crater init` also writes `.crater-declare`, a JSON file that says crater manages this folder and tells other tools, for example package managers that migrate projects to or from crater, everything they need to read crater files without hard coding crater's rules:
 
 ```json
 {
   "path_to_crater_settings": "crater.settings.json",
   "path_to_package_info": "crater.json",
-  "api_version": 2,
-  "features": ["dependencies", "tools", "scripts", "workspaces", "monorepository", "interfaces"]
+  "api_version": 3,
+  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3 },
+  "schemas": { "package_info": "https://.../crater.schema.json", "crater_settings": "https://.../crater.settings.schema.json" },
+  "registries": { "crater": "...", "wally": "https://github.com/UpliftGames/wally-index", "pesde": "...", "forest": "...", "ember": "..." },
+  "realms": { "import_client": "client", "import_server": "server", "import_develop": "develop" },
+  "label_prefix": "//",
+  "dependency": { "pattern": "...", "operators": { ... }, "sources": { ... }, "registry": "..." },
+  "defaults": { "authors": [], "description": "", "registry": "crater", "package_scripts": { "block": false, "allow": [] }, ... }
 }
 ```
 
-It is meant for other tools, for example package managers that migrate projects to or from crater: they read this file instead of guessing. It is hidden (a dot file, and marked hidden on Windows, so you only see it with "show hidden items" turned on), it stays out of published packages, and it should be committed with the project.
+| Key | What it tells other tools |
+|---|---|
+| `path_to_package_info`, `path_to_crater_settings` | Where `crater.json` and `crater.settings.json` are. |
+| `api_version` | The format of the crater files, see the table below. |
+| `features` | Each feature crater files use and the format version of that feature, so a tool can support some of them and skip the rest. |
+| `schemas` | JSON schemas of both files: every field, its type and what it does. |
+| `registries` | The built in registry names (`crater#`, `wally#`, `pesde#`, `forest#`, `ember#`) and their addresses. Names from `registries` in `crater.json` come on top. |
+| `realms` | Which dependency list installs where. |
+| `label_prefix` | Keys that start with it are group labels, not settings: skip them. |
+| `dependency` | How to read a dependency string like `Promise:wally#evaera/promise^4`: a regular expression with named groups (`alias`, `registry`, `scope`, `name`, `op`, `ver`, `source`), what every version operator means, the `@path:` and `@git+` sources, and which registry a dependency without a prefix comes from. |
+| `defaults` | The value of every optional `crater.json` field that sets nothing: a field equal to it behaves as if it were missing, so a tool can drop it. An empty `registry` (`""` or `[]`) also means `crater`. |
 
-crater checks it on every command. When the file is missing, broken, points at files that do not exist or describes an older API, crater says so and writes it again. `api_version` and `features` change when the format of crater files changes, so other tools can tell what they are reading:
+The file is hidden (a dot file, and marked hidden on Windows, so you only see it with "show hidden items" turned on), it stays out of published packages, and it should be committed with the project.
+
+crater checks it on every command. When the file is missing, broken, points at files that do not exist, is out of date or describes an older API, crater says so and writes it again. `api_version` and `features` change when the format of crater files changes, so other tools can tell what they are reading:
 
 | `api_version` | Format |
 |---|---|
 | `1` | crater 0.5.5: long names in `crater.settings.json` (`import_client_path`, `on_install_update_luaurc`...), `"monorepository": true` next to `monorepository-elements`. |
 | `2` | crater 0.5.6: `crater.settings.json` uses `client`, `server`, `develop` (`path`, `alias`), `luaurc`, `vscode_definitions`, `confirm`; a package is a monorepository when `monorepository-elements` is not empty. Files in format 1 are still read. |
+| `3` | crater 0.5.7: `crater.json` has `package_scripts` (`block`, `allow`) and `package_files` (`exclude`, `allow`), `registry` may name registries (`"crater"`, `"team"`), and fields come in groups with `"// ..."` labels. Files in formats 1 and 2 are still read. |
 
 ## Dependency syntax
 
@@ -575,11 +597,10 @@ A package is plain code until something requires it, unless it contains scripts 
 `crater info` shows the same. To refuse such packages entirely, add to `crater.json`:
 
 ```json
-"block_package_scripts": true,
-"allow_scripts_from": ["sleitnick/knit"]
+"package_scripts": { "block": true, "allow": ["sleitnick/knit"] }
 ```
 
-With that, `add` and `install` stop on any package with scripts that is not in `allow_scripts_from` and leave `crater.json` unchanged. Packages from Wally have no list in their index, so crater checks their files after download.
+With that, `add` and `install` stop on any package with scripts that is not in `allow` and leave `crater.json` unchanged. Packages from Wally have no list in their index, so crater checks their files after download.
 
 ### Packages without a main module
 
@@ -1248,10 +1269,10 @@ Every other file type goes into the package as it is: data files, `.gpp`, `.cpp`
 - **Scripts** (allowed on request): `.sh`, `.bat`, `.cmd`, `.ps1`, `.vbs`, `.command` and files without an extension that start with `#!`. To ship one on purpose, list it in `crater.json`:
 
 ```json
-"allow_files": ["scripts/setup.sh", "tools/*.bat"]
+"package_files": { "allow": ["scripts/setup.sh", "tools/*.bat"] }
 ```
 
-A script that is actually a program inside (binary content) is still left out. The registry check reads `allow_files` from the package too: allowed scripts get a warning for the reviewer, any other script or program blocks the pull request, even if `allow_files` lists it. Before sending, crater runs the same scan on your machine.
+A script that is actually a program inside (binary content) is still left out. The registry check reads `package_files.allow` from the package too: allowed scripts get a warning for the reviewer, any other script or program blocks the pull request, even if the list names it. Before sending, crater runs the same scan on your machine.
 
 `.gitignore` and `.craterignore` follow git's rules: `*`, `**`, `?`, `[...]`, a leading `/` to anchor to the file's folder, a trailing `/` for folders only, `!` to bring a file back and `#` for comments. Files in subfolders apply to that subfolder. `.craterignore` is read after `.gitignore` in the same folder, so it can add rules just for packages or bring back something git ignores:
 

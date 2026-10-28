@@ -46,7 +46,7 @@ public static class PackageFiles
 	static void RemovePrograms(string content, Manifest manifest, string id)
 	{
 		Manifest own = ManifestIn(content);
-		List<Packer.Pattern> allowed = (own.AllowFiles ?? []).Select(Packer.Pattern.Create).ToList();
+		List<Packer.Pattern> allowed = own.AllowedFiles.Select(Packer.Pattern.Create).ToList();
 		List<string> removed = [];
 
 		foreach (string file in Directory.EnumerateFiles(content, "*", SearchOption.AllDirectories))

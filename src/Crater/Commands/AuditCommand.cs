@@ -50,7 +50,7 @@ public static class AuditCommand
 			plan = await UpdatePlanner.PlanAsync(project);
 		}
 
-		HashSet<string> allowedScripts = new(project.Manifest.AllowScriptsFrom ?? [], StringComparer.OrdinalIgnoreCase);
+		HashSet<string> allowedScripts = new(project.Manifest.ScriptsAllowedFrom, StringComparer.OrdinalIgnoreCase);
 
 		foreach (UpdateCandidate candidate in plan.DistinctBy(candidate => candidate.Name))
 		{

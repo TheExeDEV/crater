@@ -37,7 +37,7 @@ public static class ImportCommand
 
 		imported.Manifest["registry"] = registry;
 
-		Json.WriteText(manifestPath, Json.Serialize(imported.Manifest));
+		ManifestFile.Write(manifestPath, imported.Manifest);
 		Out.Ok($"Created {Fmt.File(Path.GetRelativePath(directory, manifestPath))} from {Fmt.File(source)}");
 
 		if (!File.Exists(settingsPath))
