@@ -125,6 +125,41 @@ public sealed class RegistryFeatureTests : IDisposable
 	}
 
 	[Fact]
+	public void SearchFiltersByTagsAndInterfaces()
+	{
+		Assert.Equal(0, Crater(Project("t/log-api", [], manifest =>
+		{
+			manifest["interface"] = true;
+			manifest["keywords"] = new JsonArray("logging");
+		}), "publish", "-y").ExitCode);
+		Assert.Equal(0, Crater(Project("t/log", [], manifest =>
+		{
+			manifest["keywords"] = new JsonArray("Logging", "debug");
+			manifest["realized_interfaces"] = new JsonArray("t/log-api");
+		}), "publish", "-y").ExitCode);
+		Assert.Equal(0, Crater(Project("t/ui", [], manifest => manifest["keywords"] = new JsonArray("ui")), "publish", "-y").ExitCode);
+
+		string game = Project("t/game", []);
+		string tagged = Crater(game, "search", "--tag", "logging").Output;
+		string both = Crater(game, "search", "--tags", "#logging,debug").Output;
+		string interfaces = Crater(game, "search", "interface", "--tag", "logging").Output;
+		string implementing = Crater(game, "search", "--implements", "T/Log-Api").Output;
+
+		Assert.Contains("t/log ", tagged);
+		Assert.Contains("t/log-api", tagged);
+		Assert.DoesNotContain("t/ui", tagged);
+		Assert.Contains("t/log ", both);
+		Assert.DoesNotContain("t/log-api", both);
+		Assert.Contains("t/log-api", interfaces);
+		Assert.DoesNotContain("t/log ", interfaces);
+		Assert.Contains("t/log ", implementing);
+		Assert.DoesNotContain("t/ui", implementing);
+		Assert.Contains("No packages match", Crater(game, "search", "--tag", "missing").Output);
+		Assert.Equal(1, Crater(game, "search", "lint", "tool", "--tag", "ui").ExitCode);
+		Assert.Equal(1, Crater(game, "search", "--implements", "notaname").ExitCode);
+	}
+
+	[Fact]
 	public void DeprecatedVersionsAreSkippedAndMarked()
 	{
 		string lib = Project("t/lib", []);

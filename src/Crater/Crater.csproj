@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Templates\**\*" LogicalName="Templates/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Cli\commands.json" LogicalName="Cli/commands.json" />
   </ItemGroup>
 
 </Project>

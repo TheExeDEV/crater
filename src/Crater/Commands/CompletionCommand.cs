@@ -11,60 +11,6 @@ public static class CompletionCommand
 {
 	const string Marker = "# crater completion";
 
-	static readonly string[] Commands =
-	[
-		"init", "import", "bump", "run", "dev", "doctor", "audit",
-		"install", "update", "add", "remove", "outdated", "list", "graph", "why", "patch", "unused", "size", "licenses",
-		"search", "find-interface", "info", "versions", "pack", "publish", "deprecate", "owner", "history", "login", "logout", "whoami", "registry", "tool",
-		"cache", "completion", "self-update", "version",
-	];
-
-	static readonly string[] CommonFlags = ["--yes", "--offline", "--help"];
-
-	static readonly Dictionary<string, string[]> Flags = new()
-	{
-		["init"] = ["--name", "--registry", "--template"],
-		["import"] = ["--force", "--registry"],
-		["install"] = ["--workspace", "--locked"],
-		["update"] = ["--interactive", "--workspace"],
-		["add"] = ["--client", "--server", "--dev", "--packages-list"],
-		["remove"] = ["--client", "--server", "--dev"],
-		["outdated"] = ["--all"],
-		["publish"] = ["--dry-run", "--workspace"],
-		["deprecate"] = ["--undo", "--registry", "--dry-run"],
-		["history"] = ["--limit", "--registry"],
-		["login"] = ["--private", "--force"],
-		["dev"] = ["--no-serve"],
-		["audit"] = ["--strict"],
-		["graph"] = ["--output", "--client", "--server", "--dev", "--depth"],
-		["search"] = ["--registry", "--type"],
-		["find-interface"] = ["--registry"],
-		["info"] = ["--registry"],
-		["versions"] = ["--registry"],
-		["patch"] = ["--remove"],
-		["tool"] = ["--global"],
-		["self-update"] = ["--check"],
-		["completion"] = ["--print"],
-	};
-
-	static readonly Dictionary<string, string[]> Subcommands = new()
-	{
-		["tool"] = ["add", "list", "remove", "install", "run", "known"],
-		["registry"] = ["init", "check", "catalog", "scan", "site"],
-		["cache"] = ["clean"],
-		["bump"] = ["patch", "minor", "major"],
-		["completion"] = ["install", "powershell", "bash", "zsh", "fish"],
-		["owner"] = ["add", "remove", "list"],
-	};
-
-	static readonly Dictionary<string, string> Aliases = new()
-	{
-		["i"] = "install",
-		["up"] = "update",
-		["rm"] = "remove",
-		["ls"] = "list",
-	};
-
 	public static int Complete(string[] argv)
 	{
 		string current = argv.Length > 1 && argv[1].StartsWith("c:") ? argv[1][2..] : "";
@@ -80,42 +26,50 @@ public static class CompletionCommand
 
 	static IEnumerable<string> Candidates(List<string> previous, string current)
 	{
-		if (previous.LastOrDefault() is "--template" or "-t")
-		{
-			return ["game", "library", "plugin"];
-		}
-
+		CommandList list = CommandList.Current;
+		IEnumerable<string> commonFlags = list.Flags.Select(flag => FlagInfo.Parse(flag.Flag).LongName);
 		List<string> words = previous.Where(word => !word.StartsWith('-')).ToList();
 
 		if (words.Count == 0)
 		{
-			return current.StartsWith('-') ? CommonFlags.Append("--version") : Commands;
+			return current.StartsWith('-') ? commonFlags.Append("--version") : list.Commands.Select(command => command.Name);
 		}
 
-		string command = Aliases.GetValueOrDefault(words[0], words[0]);
+		CommandInfo? command = list.Find(words[0]);
+
+		if (command is null)
+		{
+			return [];
+		}
+
+		if (previous.Count > 0 && previous[^1].StartsWith('-') && command.FindFlag(previous[^1]) is FlagInfo flag && flag.Value is not null)
+		{
+			return flag.Choices;
+		}
 
 		if (current.StartsWith('-'))
 		{
-			return Flags.GetValueOrDefault(command, []).Concat(CommonFlags);
+			return command.ParsedFlags.Select(item => item.LongName).Concat(commonFlags);
 		}
 
-		if (words.Count == 1 && Subcommands.TryGetValue(command, out string[]? subcommands))
+		if (words.Count == 1)
 		{
-			return subcommands;
+			return command.Subcommands.Count > 0 ? command.Subcommands : Sources(command.Complete);
 		}
 
-		string? subcommand = words.Count > 1 ? words[1] : null;
+		return command.CompleteSubcommands.TryGetValue(words[1], out List<string>? sources) ? Sources(sources) : [];
+	}
 
-		return (command, subcommand) switch
+	static IEnumerable<string> Sources(List<string> sources)
+	{
+		return sources.SelectMany(source => source switch
 		{
-			("remove" or "update" or "why" or "outdated", _) => Dependencies(),
-			("patch" or "info" or "versions", _) => Dependencies(),
-			("run", null) => Scripts(),
-			("tool", "add") => ToolCatalog.Cached()?.Tools.Keys ?? Enumerable.Empty<string>(),
-			("tool", "remove" or "run") => Tools(),
-			("import", null) => ["wally.toml", "pesde.toml"],
-			_ => [],
-		};
+			"@dependencies" => Dependencies(),
+			"@scripts" => Scripts(),
+			"@tools" => Tools(),
+			"@known-tools" => ToolCatalog.Cached()?.Tools.Keys ?? Enumerable.Empty<string>(),
+			_ => [source],
+		});
 	}
 
 	static IEnumerable<string> Dependencies()

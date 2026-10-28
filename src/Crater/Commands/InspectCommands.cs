@@ -247,24 +247,67 @@ public static class InspectCommands
 		}
 
 		string query = string.Join(' ', words);
+		List<string> tags = CatalogEntry.ParseTags(args.Value("tag", "tags"));
+		string? implements = args.Value("implements")?.Trim().ToLowerInvariant();
 
 		if (kind == "tool")
 		{
+			if (tags.Count > 0 || implements is not null)
+			{
+				throw new CraterException($"Tools have no tags or interfaces. Use {Fmt.Cmd("--tag")} and {Fmt.Cmd("--implements")} with packages.");
+			}
+
 			await SearchToolsAsync(query);
 			return;
 		}
 
-		List<CatalogEntry> results = (await SearchCatalogAsync(args, query))
+		if (implements is not null && !DependencySpec.IsValidPackageName(implements))
+		{
+			throw new CraterException($"{Fmt.Val(implements)} is not an interface name. Expected author/name.");
+		}
+
+		List<CatalogEntry> found = (await SearchCatalogAsync(args, query))
 			.Where(entry => kind is null || (kind == "interface") == (entry.Interface == true))
+			.ToList();
+		List<CatalogEntry> results = found
+			.Where(entry => entry.HasTags(tags) && (implements is null || entry.Implements(implements)))
 			.ToList();
 
 		if (results.Count == 0)
 		{
-			Out.Info($"No {(kind is null ? "packages" : kind + "s")} match {Fmt.Val(query)}.");
+			Out.Info($"No {(kind is null ? "packages" : kind + "s")} match {SearchDescription(query, tags, implements)}.");
+
+			if (tags.Count > 0 && found.Count > 0 && found.All(entry => entry.Keywords.Count == 0))
+			{
+				Out.Dim("  this registry does not list package tags");
+			}
+
 			return;
 		}
 
 		PrintPackages(results);
+	}
+
+	static string SearchDescription(string query, List<string> tags, string? implements)
+	{
+		List<string> parts = [];
+
+		if (query.Length > 0)
+		{
+			parts.Add(Fmt.Val(query));
+		}
+
+		if (tags.Count > 0)
+		{
+			parts.Add($"{(tags.Count == 1 ? "tag" : "tags")} {string.Join(", ", tags.Select(tag => Fmt.Val(tag)))}");
+		}
+
+		if (implements is not null)
+		{
+			parts.Add($"implementing {Fmt.Pkg(implements)}");
+		}
+
+		return parts.Count == 0 ? Fmt.Val("") : string.Join(", ", parts);
 	}
 
 	public static async Task FindInterfaceAsync(Args args)

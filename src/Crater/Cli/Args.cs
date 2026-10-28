@@ -2,10 +2,7 @@ namespace Crater.Cli;
 
 public sealed class Args
 {
-	static readonly HashSet<string> OptionsWithValue =
-	[
-		"name", "registry", "o", "output", "base", "author", "port", "crater-repo", "repo", "branch", "maintainer", "template", "t", "depth", "limit", "n", "frontend", "type", "site-url",
-	];
+	static HashSet<string> OptionsWithValue => CommandList.Current.OptionsWithValue;
 
 	readonly Dictionary<string, string?> options = [];
 

@@ -124,6 +124,26 @@ public sealed class CatalogEntry
 		};
 	}
 
+	public static List<string> ParseTags(string? text)
+	{
+		return (text ?? "")
+			.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Select(tag => tag.TrimStart('#').ToLowerInvariant())
+			.Where(tag => tag.Length > 0)
+			.Distinct()
+			.ToList();
+	}
+
+	public bool HasTags(IReadOnlyCollection<string> tags)
+	{
+		return tags.All(tag => Keywords.Any(keyword => keyword.Equals(tag, StringComparison.OrdinalIgnoreCase)));
+	}
+
+	public bool Implements(string interfaceName)
+	{
+		return RealizedInterfaces?.Any(name => name.Equals(interfaceName, StringComparison.OrdinalIgnoreCase)) == true;
+	}
+
 	public int Score(string needle)
 	{
 		string shortName = Name[(Name.IndexOf('/') + 1)..];
