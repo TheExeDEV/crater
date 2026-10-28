@@ -75,7 +75,7 @@ public static class Program
 
 	static async Task<int> DispatchAsync(Args args)
 	{
-		switch (args.Command)
+		switch (CommandList.Current.Canonical(args.Command!))
 		{
 			case "init":
 				ProjectCommands.Init(args);
@@ -98,11 +98,11 @@ public static class Program
 			case "doctor":
 				return await DoctorCommand.RunAsync();
 
-			case "install" or "i":
+			case "install":
 				await InstallCommands.InstallAsync(args);
 				return 0;
 
-			case "update" or "up":
+			case "update":
 				await InstallCommands.UpdateAsync(args);
 				return 0;
 
@@ -110,7 +110,7 @@ public static class Program
 				await InstallCommands.AddAsync(args);
 				return 0;
 
-			case "remove" or "rm":
+			case "remove":
 				await InstallCommands.RemoveAsync(args);
 				return 0;
 
@@ -118,7 +118,7 @@ public static class Program
 				await InspectCommands.OutdatedAsync(args);
 				return 0;
 
-			case "list" or "ls":
+			case "list":
 				InspectCommands.List();
 				return 0;
 

@@ -524,6 +524,8 @@ An interface is a package that describes an API, usually types, that other packa
 - An interface cannot implement other interfaces.
 - `crater find-interface studio/logger-api` lists every package that implements it. The website shows the implementations on the page of the interface and the interfaces on the page of an implementation.
 - `crater search logger interface` finds only interfaces, `crater search logger package` only packages, `crater search lint tool` the [tools](#tools) you can pin. `--type interface` works too.
+- `crater search --tag ui` finds packages and interfaces by their `keywords`. Several tags are written with commas, `--tag ui,animation`, and a package must have all of them. The tag filter works with a word and a type too: `crater search button interface --tag ui`.
+- `crater search --implements studio/logger-api` finds the packages that implement an interface, and can be combined with a word and `--tag`.
 
 ---
 
@@ -1388,7 +1390,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `list` (`ls`) | Installed tree. |
 | `why <scope/name>` | Why a package is installed. |
 | `graph [-o file.md] [--client\|--server\|--dev] [--depth n]` | Mermaid diagram of the installed tree. |
-| `search [query] [package\|interface\|tool]` | Search the registry catalog, only interfaces, only packages, or the tools you can pin. |
+| `search [query] [package\|interface\|tool] [--tag t] [--implements a/b]` | Search the registry catalog, only interfaces, only packages, or the tools you can pin. Filter by tags or by the interface a package implements. |
 | `find-interface <author/name>` | Packages that implement an interface, see [Interfaces](#interfaces). |
 | `info <scope/name>` | Package details. |
 | `versions <scope/name>` | Published versions. |

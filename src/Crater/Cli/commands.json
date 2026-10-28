@@ -1,0 +1,248 @@
+{
+	"flags": [
+		{ "flag": "-y, --yes", "description": "do not ask for confirmation" },
+		{ "flag": "--offline", "description": "use only the cache, no internet" },
+		{ "flag": "-h, --help", "description": "show help" }
+	],
+	"sections": [
+		{
+			"title": "Project",
+			"commands": [
+				{
+					"name": "init",
+					"flags": ["--name <scope/name>", "--registry <location>", "-t, --template <game|library|plugin>"],
+					"help": [["init [--name scope/name] [--template game|library|plugin]", "create crater.json, optionally a whole project"]]
+				},
+				{
+					"name": "import",
+					"flags": ["--force", "--registry <location>"],
+					"complete": ["wally.toml", "pesde.toml"],
+					"help": [["import [wally.toml|pesde.toml]", "convert a Wally or pesde project"]]
+				},
+				{
+					"name": "bump",
+					"subcommands": ["patch", "minor", "major"],
+					"help": [["bump [patch|minor|major]", "raise the version: 0.0.9 becomes 0.1.0"]]
+				},
+				{
+					"name": "run",
+					"complete": ["@scripts"],
+					"help": [["run [script] [-- args]", "run a script from crater.json"]]
+				},
+				{
+					"name": "doctor",
+					"help": [["doctor", "check the project for problems"]]
+				},
+				{
+					"name": "audit",
+					"flags": ["--strict"],
+					"help": [["audit [--strict]", "deprecated and risky packages, licenses, scan findings and updates"]]
+				},
+				{
+					"name": "dev",
+					"flags": ["--no-serve"],
+					"help": [["dev [--no-serve]", "rojo serve plus reinstall when crater.json changes"]]
+				}
+			]
+		},
+		{
+			"title": "Dependencies",
+			"commands": [
+				{
+					"name": "install",
+					"aliases": ["i"],
+					"flags": ["-w, --workspace", "--locked"],
+					"help": [["install [--workspace] [--locked]", "install dependencies, --locked fails if crater.lock is out of date"]]
+				},
+				{
+					"name": "add",
+					"flags": ["--client", "--server", "--dev", "-l, --packages-list"],
+					"help": [
+						["add <spec...> [--client|--server|--dev]", "add dependencies and install"],
+						["add --packages-list [search]", "search all registries and pick a package and version"]
+					]
+				},
+				{
+					"name": "remove",
+					"aliases": ["rm"],
+					"flags": ["--client", "--server", "--dev"],
+					"complete": ["@dependencies"],
+					"help": [["remove <name...> [--client|--server|--dev]", "remove dependencies by scope/name or alias"]]
+				},
+				{
+					"name": "update",
+					"aliases": ["up"],
+					"flags": ["-i, --interactive", "-w, --workspace"],
+					"complete": ["@dependencies"],
+					"help": [["update [name...] [-i] [--workspace]", "update to the newest matching versions, -i to pick"]]
+				},
+				{
+					"name": "outdated",
+					"flags": ["--all"],
+					"complete": ["@dependencies"],
+					"help": [["outdated [--all]", "show dependencies that have newer versions"]]
+				},
+				{
+					"name": "list",
+					"aliases": ["ls"],
+					"help": [["list", "show the installed package tree"]]
+				},
+				{
+					"name": "why",
+					"complete": ["@dependencies"],
+					"help": [["why <name>", "show why a package is installed"]]
+				},
+				{
+					"name": "graph",
+					"flags": ["-o, --output <file>", "--client", "--server", "--dev", "--depth <n>"],
+					"help": [["graph [-o file.md] [--client|--server|--dev] [--depth n]", "dependency diagram in Mermaid, GitHub draws it"]]
+				},
+				{
+					"name": "patch",
+					"flags": ["--remove"],
+					"complete": ["@dependencies"],
+					"help": [["patch [name] [--remove]", "keep your edits to an installed package"]]
+				},
+				{
+					"name": "unused",
+					"help": [["unused", "find dependencies your code never requires"]]
+				},
+				{
+					"name": "size",
+					"help": [["size", "show how much code each package adds"]]
+				},
+				{
+					"name": "licenses",
+					"help": [["licenses", "list the licenses of installed packages"]]
+				}
+			]
+		},
+		{
+			"title": "Registry",
+			"commands": [
+				{
+					"name": "login",
+					"flags": ["--private", "--force"],
+					"help": [["login [--private] [--force]", "sign in with GitHub, --private also for private registries"]]
+				},
+				{
+					"name": "logout",
+					"help": [["logout", "sign out"]]
+				},
+				{
+					"name": "whoami",
+					"help": [["whoami", "show who you are signed in as"]]
+				},
+				{
+					"name": "search",
+					"flags": ["--registry <location>", "--type <package|interface|tool>", "--tag, --tags <tags>", "--implements <author/name>"],
+					"complete": ["package", "interface", "tool"],
+					"help": [["search [query] [type] [--tag t] [--implements a/b]", "search packages, interfaces or tools, by tag or interface"]]
+				},
+				{
+					"name": "find-interface",
+					"flags": ["--registry <location>"],
+					"help": [["find-interface <author/name>", "list packages that implement an interface"]]
+				},
+				{
+					"name": "info",
+					"flags": ["--registry <location>"],
+					"complete": ["@dependencies"],
+					"help": [["info <scope/name>", "show package details"]]
+				},
+				{
+					"name": "versions",
+					"flags": ["--registry <location>"],
+					"complete": ["@dependencies"],
+					"help": [["versions <scope/name>", "list published versions"]]
+				},
+				{
+					"name": "pack",
+					"flags": ["-o, --output <file>"],
+					"help": [["pack [-o file.zip]", "build the package archive"]]
+				},
+				{
+					"name": "publish",
+					"flags": ["--dry-run", "-w, --workspace"],
+					"help": [["publish [--dry-run]", "send the package to the registry for review"]]
+				},
+				{
+					"name": "deprecate",
+					"flags": ["--undo", "--registry <location>", "--dry-run"],
+					"help": [["deprecate <scope/name>[@version] [message] [--undo]", "mark a package or one version as deprecated"]]
+				},
+				{
+					"name": "owner",
+					"flags": ["--dry-run"],
+					"subcommands": ["add", "remove", "list"],
+					"help": [["owner add|remove|list <scope/name> [login]", "let a friend publish your package"]]
+				},
+				{
+					"name": "history",
+					"flags": ["-n, --limit <n>", "--registry <location>"],
+					"help": [["history [scope/name] [--limit n]", "who published, deprecated or changed what, and when"]]
+				},
+				{
+					"name": "registry",
+					"flags": [
+						"--name <name>", "--repo <owner/repo>", "--branch <branch>", "--private", "--force", "--maintainer <login>",
+						"--base <location>", "--author <login>", "-o, --output <folder>", "--crater-repo <owner/repo>",
+						"--frontend <folder>", "--site-url <url>", "--serve", "--port <port>"
+					],
+					"subcommands": ["init", "check", "catalog", "scan", "site"],
+					"help": [["registry init|check|catalog|site", "manage a registry repository"]]
+				}
+			]
+		},
+		{
+			"title": "Crater",
+			"commands": [
+				{
+					"name": "self-update",
+					"flags": ["--check"],
+					"help": [["self-update [--check]", "update crater itself"]]
+				},
+				{
+					"name": "tool",
+					"flags": ["-g, --global"],
+					"subcommands": ["add", "list", "remove", "install", "run", "known"],
+					"complete_subcommands": {
+						"add": ["@known-tools"],
+						"remove": ["@tools"],
+						"run": ["@tools"]
+					},
+					"help": [
+						["tool add <name>[@version] [--global]", "pin a tool like rojo or luau-lsp to the project"],
+						["tool list|remove|install", "manage pinned tools"]
+					]
+				},
+				{
+					"name": "cache",
+					"subcommands": ["clean"],
+					"help": [["cache [clean]", "show or clear the download cache"]]
+				},
+				{
+					"name": "completion",
+					"flags": ["--print"],
+					"subcommands": ["install", "powershell", "bash", "zsh", "fish"],
+					"help": [["completion [install|powershell|bash|zsh|fish]", "turn on Tab completion, or print the script"]]
+				},
+				{
+					"name": "version",
+					"help": [["version", "show version"]]
+				}
+			]
+		}
+	],
+	"dependency_formats": [
+		["scope/name^", "latest version"],
+		["scope/name=1.2.3", "exactly 1.2.3"],
+		["scope/name+1.2.3", "1.2.3 or newer"],
+		["scope/name^1.2.3", "compatible (>=1.2.3 <2.0.0)"],
+		["scope/name@1.2.3", "the same, safe in the Windows terminal"],
+		["scope/name~1.2.3", "patch updates only (>=1.2.3 <1.3.0)"],
+		["Alias:scope/name^", "install under another link name"],
+		["scope/name@path:../lib", "use a local folder"],
+		["scope/name@git+https://host/repo.git#tag", "use a git repository"]
+	]
+}

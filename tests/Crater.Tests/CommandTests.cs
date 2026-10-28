@@ -71,6 +71,11 @@ public sealed class CommandTests : IDisposable
 		Assert.Equal(["Promise", "evaera/promise"], Complete("c:", "rm", "--dev"));
 		Assert.Equal(["serve"], Complete("c:", "run"));
 		Assert.Equal(["add", "install", "known", "list", "remove", "run"], Complete("c:", "tool"));
+		Assert.Equal(["game", "library", "plugin"], Complete("c:", "init", "-t"));
+		Assert.Equal(["interface", "package", "tool"], Complete("c:", "search", "--type"));
+		Assert.Contains("--tag", Complete("c:--", "search"));
+		Assert.Contains("--locked", Complete("c:--", "i"));
+		Assert.Equal(0, Crater("ls").ExitCode);
 
 		Directory.CreateDirectory(Path.Combine(root, "cache"));
 		File.WriteAllText(Path.Combine(root, "cache", "tools.json"), "{\"tools\":{\"rojo\":{\"repository\":\"rojo-rbx/rojo\"}}}");
