@@ -80,7 +80,7 @@ public static class VersionNotices
 			{
 				if (printed++ >= maxLines)
 				{
-					Out.Dim($"    ... more in {Fmt.Cmd($"crater info {name}")}");
+					Out.Dim($"    ... more in {Fmt.Cmd($"crater changelog {name}")}");
 					return;
 				}
 

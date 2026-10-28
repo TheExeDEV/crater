@@ -55,6 +55,11 @@ public static class LiveLine
 
 	public static void Set(string? text)
 	{
+		if (Out.Quiet)
+		{
+			return;
+		}
+
 		lock (Sync)
 		{
 			ClearUnlocked();

@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace Crater.Util;
@@ -29,7 +30,11 @@ public static partial class Out
 	[GeneratedRegex(@"\[(p|f|c|v|g|r)\](.*?)\[/\]")]
 	private static partial Regex Markup();
 
+	public static bool Quiet { get; set; }
+
 	public static string Plain(string text) => Markup().Replace(text, "$2");
+
+	public static void WriteJson(JsonNode? node) => Console.Out.WriteLine(Json.Serialize(node ?? new JsonArray()));
 
 	public static void Info(string message) => WriteLine(Console.Out, "", null, message, null);
 
@@ -37,7 +42,7 @@ public static partial class Out
 
 	public static void Ok(string message) => WriteLine(Console.Out, "✓ ", ConsoleColor.Green, message, ConsoleColor.Green);
 
-	public static void Warn(string message) => WriteLine(Console.Out, "! ", ConsoleColor.Yellow, message, ConsoleColor.Yellow);
+	public static void Warn(string message) => WriteLine(Quiet ? Console.Error : Console.Out, "! ", ConsoleColor.Yellow, message, ConsoleColor.Yellow);
 
 	public static void Error(string message) => WriteLine(Console.Error, "✗ ", ConsoleColor.Red, message, ConsoleColor.Red);
 
@@ -47,6 +52,11 @@ public static partial class Out
 
 	public static void Inline(string message)
 	{
+		if (Quiet)
+		{
+			return;
+		}
+
 		lock (LiveLine.Sync)
 		{
 			Render(Console.Out, message, null);
@@ -74,6 +84,11 @@ public static partial class Out
 
 	static void WriteLine(TextWriter writer, string prefix, ConsoleColor? prefixColor, string message, ConsoleColor? baseColor)
 	{
+		if (Quiet && writer == Console.Out)
+		{
+			return;
+		}
+
 		lock (LiveLine.Sync)
 		{
 			LiveLine.ClearUnlocked();

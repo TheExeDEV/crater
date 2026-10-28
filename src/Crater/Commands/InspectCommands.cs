@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Crater.Cli;
 using Crater.Core;
 using Crater.Models;
@@ -17,6 +19,12 @@ public static class InspectCommands
 		if (!project.Manifest.AllDependencies().Any())
 		{
 			Out.Info($"No dependencies in {Fmt.File(Manifest.FileName)}.");
+
+			if (Out.Quiet)
+			{
+				Out.WriteJson(new JsonArray());
+			}
+
 			return;
 		}
 
@@ -28,6 +36,24 @@ public static class InspectCommands
 		}
 
 		List<UpdateCandidate> shown = args.Has("all") ? plan : plan.Where(candidate => candidate.NeedsAttention).ToList();
+
+		if (Out.Quiet)
+		{
+			Out.WriteJson(new JsonArray(shown.Select(candidate => (JsonNode)new JsonObject
+			{
+				["name"] = candidate.Name,
+				["realm"] = candidate.Realm.Key(),
+				["installed"] = candidate.Installed,
+				["wanted"] = candidate.Wanted,
+				["latest"] = candidate.Latest,
+				["requirement"] = candidate.Requirement,
+				["direct"] = candidate.IsDirect,
+				["can_update"] = candidate.CanUpdate,
+				["newer_outside_requirement"] = candidate.HasNewer,
+				["deprecated"] = candidate.Index?.Deprecated,
+			}).ToArray()));
+			return;
+		}
 
 		if (shown.Count == 0)
 		{
@@ -90,6 +116,19 @@ public static class InspectCommands
 	{
 		Project project = Common.LoadProject();
 		LockFile lockFile = LockFile.Load(project.LockPath);
+
+		if (Out.Quiet)
+		{
+			JsonObject realms = [];
+
+			foreach (Realm realm in Realms.All)
+			{
+				realms[realm.Key()] = JsonSerializer.SerializeToNode(lockFile.For(realm).ToList(), Json.Options);
+			}
+
+			Out.WriteJson(realms);
+			return;
+		}
 
 		if (lockFile.Packages.Count == 0)
 		{
@@ -228,205 +267,9 @@ public static class InspectCommands
 		return chains;
 	}
 
-	static readonly string[] SearchKinds = ["package", "interface", "tool"];
-
-	public static async Task SearchAsync(Args args)
-	{
-		List<string> words = [.. args.Positional];
-		string? kind = args.Value("type")?.ToLowerInvariant();
-
-		if (kind is null && words.Count > 0 && SearchKinds.Contains(words[^1].ToLowerInvariant()))
-		{
-			kind = words[^1].ToLowerInvariant();
-			words.RemoveAt(words.Count - 1);
-		}
-
-		if (kind is not null && !SearchKinds.Contains(kind))
-		{
-			throw new CraterException($"Unknown type {Fmt.Val(kind)}. Use {Fmt.Val("package")}, {Fmt.Val("interface")} or {Fmt.Val("tool")}.");
-		}
-
-		string query = string.Join(' ', words);
-		List<string> tags = CatalogEntry.ParseTags(args.Value("tag", "tags"));
-		string? implements = args.Value("implements")?.Trim().ToLowerInvariant();
-
-		if (kind == "tool")
-		{
-			if (tags.Count > 0 || implements is not null)
-			{
-				throw new CraterException($"Tools have no tags or interfaces. Use {Fmt.Cmd("--tag")} and {Fmt.Cmd("--implements")} with packages.");
-			}
-
-			await SearchToolsAsync(query);
-			return;
-		}
-
-		if (implements is not null && !DependencySpec.IsValidPackageName(implements))
-		{
-			throw new CraterException($"{Fmt.Val(implements)} is not an interface name. Expected author/name.");
-		}
-
-		List<CatalogEntry> found = (await SearchCatalogAsync(args, query))
-			.Where(entry => kind is null || (kind == "interface") == (entry.Interface == true))
-			.ToList();
-		List<CatalogEntry> results = found
-			.Where(entry => entry.HasTags(tags) && (implements is null || entry.Implements(implements)))
-			.ToList();
-
-		if (results.Count == 0)
-		{
-			Out.Info($"No {(kind is null ? "packages" : kind + "s")} match {SearchDescription(query, tags, implements)}.");
-
-			if (tags.Count > 0 && found.Count > 0 && found.All(entry => entry.Keywords.Count == 0))
-			{
-				Out.Dim("  this registry does not list package tags");
-			}
-
-			return;
-		}
-
-		PrintPackages(results);
-	}
-
-	static string SearchDescription(string query, List<string> tags, string? implements)
-	{
-		List<string> parts = [];
-
-		if (query.Length > 0)
-		{
-			parts.Add(Fmt.Val(query));
-		}
-
-		if (tags.Count > 0)
-		{
-			parts.Add($"{(tags.Count == 1 ? "tag" : "tags")} {string.Join(", ", tags.Select(tag => Fmt.Val(tag)))}");
-		}
-
-		if (implements is not null)
-		{
-			parts.Add($"implementing {Fmt.Pkg(implements)}");
-		}
-
-		return parts.Count == 0 ? Fmt.Val("") : string.Join(", ", parts);
-	}
-
-	public static async Task FindInterfaceAsync(Args args)
-	{
-		string name = (args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater find-interface <author/name>")}")).ToLowerInvariant();
-
-		if (!DependencySpec.IsValidPackageName(name))
-		{
-			throw new CraterException($"{Fmt.Val(name)} is not an interface name. Expected author/name.");
-		}
-
-		List<CatalogEntry> catalog = await SearchCatalogAsync(args, "");
-		CatalogEntry? declared = catalog.FirstOrDefault(entry => entry.Name == name);
-		List<CatalogEntry> implementations = catalog
-			.Where(entry => entry.RealizedInterfaces?.Contains(name) == true)
-			.ToList();
-
-		if (declared is null)
-		{
-			Out.Warn($"{Fmt.Pkg(name)} is not in this registry.");
-		}
-		else if (declared.Interface != true)
-		{
-			Out.Warn($"{Fmt.Pkg(name)} is a package, not an interface.");
-		}
-
-		if (implementations.Count == 0)
-		{
-			Out.Info($"No packages implement {Fmt.Pkg(name)} yet.");
-			return;
-		}
-
-		Out.Heading($"{Fmt.Plural(implementations.Count, "package implements", "packages implement")} {name}");
-		PrintPackages(implementations);
-	}
-
-	static async Task<List<CatalogEntry>> SearchCatalogAsync(Args args, string query)
-	{
-		IRegistry registry = OpenRegistry(args);
-		Catalog? catalog;
-
-		using (new Spinner("Searching"))
-		{
-			catalog = await registry.GetCatalogAsync(query);
-		}
-
-		if (catalog is null)
-		{
-			throw new CraterException(
-				$"Registry {Fmt.File(registry.Location)} has no {Fmt.File(Catalog.FileName)}. " +
-				$"Its maintainer can create it with {Fmt.Cmd("crater registry catalog")}.");
-		}
-
-		return catalog.Search(query);
-	}
-
-	static async Task SearchToolsAsync(string query)
-	{
-		ToolCatalog tools;
-
-		using (new Spinner("Searching tools"))
-		{
-			tools = await ToolCatalog.LoadAsync();
-		}
-
-		List<KeyValuePair<string, ToolEntry>> found = tools.Tools
-			.Where(pair => query.Length == 0
-				|| pair.Key.Contains(query, StringComparison.OrdinalIgnoreCase)
-				|| pair.Value.Repository.Contains(query, StringComparison.OrdinalIgnoreCase)
-				|| (pair.Value.Description ?? "").Contains(query, StringComparison.OrdinalIgnoreCase))
-			.OrderBy(pair => pair.Key, StringComparer.Ordinal)
-			.ToList();
-
-		if (found.Count == 0)
-		{
-			Out.Info($"No tools match {Fmt.Val(query)}. Any GitHub release works: {Fmt.Cmd("crater tool add owner/repo")}.");
-			return;
-		}
-
-		Table.Print(["Tool", "Repository", "Description"], found.Select(pair => (IReadOnlyList<string>)
-		[
-			Fmt.Pkg(pair.Key),
-			pair.Value.Repository,
-			Truncate(pair.Value.Description ?? "", 60),
-		]).ToList());
-	}
-
-	static void PrintPackages(List<CatalogEntry> results)
-	{
-		List<IReadOnlyList<string>> rows = results.Take(50).Select(entry => (IReadOnlyList<string>)
-		[
-			Fmt.Pkg(entry.Name),
-			Fmt.Val(entry.Latest),
-			Kind(entry),
-			entry.ImportTo,
-			Truncate(entry.Description, 60),
-		]).ToList();
-
-		Table.Print(["Package", "Latest", "Type", "Realm", "Description"], rows);
-
-		if (results.Count > 50)
-		{
-			Out.Dim($"  and {results.Count - 50} more, refine the query");
-		}
-	}
-
-	static string Kind(CatalogEntry entry)
-	{
-		if (entry.Interface == true)
-		{
-			return "interface";
-		}
-
-		return entry.Monorepository == true ? "monorepository" : "package";
-	}
-
 	public static async Task InfoAsync(Args args)
 	{
-		DependencySpec spec = DependencySpec.Parse(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater info <scope/name>")}"));
+		DependencySpec spec = ResolveSpec(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater info <scope/name>")}"));
 		string name = spec.FullName;
 		IRegistry registry = OpenRegistry(args, spec);
 		RegistryIndex index = await registry.GetIndexAsync(name)
@@ -436,6 +279,28 @@ public static class InspectCommands
 			?? throw new CraterException($"{Fmt.Pkg(name)} has no published versions.");
 
 		Manifest manifest = latest.Manifest;
+
+		if (Out.Quiet)
+		{
+			Out.WriteJson(new JsonObject
+			{
+				["name"] = name,
+				["latest"] = latest.Version,
+				["registry"] = registry.Location,
+				["deprecated"] = index.Deprecated,
+				["owners"] = new JsonArray((index.Owners ?? []).Select(owner => (JsonNode?)owner).ToArray()),
+				["versions"] = new JsonArray(index.Versions.OrderByDescending(release => release.SemVer).Select(release => (JsonNode)new JsonObject
+				{
+					["version"] = release.Version,
+					["published_at"] = release.PublishedAt?.ToString("o"),
+					["deprecated"] = release.Deprecated,
+				}).ToArray()),
+				["scripts"] = JsonSerializer.SerializeToNode(latest.Scripts, Json.Options),
+				["notes"] = latest.Notes,
+				["manifest"] = JsonSerializer.SerializeToNode(manifest, Json.Options),
+			});
+			return;
+		}
 
 		Out.Heading($"{name} {latest.Version}");
 
@@ -492,7 +357,7 @@ public static class InspectCommands
 
 	public static async Task VersionsAsync(Args args)
 	{
-		DependencySpec spec = DependencySpec.Parse(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater versions <scope/name>")}"));
+		DependencySpec spec = ResolveSpec(args.First ?? throw new CraterException($"Usage: {Fmt.Cmd("crater versions <scope/name>")}"));
 		string name = spec.FullName;
 		IRegistry registry = OpenRegistry(args, spec);
 		RegistryIndex index = await registry.GetIndexAsync(name)
@@ -522,7 +387,7 @@ public static class InspectCommands
 		Out.Info($"  [v]{label.PadRight(14)}[/] {value}");
 	}
 
-	static IRegistry OpenRegistry(Args args, DependencySpec? spec = null)
+	internal static IRegistry OpenRegistry(Args args, DependencySpec? spec = null)
 	{
 		string? explicitRegistry = args.Value("registry");
 		Project? project = TryLoadProject();
@@ -554,7 +419,30 @@ public static class InspectCommands
 		return Registries.Open(BuildInfo.DefaultRegistry, Environment.CurrentDirectory);
 	}
 
-	static Project? TryLoadProject()
+	internal static DependencySpec ResolveSpec(string raw)
+	{
+		Project? project = raw.Contains('/') ? null : TryLoadProject();
+
+		foreach (string dependency in project is null ? [] : Realms.All.SelectMany(project.Manifest.DepsFor))
+		{
+			try
+			{
+				DependencySpec spec = DependencySpec.Parse(dependency);
+
+				if (spec.LinkName.Equals(raw, StringComparison.OrdinalIgnoreCase))
+				{
+					return spec;
+				}
+			}
+			catch (CraterException)
+			{
+			}
+		}
+
+		return DependencySpec.Parse(raw);
+	}
+
+	internal static Project? TryLoadProject()
 	{
 		try
 		{
@@ -566,7 +454,7 @@ public static class InspectCommands
 		}
 	}
 
-	static string Truncate(string text, int length)
+	internal static string Truncate(string text, int length)
 	{
 		return text.Length <= length ? text : text[..(length - 1)] + "…";
 	}

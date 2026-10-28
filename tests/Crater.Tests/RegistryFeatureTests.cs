@@ -125,6 +125,50 @@ public sealed class RegistryFeatureTests : IDisposable
 	}
 
 	[Fact]
+	public void TagsChangelogAndJsonOutput()
+	{
+		string log = Project("t/log", [], manifest => manifest["keywords"] = new JsonArray("Logging", "debug"));
+
+		File.WriteAllText(Path.Combine(log, "CHANGELOG.md"), "# Changelog\n\n## 1.0.0\n\n- First release\n");
+		Assert.Equal(0, Crater(log, "publish", "-y").ExitCode);
+		SetVersion(log, "1.1.0");
+		File.WriteAllText(Path.Combine(log, "CHANGELOG.md"), "# Changelog\n\n## 1.1.0\n\n- Second release\n\n## 1.0.0\n\n- First release\n");
+		Assert.Equal(0, Crater(log, "publish", "-y").ExitCode);
+		Assert.Equal(0, Crater(Project("t/ui", [], manifest => manifest["keywords"] = new JsonArray("ui", "logging")), "publish", "-y").ExitCode);
+
+		string game = Project("t/game", ["Log:t/log^1.0.0"]);
+
+		Assert.Equal(0, Crater(game, "install", "-y").ExitCode);
+
+		JsonArray tags = JsonNode.Parse(Crater(game, "tags", "--json").Output)!.AsArray();
+
+		Assert.Equal("logging", tags[0]!["tag"]!.GetValue<string>());
+		Assert.Equal(2, tags[0]!["packages"]!.GetValue<int>());
+		Assert.Contains("debug", Crater(game, "tags", "deb").Output);
+
+		JsonArray found = JsonNode.Parse(Crater(game, "search", "--tag", "logging", "--sort", "name", "--json").Output)!.AsArray();
+
+		Assert.Equal(["t/log", "t/ui"], found.Select(entry => entry!["name"]!.GetValue<string>()));
+		Assert.Contains("Tags", Crater(game, "search", "--tag", "ui").Output);
+		Assert.Equal(1, Crater(game, "search", "--sort", "stars").ExitCode);
+
+		string changelog = Crater(game, "changelog", "Log").Output;
+
+		Assert.Contains("Second release", changelog);
+		Assert.Contains("First release", changelog);
+		Assert.Contains("installed", changelog);
+		Assert.DoesNotContain("Second release", Crater(game, "changelog", "t/log", "1.0.0").Output);
+		Assert.Equal(1, Crater(game, "changelog", "t/log", "9.9.9").ExitCode);
+
+		JsonObject info = JsonNode.Parse(Crater(game, "info", "Log", "--json").Output)!.AsObject();
+
+		Assert.Equal("1.1.0", info["latest"]!.GetValue<string>());
+		Assert.Contains("Second release", info["notes"]!.GetValue<string>());
+		Assert.Equal("t/log", JsonNode.Parse(Crater(game, "list", "--json").Output)!["client"]![0]!["name"]!.GetValue<string>());
+		Assert.NotNull(JsonNode.Parse(Crater(game, "outdated", "--all", "--json").Output)!.AsArray());
+	}
+
+	[Fact]
 	public void SearchFiltersByTagsAndInterfaces()
 	{
 		Assert.Equal(0, Crater(Project("t/log-api", [], manifest =>
