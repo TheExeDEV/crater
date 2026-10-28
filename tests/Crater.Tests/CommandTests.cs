@@ -211,7 +211,7 @@ public sealed class CommandTests : IDisposable
 		declared = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
 
 		Assert.Equal("crater.lock", declared["path_to_lock_file"]!.GetValue<string>());
-		Assert.Contains("outdated", declared["cli"]!["json_output"]!.AsArray().Select(item => item!.GetValue<string>()));
+		Assert.Equal(1, declared["cli"]!["json_output"]!["outdated"]!.GetValue<int>());
 
 		declared.Remove("cli");
 		declared["features"]!.AsObject().Remove("registry_names");
