@@ -37,7 +37,7 @@ public static class MonorepositoryPicker
 
 		Out.Info($"{Fmt.Pkg($"{spec.FullName}@{release.Version}")} is a monorepository of {Fmt.Plural(elements.Count, "package", "packages")}.");
 
-		List<Element> chosen = interactive ? PickElements(elements) : elements;
+		List<Element> chosen = interactive ? PickElements(elements, Select.Ask) : elements;
 		bool asPackageSays = flagRealm is null && (!interactive || AskAsPackageSays(defaultRealm, out defaultRealm));
 		List<Choice> choices = [];
 
@@ -77,7 +77,7 @@ public static class MonorepositoryPicker
 		return name.Length > 0 && char.IsAsciiLetter(name[0]) && name.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
 	}
 
-	static List<Element> PickElements(List<Element> elements)
+	public static List<Element> PickElements(List<Element> elements, Func<string, string?> ask)
 	{
 		HashSet<int> selected = [];
 
@@ -92,7 +92,7 @@ public static class MonorepositoryPicker
 				Out.Info($"  {Fmt.Val((i + 1).ToString().PadLeft(2))}  [{mark}] {Fmt.Pkg(elements[i].Name)}  [c]{elements[i].Spec}[/]");
 			}
 
-			string? answer = Select.Ask($"Type numbers to pick packages, then {Fmt.Cmd(Apply)}:");
+			string? answer = ask($"Type numbers to pick packages, then {Fmt.Cmd(Apply)}:")?.Trim();
 
 			if (answer is null || answer.Equals("q", StringComparison.OrdinalIgnoreCase))
 			{
