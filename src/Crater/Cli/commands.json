@@ -79,6 +79,7 @@
 				{
 					"name": "outdated",
 					"flags": ["--all", "--json"],
+					"json_version": 1,
 					"complete": ["@dependencies"],
 					"help": [["outdated [--all] [--json]", "show dependencies that have newer versions"]]
 				},
@@ -86,6 +87,7 @@
 					"name": "list",
 					"aliases": ["ls"],
 					"flags": ["--json"],
+					"json_version": 1,
 					"help": [["list [--json]", "show the installed package tree"]]
 				},
 				{
@@ -137,6 +139,7 @@
 				{
 					"name": "search",
 					"flags": ["--registry <location>", "--type <package|interface|tool>", "--tag, --tags <tags>", "--implements <author/name>", "--sort <relevance|name|updated>", "--json"],
+					"json_version": 1,
 					"complete": ["package", "interface", "tool"],
 					"help": [
 						["search [query] [type] [--tag t] [--implements a/b]", "search packages, interfaces or tools, by tag or interface"],
@@ -146,6 +149,7 @@
 				{
 					"name": "tags",
 					"flags": ["--registry <location>", "--json"],
+					"json_version": 1,
 					"help": [["tags [word]", "list the tags packages use, the most used first"]]
 				},
 				{
@@ -156,12 +160,14 @@
 				{
 					"name": "info",
 					"flags": ["--registry <location>", "--json"],
+					"json_version": 1,
 					"complete": ["@dependencies"],
 					"help": [["info <scope/name> [--json]", "show package details"]]
 				},
 				{
 					"name": "changelog",
 					"flags": ["--registry <location>", "--json"],
+					"json_version": 1,
 					"complete": ["@dependencies"],
 					"help": [["changelog <scope/name> [version]", "release notes of every version, or of one"]]
 				},

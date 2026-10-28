@@ -72,12 +72,10 @@ public static class CraterDeclare
 			["path_to_lock_file"] = LockFile.FileName,
 			["cli"] = new JsonObject
 			{
-				["json_output"] = new JsonArray(CommandList.Current.Commands
-					.Where(command => command.FindFlag("json") is not null)
-					.Select(command => command.Name)
-					.Order(StringComparer.Ordinal)
-					.Select(name => (JsonNode?)name)
-					.ToArray()),
+				["json_output"] = Object(CommandList.Current.Commands
+					.Where(command => command.JsonVersion is not null)
+					.OrderBy(command => command.Name, StringComparer.Ordinal)
+					.Select(command => (command.Name, (JsonNode?)command.JsonVersion))),
 			},
 		};
 	}

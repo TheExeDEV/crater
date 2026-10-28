@@ -60,6 +60,7 @@ public sealed class CommandInfo
 	[JsonPropertyName("subcommands")] public List<string> Subcommands { get; set; } = [];
 	[JsonPropertyName("complete")] public List<string> Complete { get; set; } = [];
 	[JsonPropertyName("complete_subcommands")] public Dictionary<string, List<string>> CompleteSubcommands { get; set; } = [];
+	[JsonPropertyName("json_version")] public int? JsonVersion { get; set; }
 	[JsonPropertyName("help")] public List<string[]> Help { get; set; } = [];
 
 	[JsonIgnore] public List<FlagInfo> ParsedFlags => field ??= Flags.Select(FlagInfo.Parse).ToList();
