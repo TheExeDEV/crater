@@ -230,7 +230,6 @@ Every project and every package has a `crater.json`. `crater init` writes every 
   "exclude": ["tests/"],
   "allow_files": ["scripts/setup.sh"],
 
-  "monorepository": false,
   "monorepository-elements": {},
   "interface": false,
   "realized_interfaces": []
@@ -258,7 +257,7 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `tools` | Tools pinned to the project, `owner/repo@version`, written by `crater tool add`. See [Tools](#tools). |
 | `exclude` | Extra glob patterns left out of the published archive, on top of `.gitignore` and `.craterignore`. |
 | `allow_files` | Scripts (`.sh`, `.bat`, `.ps1`...) to keep in the published archive, see [What goes into the package](#what-goes-into-the-package). Programs cannot be allowed. |
-| `monorepository`, `monorepository-elements` | Marks the package as a collection of separate packages, see [Monorepositories](#monorepositories). |
+| `monorepository-elements` | The packages of a monorepository; not empty makes this package one, see [Monorepositories](#monorepositories). |
 | `interface`, `realized_interfaces` | Marks the package as an interface, or lists the interfaces it implements, see [Interfaces](#interfaces). |
 | `$schema` | Lets editors show the descriptions of the fields. crater ignores it. |
 
@@ -270,33 +269,27 @@ Install settings of your project. The folder names live here and only here: crat
 
 ```json
 {
-  "import_client_path": "Packages",
-  "import_server_path": "ServerPackages",
-  "import_develop_path": "DevPackages",
-  "import_client_alias": "",
-  "import_server_alias": "",
-  "import_develop_alias": "",
-
-  "on_install_update_luaurc": true,
-  "luaurc_path": ".luaurc",
-  "on_install_update_vscode_luau_definition_files": true,
-  "on_install_should_i_ask_your_permission_to_do_any_action": true,
-
-  "link_style": "roblox",
-  "self_update_repo": ""
+  "$schema": "https://raw.githubusercontent.com/TheExeDEV/crater/main/schemas/crater.settings.schema.json",
+  "client": { "path": "Packages", "alias": "" },
+  "server": { "path": "ServerPackages", "alias": "" },
+  "develop": { "path": "DevPackages", "alias": "" },
+  "luaurc": ".luaurc",
+  "vscode_definitions": true,
+  "confirm": true,
+  "link_style": "roblox"
 }
 ```
 
 | Field | Description |
 |---|---|
-| `import_client_path`, `import_server_path`, `import_develop_path` | Folder for each list. Required when the list has dependencies, otherwise crater stops and tells you which field to add. Nested paths work. |
-| `on_install_update_luaurc` | Keep folder aliases in `.luaurc` up to date. |
-| `import_client_alias`, `import_server_alias`, `import_develop_alias` | Alias names for the folders in `.luaurc`, so `"Shared"` gives `require("@Shared/promise")`. Empty or missing: the folder name (`@Packages`). |
-| `luaurc_path` | Which file gets the aliases. If `.vscode/settings.json` already has `"luau-lsp.server.baseLuaurc"`, that file is used instead and the setting is left as it is; `luaurc_path` only matters when it is missing. Default `.luaurc` in the project folder. Set another file, for example `"src/config.luaurc"`, and crater writes the aliases there (paths relative to that file, like `"../Packages"`) and sets `"luau-lsp.server.baseLuaurc"` in `.vscode/settings.json` so luau-lsp uses it. |
-| `on_install_update_vscode_luau_definition_files` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date. |
-| `on_install_should_i_ask_your_permission_to_do_any_action` | Ask before every change. `-y` skips the questions for one run. |
+| `client`, `server`, `develop` | Where the packages of `import_client`, `import_server` and `import_develop` go. `path` is the folder (required when the list has dependencies, nested paths work); `alias` is its name in `.luaurc`, so `"Shared"` gives `require("@Shared/promise")`, empty means the folder name (`@Packages`). A plain string, `"client": "Packages"`, sets only the folder. |
+| `luaurc` | Which `.luaurc` gets an alias for every package folder on install, or `false` to leave `.luaurc` alone. If `.vscode/settings.json` already has `"luau-lsp.server.baseLuaurc"`, that file is used instead. Another file, for example `"src/config.luaurc"`, gets the aliases with paths relative to it (`"../Packages"`), and crater sets `"luau-lsp.server.baseLuaurc"` so luau-lsp uses it. |
+| `vscode_definitions` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date with the `.d.luau` files of installed packages. |
+| `confirm` | Ask before every change. `-y` skips the questions for one run. |
 | `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
-| `self_update_repo` | `Owner/Repo` used by `crater self-update`. |
+| `self_update_repo` | Global settings only: `Owner/Repo` used by `crater self-update`. |
+
+The long names of older crater versions are still read: `import_client_path` and `import_client_alias` (and the same for server and develop), `on_install_update_luaurc` with `luaurc_path`, `on_install_update_vscode_luau_definition_files` and `on_install_should_i_ask_your_permission_to_do_any_action`. When a file has both, the new name wins.
 
 Settings are merged from two files, the project wins:
 
@@ -325,14 +318,19 @@ Older projects keep working: `crater.config.json` is still read when there is no
 {
   "path_to_crater_settings": "crater.settings.json",
   "path_to_package_info": "crater.json",
-  "api_version": 1,
+  "api_version": 2,
   "features": ["dependencies", "tools", "scripts", "workspaces", "monorepository", "interfaces"]
 }
 ```
 
 It is meant for other tools, for example package managers that migrate projects to or from crater: they read this file instead of guessing. It is hidden (a dot file, and marked hidden on Windows, so you only see it with "show hidden items" turned on), it stays out of published packages, and it should be committed with the project.
 
-crater checks it on every command. When the file is missing, broken, points at files that do not exist or describes an older API, crater says so and writes it again. `api_version` and `features` change when the format of crater files changes, so other tools can tell what they are reading.
+crater checks it on every command. When the file is missing, broken, points at files that do not exist or describes an older API, crater says so and writes it again. `api_version` and `features` change when the format of crater files changes, so other tools can tell what they are reading:
+
+| `api_version` | Format |
+|---|---|
+| `1` | crater 0.5.5: long names in `crater.settings.json` (`import_client_path`, `on_install_update_luaurc`...), `"monorepository": true` next to `monorepository-elements`. |
+| `2` | crater 0.5.6: `crater.settings.json` uses `client`, `server`, `develop` (`path`, `alias`), `luaurc`, `vscode_definitions`, `confirm`; a package is a monorepository when `monorepository-elements` is not empty. Files in format 1 are still read. |
 
 ## Dependency syntax
 
@@ -465,13 +463,12 @@ A monorepo lists its packages in the root `crater.json`:
 
 ## Monorepositories
 
-A monorepository is a package that only points at other packages, so people can pick the parts they need:
+A monorepository is a package that only points at other packages, so people can pick the parts they need. A package with a non-empty `monorepository-elements` is one:
 
 ```json
 {
   "name": "studio/kit",
   "version": "1.0.0",
-  "monorepository": true,
   "monorepository-elements": {
     "Signal": "studio/signal^1",
     "Promise": "studio/promise^2",
@@ -654,7 +651,7 @@ Generics, defaults, function types, string literal types and packs are kept. Tex
 
 **Rojo sourcemap:** if the project has `sourcemap.json` and `default.project.json` and `rojo` is installed, `install` regenerates the sourcemap after the folders change, so luau-lsp sees new packages right away.
 
-**`.luaurc`:** an alias per installed folder, so `require("@Packages/adof")` works. Other settings are kept. With `luaurc_path` the aliases go into your own file instead, and `.vscode/settings.json` gets `"luau-lsp.server.baseLuaurc"` pointing at it.
+**`.luaurc`:** an alias per installed folder, so `require("@Packages/adof")` works. Other settings are kept. With `"luaurc": "src/config.luaurc"` the aliases go into your own file instead, and `.vscode/settings.json` gets `"luau-lsp.server.baseLuaurc"` pointing at it.
 
 **VS Code (luau-lsp):** the definition files of every installed package, including dependencies of dependencies, go into `luau-lsp.types.definitionFiles`. A package lists its files in `path_to_definition_files`; if the list is empty, crater uses every `*.d.luau` file inside it (up to 10). `crater pack` and `crater publish` fail when an entry matches no file. crater writes them in the object form luau-lsp uses, one entry per file named after the package folder and its version:
 

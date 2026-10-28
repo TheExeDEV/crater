@@ -4,48 +4,47 @@
   "title": "crater.settings.json",
   "description": "How crater installs packages in this project: folder names, aliases and what it may change.",
   "type": "object",
+  "definitions": {
+    "folder": {
+      "oneOf": [
+        { "type": "string", "description": "The folder alone, the alias is its name." },
+        {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Folder the packages go into, relative to the project." },
+            "alias": { "type": "string", "description": "Name of the .luaurc alias for this folder, so require(\"@Packages/Promise\") works. Empty uses the folder name." }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
   "properties": {
     "$schema": {
       "type": "string",
       "description": "Lets editors show these descriptions. crater ignores it."
     },
-    "import_client_path": {
-      "type": "string",
-      "description": "Folder for import_client packages, for example Packages."
+    "client": {
+      "$ref": "#/definitions/folder",
+      "description": "Where import_client packages go, for example { \"path\": \"Packages\", \"alias\": \"\" }."
     },
-    "import_server_path": {
-      "type": "string",
-      "description": "Folder for import_server packages, for example ServerPackages."
+    "server": {
+      "$ref": "#/definitions/folder",
+      "description": "Where import_server packages go, for example { \"path\": \"ServerPackages\", \"alias\": \"\" }."
     },
-    "import_develop_path": {
-      "type": "string",
-      "description": "Folder for import_develop packages, for example DevPackages."
+    "develop": {
+      "$ref": "#/definitions/folder",
+      "description": "Where import_develop packages go, for example { \"path\": \"DevPackages\", \"alias\": \"\" }."
     },
-    "import_client_alias": {
-      "type": "string",
-      "description": "Name of the .luaurc alias for the client folder, so require(\"@Packages/Promise\") works. Empty uses the folder name."
+    "luaurc": {
+      "oneOf": [{ "type": "string" }, { "const": false }],
+      "description": "Which .luaurc gets an alias for every package folder on install, or false to leave .luaurc alone."
     },
-    "import_server_alias": {
-      "type": "string",
-      "description": "Name of the .luaurc alias for the server folder. Empty uses the folder name."
-    },
-    "import_develop_alias": {
-      "type": "string",
-      "description": "Name of the .luaurc alias for the dev folder. Empty uses the folder name."
-    },
-    "on_install_update_luaurc": {
-      "type": "boolean",
-      "description": "true adds the package folder aliases to .luaurc on every install."
-    },
-    "luaurc_path": {
-      "type": "string",
-      "description": "Which .luaurc to update."
-    },
-    "on_install_update_vscode_luau_definition_files": {
+    "vscode_definitions": {
       "type": "boolean",
       "description": "true adds the .d.luau files of installed packages to .vscode/settings.json for luau-lsp."
     },
-    "on_install_should_i_ask_your_permission_to_do_any_action": {
+    "confirm": {
       "type": "boolean",
       "description": "true asks before every action that changes files. -y skips the question once."
     },
@@ -53,6 +52,16 @@
       "type": "string",
       "enum": ["roblox", "string"],
       "description": "How link files require packages: roblox uses script.Parent paths, string uses require(\"./name\") paths."
-    }
+    },
+    "import_client_path": { "type": "string", "description": "Old name of client.path, still read." },
+    "import_server_path": { "type": "string", "description": "Old name of server.path, still read." },
+    "import_develop_path": { "type": "string", "description": "Old name of develop.path, still read." },
+    "import_client_alias": { "type": "string", "description": "Old name of client.alias, still read." },
+    "import_server_alias": { "type": "string", "description": "Old name of server.alias, still read." },
+    "import_develop_alias": { "type": "string", "description": "Old name of develop.alias, still read." },
+    "on_install_update_luaurc": { "type": "boolean", "description": "Old form of luaurc: false, still read." },
+    "luaurc_path": { "type": "string", "description": "Old form of luaurc: \"path\", still read." },
+    "on_install_update_vscode_luau_definition_files": { "type": "boolean", "description": "Old name of vscode_definitions, still read." },
+    "on_install_should_i_ask_your_permission_to_do_any_action": { "type": "boolean", "description": "Old name of confirm, still read." }
   }
 }

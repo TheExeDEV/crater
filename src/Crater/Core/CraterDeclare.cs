@@ -8,7 +8,7 @@ namespace Crater.Core;
 public sealed class CraterDeclare
 {
 	public const string FileName = ".crater-declare";
-	public const int CurrentApiVersion = 1;
+	public const int CurrentApiVersion = 2;
 
 	public static readonly string[] Features = ["dependencies", "tools", "scripts", "workspaces", "monorepository", "interfaces"];
 

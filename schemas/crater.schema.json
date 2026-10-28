@@ -75,7 +75,7 @@
     "import_to": {
       "type": "string",
       "enum": ["shared", "client", "server"],
-      "description": "Where this package may run in Roblox. A server package cannot go into import_client and a client package cannot go into import_server. Monorepository elements added \"as the package says\" go where this points."
+      "description": "Where this package may run in Roblox. A server package cannot go into import_client and a client package cannot go into import_server. Monorepository packages added \"as the package says\" go where this points."
     },
     "path_to_main": {
       "type": "string",
@@ -140,14 +140,10 @@
       "items": { "type": "string" },
       "description": "Script files (.sh, .bat, .ps1 and the like) to keep in the published package. crater pack leaves them out unless they are listed here. Programs can never be shipped."
     },
-    "monorepository": {
-      "type": "boolean",
-      "description": "true marks this package as a monorepository: a collection of separate packages listed in monorepository-elements. crater add offers to pick which of them to add."
-    },
     "monorepository-elements": {
       "type": "object",
       "additionalProperties": { "$ref": "#/definitions/dependency" },
-      "description": "The packages of a monorepository: a short name for each and the dependency to add, for example { \"Signal\": \"studio/signal^1\", \"Promise\": \"studio/promise^2\" }."
+      "description": "Makes this package a monorepository, a collection of separate packages that crater add offers to pick from: a short name for each and the dependency to add, for example { \"Signal\": \"studio/signal^1\", \"Promise\": \"studio/promise^2\" }. Empty means a normal package."
     },
     "interface": {
       "type": "boolean",

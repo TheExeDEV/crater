@@ -63,12 +63,11 @@ public sealed class Manifest
 	[JsonPropertyName("allow_scripts_from")] public List<string>? AllowScriptsFrom { get; set; }
 	[JsonPropertyName("exclude")] public List<string>? Exclude { get; set; }
 	[JsonPropertyName("allow_files")] public List<string>? AllowFiles { get; set; }
-	[JsonPropertyName("monorepository")] public bool? Monorepository { get; set; }
 	[JsonPropertyName("monorepository-elements")] public Dictionary<string, string>? MonorepositoryElements { get; set; }
 	[JsonPropertyName("interface")] public bool? Interface { get; set; }
 	[JsonPropertyName("realized_interfaces")] public List<string>? RealizedInterfaces { get; set; }
 
-	[JsonIgnore] public bool IsMonorepository => Monorepository == true && MonorepositoryElements is { Count: > 0 };
+	[JsonIgnore] public bool IsMonorepository => MonorepositoryElements is { Count: > 0 };
 
 	[JsonIgnore] public bool IsInterface => Interface == true;
 
@@ -143,11 +142,6 @@ public sealed class Manifest
 		foreach ((string element, string raw) in MonorepositoryElements ?? [])
 		{
 			DependencySpec.Parse(raw, $"monorepository-elements.{element} in {FileName}");
-		}
-
-		if (Monorepository == true && MonorepositoryElements is not { Count: > 0 })
-		{
-			throw new CraterException($"{Fmt.Val("monorepository")} is true, but {Fmt.Val("monorepository-elements")} lists no packages.");
 		}
 
 		string? badInterface = (RealizedInterfaces ?? []).FirstOrDefault(name => !DependencySpec.IsValidPackageName(name.ToLowerInvariant()));

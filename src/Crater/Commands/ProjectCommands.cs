@@ -114,10 +114,18 @@ public static partial class ProjectCommands
 			["allow_scripts_from"] = new JsonArray(),
 			["exclude"] = new JsonArray(),
 			["allow_files"] = new JsonArray(),
-			["monorepository"] = false,
 			["monorepository-elements"] = new JsonObject(),
 			["interface"] = false,
 			["realized_interfaces"] = new JsonArray(),
+		};
+	}
+
+	static JsonObject Folder(Realm realm)
+	{
+		return new JsonObject
+		{
+			["path"] = ProjectConfig.SuggestedFolder(realm),
+			["alias"] = "",
 		};
 	}
 
@@ -133,16 +141,12 @@ public static partial class ProjectCommands
 		return new JsonObject
 		{
 			["$schema"] = SchemaUrl("crater.settings.schema.json"),
-			["import_client_path"] = ProjectConfig.SuggestedFolder(Realm.Client),
-			["import_server_path"] = ProjectConfig.SuggestedFolder(Realm.Server),
-			["import_develop_path"] = ProjectConfig.SuggestedFolder(Realm.Develop),
-			["import_client_alias"] = "",
-			["import_server_alias"] = "",
-			["import_develop_alias"] = "",
-			["on_install_update_luaurc"] = true,
-			["luaurc_path"] = ".luaurc",
-			["on_install_update_vscode_luau_definition_files"] = true,
-			["on_install_should_i_ask_your_permission_to_do_any_action"] = true,
+			["client"] = Folder(Realm.Client),
+			["server"] = Folder(Realm.Server),
+			["develop"] = Folder(Realm.Develop),
+			["luaurc"] = ".luaurc",
+			["vscode_definitions"] = true,
+			["confirm"] = true,
 			["link_style"] = "roblox",
 		};
 	}

@@ -86,14 +86,42 @@ public sealed class CommandTests : IDisposable
 		JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.json")))!.AsObject();
 		JsonObject settings = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.settings.json")))!.AsObject();
 
-		foreach (string key in new[] { "$schema", "registries", "overrides", "workspace", "tools", "block_package_scripts", "allow_scripts_from", "exclude", "allow_files", "monorepository", "monorepository-elements", "interface", "realized_interfaces" })
+		foreach (string key in new[] { "$schema", "registries", "overrides", "workspace", "tools", "block_package_scripts", "allow_scripts_from", "exclude", "allow_files", "monorepository-elements", "interface", "realized_interfaces" })
 		{
 			Assert.True(manifest.ContainsKey(key), key);
 		}
 
 		Assert.False(manifest.ContainsKey("icon"));
 		Assert.True(settings.ContainsKey("link_style"));
+		Assert.Equal("Packages", settings["client"]!["path"]!.GetValue<string>());
+		Assert.False(settings.ContainsKey("import_client_path"));
 		Assert.Equal(0, Crater("install", "-y").ExitCode);
+	}
+
+	[Fact]
+	public void SettingsReadNewAndOldNames()
+	{
+		Assert.Equal(0, Crater("init", "--name", "t/game", "-y").ExitCode);
+
+		string path = Path.Combine(root, "crater.settings.json");
+
+		File.WriteAllText(path, "{ \"client\": { \"path\": \"Shared/Packages\", \"alias\": \"Pkg\" }, \"develop\": \"Dev\", \"luaurc\": false, \"vscode_definitions\": false, \"confirm\": false }");
+
+		global::Crater.Models.ProjectConfig config = global::Crater.Models.ProjectConfig.Load(root);
+
+		Assert.Equal("Shared/Packages", config.TryFolderFor(global::Crater.Models.Realm.Client));
+		Assert.Equal("Pkg", config.AliasFor(global::Crater.Models.Realm.Client, "Shared/Packages"));
+		Assert.Equal("Dev", config.TryFolderFor(global::Crater.Models.Realm.Develop));
+		Assert.False(config.OnInstallUpdateLuaurc);
+		Assert.False(config.OnInstallUpdateVscodeLuauDefinitionFiles);
+		Assert.False(config.OnInstallShouldIAskYourPermissionToDoAnyAction);
+
+		File.WriteAllText(path, "{ \"import_client_path\": \"OldPackages\", \"luaurc_path\": \"src/.luaurc\", \"on_install_should_i_ask_your_permission_to_do_any_action\": false }");
+		config = global::Crater.Models.ProjectConfig.Load(root);
+
+		Assert.Equal("OldPackages", config.TryFolderFor(global::Crater.Models.Realm.Client));
+		Assert.Equal("src/.luaurc", config.LuaurcPath);
+		Assert.False(config.OnInstallShouldIAskYourPermissionToDoAnyAction);
 	}
 
 	[Fact]
@@ -106,7 +134,7 @@ public sealed class CommandTests : IDisposable
 
 		Assert.Equal("crater.json", declared["path_to_package_info"]!.GetValue<string>());
 		Assert.Equal("crater.settings.json", declared["path_to_crater_settings"]!.GetValue<string>());
-		Assert.Equal(1, declared["api_version"]!.GetValue<int>());
+		Assert.Equal(2, declared["api_version"]!.GetValue<int>());
 
 		if (OperatingSystem.IsWindows())
 		{
