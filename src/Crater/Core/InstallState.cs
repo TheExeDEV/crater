@@ -35,7 +35,7 @@ public static class InstallState
 			}
 		}
 
-		builder.Append("scripts ").Append(manifest.BlockPackageScripts).Append(' ').Append(string.Join(',', manifest.AllowScriptsFrom ?? [])).Append('\n');
+		builder.Append("scripts ").Append(manifest.ScriptsBlocked).Append(' ').Append(string.Join(',', manifest.ScriptsAllowedFrom)).Append('\n');
 
 		foreach (string item in manifest.Overrides ?? [])
 		{

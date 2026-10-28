@@ -43,6 +43,11 @@ public static class NamedRegistries
 		return null;
 	}
 
+	public static bool IsKnownName(string value, Manifest? manifest)
+	{
+		return LooksLikeName(value) && (Builtin.ContainsKey(value) || manifest?.Registries?.Keys.Any(key => key.Equals(value, StringComparison.OrdinalIgnoreCase)) == true);
+	}
+
 	public static bool LooksLikeName(string value)
 	{
 		return value.Length > 0 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');

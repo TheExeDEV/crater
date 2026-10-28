@@ -143,7 +143,7 @@ public static partial class PackageScanner
 
 		try
 		{
-			return (Json.Parse<Manifest>(manifestText, Manifest.FileName).AllowFiles ?? [])
+			return (Json.Parse<Manifest>(manifestText, Manifest.FileName).AllowedFiles)
 				.Select(Packer.Pattern.Create)
 				.ToList();
 		}
@@ -189,8 +189,8 @@ public static partial class PackageScanner
 			bool isAllowed = allowed.Any(pattern => pattern.Excludes(path));
 
 			yield return isAllowed
-				? new Finding(Severity.Warning, packageId, path, 0, "script file the author kept with allow_files, read it before anyone runs it", "")
-				: new Finding(Severity.Blocked, packageId, path, 0, "script file, the author must list it in allow_files to ship it", "");
+				? new Finding(Severity.Warning, packageId, path, 0, "script file the author kept with package_files.allow, read it before anyone runs it", "")
+				: new Finding(Severity.Blocked, packageId, path, 0, "script file, the author must list it in package_files.allow to ship it", "");
 			yield break;
 		}
 

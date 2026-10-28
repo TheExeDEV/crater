@@ -1,35 +1,124 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
+using Crater.Commands;
 using Crater.Models;
+using Crater.Registry;
 using Crater.Util;
+using Crater.Versioning;
 
 namespace Crater.Core;
 
-public sealed class CraterDeclare
+public static class CraterDeclare
 {
 	public const string FileName = ".crater-declare";
-	public const int CurrentApiVersion = 2;
+	public const int CurrentApiVersion = 3;
 
-	public static readonly string[] Features = ["dependencies", "tools", "scripts", "workspaces", "monorepository", "interfaces"];
+	const string PackageInfoKey = "path_to_package_info";
+	const string SettingsKey = "path_to_crater_settings";
 
-	[JsonPropertyName("path_to_crater_settings")] public string PathToCraterSettings { get; set; } = "";
-	[JsonPropertyName("path_to_package_info")] public string PathToPackageInfo { get; set; } = "";
-	[JsonPropertyName("api_version")] public int ApiVersion { get; set; }
-	[JsonPropertyName("features")] public List<string> FeatureList { get; set; } = [];
+	static readonly (string Name, int Version)[] Features =
+	[
+		("dependencies", 1),
+		("tools", 1),
+		("scripts", 1),
+		("workspaces", 1),
+		("interfaces", 1),
+		("monorepository", 2),
+		("settings", 2),
+		("package_rules", 3),
+		("registry_names", 3),
+	];
 
 	public static string PathIn(string directory) => Path.Combine(directory, FileName);
 
-	public static CraterDeclare For(string directory)
+	public static JsonObject For(string directory)
 	{
 		string settings = File.Exists(ProjectConfig.PathIn(directory)) ? Path.GetFileName(ProjectConfig.PathIn(directory)) : ProjectConfig.FileName;
 
-		return new CraterDeclare
+		return new JsonObject
 		{
-			PathToCraterSettings = settings,
-			PathToPackageInfo = Manifest.FileName,
-			ApiVersion = CurrentApiVersion,
-			FeatureList = [.. Features],
+			[SettingsKey] = settings,
+			[PackageInfoKey] = Manifest.FileName,
+			["api_version"] = CurrentApiVersion,
+			["features"] = Object(Features.Select(feature => (feature.Name, (JsonNode?)feature.Version))),
+			["schemas"] = new JsonObject
+			{
+				["package_info"] = ProjectCommands.SchemaUrl("crater.schema.json"),
+				["crater_settings"] = ProjectCommands.SchemaUrl("crater.settings.schema.json"),
+			},
+			["registries"] = Object(NamedRegistries.BuiltinNames.Select(name => (name, (JsonNode?)NamedRegistries.Location(name, null)))),
+			["realms"] = Object(Realms.All.Select(realm => (realm.ManifestField(), (JsonNode?)realm.Key()))),
+			["label_prefix"] = ManifestFile.LabelPrefix,
+			["dependency"] = new JsonObject
+			{
+				["pattern"] = DependencySpec.Pattern,
+				["operators"] = new JsonObject
+				{
+					[""] = "the newest version, the same as ^ alone",
+					["^"] = "compatible: ^1.2.3 is >=1.2.3 <2.0.0, ^0.2.3 is >=0.2.3 <0.3.0",
+					["~"] = "patch updates only: ~1.2.3 is >=1.2.3 <1.3.0",
+					["="] = "exactly this version",
+					["+"] = "this version or newer: +1.2.3 is >=1.2.3",
+					["@"] = "@1.2.3 is ^1.2.3; @=1.2.3, @~1.2.3, @+1.2.3 and @^1.2.3 use that operator",
+				},
+				["sources"] = new JsonObject
+				{
+					["@path:"] = "a local folder, relative to the package info",
+					["@git+"] = "a git repository; #ref after the URL picks a tag, branch or commit",
+				},
+				["registry"] = "a dependency without registry# comes from the registry field of the package info",
+			},
+			["defaults"] = Defaults(),
 		};
+	}
+
+	static JsonObject Defaults()
+	{
+		JsonArray Empty() => [];
+
+		return new JsonObject
+		{
+			["authors"] = Empty(),
+			["description"] = "",
+			["license"] = "",
+			["keywords"] = Empty(),
+			["repository"] = "",
+			["registry"] = "crater",
+			["registries"] = new JsonObject(),
+			["can_publish"] = false,
+			["import_to"] = "shared",
+			["path_to_main"] = "",
+			["icon"] = "",
+			["path_to_definition_files"] = Empty(),
+			["package_files"] = new JsonObject { ["exclude"] = Empty(), ["allow"] = Empty() },
+			["import_client"] = Empty(),
+			["import_server"] = Empty(),
+			["import_develop"] = Empty(),
+			["overrides"] = Empty(),
+			["workspace"] = Empty(),
+			["scripts"] = new JsonObject(),
+			["tools"] = new JsonObject(),
+			["package_scripts"] = new JsonObject { ["block"] = false, ["allow"] = Empty() },
+			["monorepository-elements"] = new JsonObject(),
+			["interface"] = false,
+			["realized_interfaces"] = Empty(),
+			["block_package_scripts"] = false,
+			["allow_scripts_from"] = Empty(),
+			["exclude"] = Empty(),
+			["allow_files"] = Empty(),
+		};
+	}
+
+	static JsonObject Object(IEnumerable<(string Key, JsonNode? Value)> pairs)
+	{
+		JsonObject result = new();
+
+		foreach ((string key, JsonNode? value) in pairs)
+		{
+			result[key] = value;
+		}
+
+		return result;
 	}
 
 	public static void Write(string directory)
@@ -58,11 +147,11 @@ public sealed class CraterDeclare
 			return $"{Fmt.File(FileName)} is missing";
 		}
 
-		CraterDeclare? declared;
+		JsonObject? declared;
 
 		try
 		{
-			declared = JsonSerializer.Deserialize<CraterDeclare>(File.ReadAllText(path));
+			declared = JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
 		}
 		catch (JsonException exception)
 		{
@@ -74,24 +163,27 @@ public sealed class CraterDeclare
 			return $"{Fmt.File(FileName)} is empty";
 		}
 
-		CraterDeclare expected = For(directory);
+		JsonObject expected = For(directory);
 
-		if (!SamePath(directory, declared.PathToPackageInfo, expected.PathToPackageInfo))
+		foreach ((string key, string label) in new[] { (PackageInfoKey, "package info"), (SettingsKey, "settings") })
 		{
-			return $"{Fmt.File(FileName)}: path_to_package_info is {Fmt.Val(Shown(declared.PathToPackageInfo))}, but the package info is {Fmt.File(expected.PathToPackageInfo)}";
+			string value = Text(declared[key]);
+
+			if (!SamePath(directory, value, Text(expected[key])))
+			{
+				return $"{Fmt.File(FileName)}: {key} is {Fmt.Val(value.Length == 0 ? "empty" : value)}, but the {label} is {Fmt.File(Text(expected[key]))}";
+			}
 		}
 
-		if (!SamePath(directory, declared.PathToCraterSettings, expected.PathToCraterSettings))
-		{
-			return $"{Fmt.File(FileName)}: path_to_crater_settings is {Fmt.Val(Shown(declared.PathToCraterSettings))}, but the settings are {Fmt.File(expected.PathToCraterSettings)}";
-		}
+		declared[PackageInfoKey] = expected[PackageInfoKey]!.DeepClone();
+		declared[SettingsKey] = expected[SettingsKey]!.DeepClone();
 
-		if (declared.ApiVersion != CurrentApiVersion || !declared.FeatureList.Order().SequenceEqual(expected.FeatureList.Order()))
+		if (Text(declared["api_version"]) != CurrentApiVersion.ToString())
 		{
 			return $"{Fmt.File(FileName)} describes an older crater API";
 		}
 
-		return null;
+		return JsonNode.DeepEquals(declared, expected) ? null : $"{Fmt.File(FileName)} is out of date";
 	}
 
 	public static void Ensure(string directory, bool quiet)
@@ -121,6 +213,11 @@ public sealed class CraterDeclare
 		}
 	}
 
+	static string Text(JsonNode? node)
+	{
+		return node is JsonValue value ? value.ToString() : "";
+	}
+
 	static bool SamePath(string directory, string declared, string expected)
 	{
 		if (string.IsNullOrWhiteSpace(declared))
@@ -132,6 +229,4 @@ public sealed class CraterDeclare
 
 		return File.Exists(full) && full.Equals(Path.GetFullPath(Path.Combine(directory, expected)), StringComparison.OrdinalIgnoreCase);
 	}
-
-	static string Shown(string value) => string.IsNullOrWhiteSpace(value) ? "empty" : value;
 }

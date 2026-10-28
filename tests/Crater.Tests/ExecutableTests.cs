@@ -231,7 +231,7 @@ public sealed class ExecutableTests : IDisposable
 
 		(int _, string output) = Crater(lib, "pack", "-o", Path.Combine(root, "check.zip"));
 
-		Assert.Contains("allow_files", output);
+		Assert.Contains("package_files", output);
 		Assert.Equal(["crater.json", "init.luau", "scripts/setup.sh"], Packed(lib));
 		Assert.Equal(0, Crater(lib, "publish", "-y").ExitCode);
 	}

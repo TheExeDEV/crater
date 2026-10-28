@@ -5,7 +5,7 @@ using Crater.Versioning;
 
 namespace Crater.Models;
 
-public sealed class Manifest
+public sealed class Manifest : IJsonOnDeserialized
 {
 	public const string FileName = "crater.json";
 
@@ -22,7 +22,10 @@ public sealed class Manifest
 	[JsonPropertyName("repository")] public string Repository { get; set; } = "";
 	[JsonPropertyName("repository_registry")] public string? LegacyRegistry { get; set; }
 
-	[JsonIgnore] public List<string> RegistryLocations => Registry.Count > 0 ? Registry : LegacyRegistry is { Length: > 0 } legacy ? [legacy] : [];
+	[JsonIgnore]
+	public List<string> RegistryLocations => (Registry.Count > 0 ? Registry : LegacyRegistry is { Length: > 0 } legacy ? [legacy] : [])
+		.Select(entry => Crater.Registry.NamedRegistries.IsKnownName(entry, this) ? Crater.Registry.NamedRegistries.Location(entry, this) : entry)
+		.ToList();
 
 	[JsonIgnore] public string RegistryLocation => RegistryLocations.FirstOrDefault() ?? "";
 
@@ -63,6 +66,18 @@ public sealed class Manifest
 	[JsonPropertyName("allow_scripts_from")] public List<string>? AllowScriptsFrom { get; set; }
 	[JsonPropertyName("exclude")] public List<string>? Exclude { get; set; }
 	[JsonPropertyName("allow_files")] public List<string>? AllowFiles { get; set; }
+	[JsonPropertyName("package_scripts")] public ScriptRules? PackageScriptRules { get; set; }
+	[JsonPropertyName("package_files")] public FileRules? PackageFileRules { get; set; }
+
+	[JsonIgnore] public bool ScriptsBlocked => PackageScriptRules?.Block == true || BlockPackageScripts == true;
+
+	[JsonIgnore] public List<string> ScriptsAllowedFrom => Both(PackageScriptRules?.Allow, AllowScriptsFrom);
+
+	[JsonIgnore] public List<string> ExcludedFiles => Both(PackageFileRules?.Exclude, Exclude);
+
+	[JsonIgnore] public List<string> AllowedFiles => Both(PackageFileRules?.Allow, AllowFiles);
+
+	static List<string> Both(List<string>? current, List<string>? old) => [.. (current ?? []).Concat(old ?? []).Distinct()];
 	[JsonPropertyName("monorepository-elements")] public Dictionary<string, string>? MonorepositoryElements { get; set; }
 	[JsonPropertyName("interface")] public bool? Interface { get; set; }
 	[JsonPropertyName("realized_interfaces")] public List<string>? RealizedInterfaces { get; set; }
@@ -74,6 +89,19 @@ public sealed class Manifest
 	public static readonly string[] EntryFileNames = ["init.luau", "main.luau"];
 
 	[JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }
+
+	public void OnDeserialized()
+	{
+		if (Extra is null)
+		{
+			return;
+		}
+
+		foreach (string label in Extra.Keys.Where(ManifestFile.IsLabel).ToList())
+		{
+			Extra.Remove(label);
+		}
+	}
 
 	public List<string> DepsFor(Realm realm) => realm switch
 	{
@@ -188,4 +216,16 @@ public sealed class Manifest
 				$"{Fmt.Val(local)} uses a path or git source. Published packages can only depend on registry packages.");
 		}
 	}
+}
+
+public sealed class ScriptRules
+{
+	[JsonPropertyName("block")] public bool? Block { get; set; }
+	[JsonPropertyName("allow")] public List<string>? Allow { get; set; }
+}
+
+public sealed class FileRules
+{
+	[JsonPropertyName("exclude")] public List<string>? Exclude { get; set; }
+	[JsonPropertyName("allow")] public List<string>? Allow { get; set; }
 }

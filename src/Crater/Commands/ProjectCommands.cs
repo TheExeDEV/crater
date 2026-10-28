@@ -31,7 +31,7 @@ public static partial class ProjectCommands
 		}
 		else
 		{
-			string registry = args.Value("registry") ?? ShortRegistry(BuildInfo.DefaultRegistry);
+			string registry = args.Value("registry") ?? "crater";
 			JsonObject manifest = ManifestTemplate(name, registry);
 
 			if (template is "game" or "plugin")
@@ -40,7 +40,7 @@ public static partial class ProjectCommands
 				manifest["path_to_main"] = "";
 			}
 
-			Json.WriteText(manifestPath, Json.Serialize(manifest));
+			ManifestFile.Write(manifestPath, manifest);
 			Out.Ok($"Created {Fmt.File(Manifest.FileName)} ({Fmt.Pkg(name)}, registry {Fmt.Val(registry)})");
 		}
 
@@ -110,10 +110,8 @@ public static partial class ProjectCommands
 			["workspace"] = new JsonArray(),
 			["scripts"] = new JsonObject(),
 			["tools"] = new JsonObject(),
-			["block_package_scripts"] = false,
-			["allow_scripts_from"] = new JsonArray(),
-			["exclude"] = new JsonArray(),
-			["allow_files"] = new JsonArray(),
+			["package_scripts"] = new JsonObject { ["block"] = false, ["allow"] = new JsonArray() },
+			["package_files"] = new JsonObject { ["exclude"] = new JsonArray(), ["allow"] = new JsonArray() },
 			["monorepository-elements"] = new JsonObject(),
 			["interface"] = false,
 			["realized_interfaces"] = new JsonArray(),

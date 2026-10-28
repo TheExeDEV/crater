@@ -86,16 +86,60 @@ public sealed class CommandTests : IDisposable
 		JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.json")))!.AsObject();
 		JsonObject settings = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.settings.json")))!.AsObject();
 
-		foreach (string key in new[] { "$schema", "registries", "overrides", "workspace", "tools", "block_package_scripts", "allow_scripts_from", "exclude", "allow_files", "monorepository-elements", "interface", "realized_interfaces" })
+		foreach (string key in new[] { "$schema", "// package", "// dependencies", "registries", "overrides", "workspace", "tools", "package_scripts", "package_files", "monorepository-elements", "interface", "realized_interfaces" })
 		{
 			Assert.True(manifest.ContainsKey(key), key);
 		}
 
 		Assert.False(manifest.ContainsKey("icon"));
+		Assert.False(manifest.ContainsKey("block_package_scripts"));
+		Assert.Equal("crater", manifest["registry"]!.GetValue<string>());
 		Assert.True(settings.ContainsKey("link_style"));
 		Assert.Equal("Packages", settings["client"]!["path"]!.GetValue<string>());
 		Assert.False(settings.ContainsKey("import_client_path"));
 		Assert.Equal(0, Crater("install", "-y").ExitCode);
+	}
+
+	[Fact]
+	public void LabelsAndGroupsSurviveAdd()
+	{
+		Assert.Equal(0, Crater("init", "--name", "t/game", "-y").ExitCode);
+
+		string path = Path.Combine(root, "crater.json");
+		JsonObject manifest = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+
+		manifest["scripts"] = new JsonObject { ["build"] = "rojo build" };
+		global::Crater.Models.ManifestFile.Write(path, manifest);
+
+		string text = File.ReadAllText(path);
+
+		Assert.Contains("\n\n  \"// dependencies\": \"packages this project uses\",\n  \"import_client\": [],", text);
+		Assert.Contains("\"scripts\": { \"build\": \"rojo build\" },", text);
+		Assert.Equal(text.TrimEnd('\n'), global::Crater.Models.ManifestFile.Format(JsonNode.Parse(text)!.AsObject()));
+
+		global::Crater.Models.Manifest parsed = global::Crater.Models.Manifest.Load(path);
+
+		Assert.True(parsed.Extra is null || !parsed.Extra.Keys.Any(key => key.StartsWith("//")));
+	}
+
+	[Fact]
+	public void MergedFieldsAndOldFieldsMeanTheSame()
+	{
+		global::Crater.Models.Manifest merged = global::Crater.Util.Json.Parse<global::Crater.Models.Manifest>(
+			"{ \"registry\": [\"team\", \"wally\"], \"registries\": { \"team\": \"https://github.com/Studio/team\" }, \"package_scripts\": { \"block\": true, \"allow\": [\"a/b\"] }, \"package_files\": { \"exclude\": [\"tests/\"], \"allow\": [\"run.sh\"] } }", "test");
+		global::Crater.Models.Manifest old = global::Crater.Util.Json.Parse<global::Crater.Models.Manifest>(
+			"{ \"registry\": \"../registry\", \"block_package_scripts\": true, \"allow_scripts_from\": [\"a/b\"], \"exclude\": [\"tests/\"], \"allow_files\": [\"run.sh\"] }", "test");
+
+		Assert.Equal(["https://github.com/Studio/team", "https://github.com/UpliftGames/wally-index"], merged.RegistryLocations);
+		Assert.Equal(["../registry"], old.RegistryLocations);
+
+		foreach (global::Crater.Models.Manifest manifest in new[] { merged, old })
+		{
+			Assert.True(manifest.ScriptsBlocked);
+			Assert.Equal(["a/b"], manifest.ScriptsAllowedFrom);
+			Assert.Equal(["tests/"], manifest.ExcludedFiles);
+			Assert.Equal(["run.sh"], manifest.AllowedFiles);
+		}
 	}
 
 	[Fact]
@@ -134,7 +178,11 @@ public sealed class CommandTests : IDisposable
 
 		Assert.Equal("crater.json", declared["path_to_package_info"]!.GetValue<string>());
 		Assert.Equal("crater.settings.json", declared["path_to_crater_settings"]!.GetValue<string>());
-		Assert.Equal(2, declared["api_version"]!.GetValue<int>());
+		Assert.Equal(3, declared["api_version"]!.GetValue<int>());
+		Assert.Equal(3, declared["features"]!["package_rules"]!.GetValue<int>());
+		Assert.Equal("https://github.com/UpliftGames/wally-index", declared["registries"]!["wally"]!.GetValue<string>());
+		Assert.False(declared["defaults"]!["package_scripts"]!["block"]!.GetValue<bool>());
+		Assert.Matches(declared["dependency"]!["pattern"]!.GetValue<string>(), "Promise:wally#evaera/promise^4");
 
 		if (OperatingSystem.IsWindows())
 		{

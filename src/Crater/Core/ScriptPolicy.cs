@@ -13,8 +13,8 @@ public static class ScriptPolicy
 	{
 		Dictionary<string, string> preparedById = prepared.GroupBy(pair => pair.Key.Id).ToDictionary(group => group.Key, group => group.First().Value);
 		Manifest manifest = project.Manifest;
-		bool block = manifest.BlockPackageScripts == true;
-		HashSet<string> allowed = new(manifest.AllowScriptsFrom ?? [], StringComparer.OrdinalIgnoreCase);
+		bool block = manifest.ScriptsBlocked;
+		HashSet<string> allowed = new(manifest.ScriptsAllowedFrom, StringComparer.OrdinalIgnoreCase);
 		HashSet<string> known = oldLock.Packages.Select(package => package.Id).ToHashSet();
 		List<(ResolvedPackage Package, List<string> Scripts)> blocked = [];
 
@@ -67,7 +67,7 @@ public static class ScriptPolicy
 		string first = blocked[0].Package.Name;
 
 		throw new CraterException(
-			$"These packages run scripts in your game, and {Fmt.Val("\"block_package_scripts\": true")} is set in {Fmt.File(Manifest.FileName)}:\n{list}\n" +
-			$"  Remove them, or trust one with {Fmt.Cmd($"\"allow_scripts_from\": [\"{first}\"]")}.");
+			$"These packages run scripts in your game, and {Fmt.Val("\"package_scripts\": { \"block\": true }")} is set in {Fmt.File(Manifest.FileName)}:\n{list}\n" +
+			$"  Remove them, or trust one with {Fmt.Cmd($"\"package_scripts\": {{ \"block\": true, \"allow\": [\"{first}\"] }}")}.");
 	}
 }

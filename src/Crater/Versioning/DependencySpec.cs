@@ -70,9 +70,9 @@ public sealed partial class DependencySpec
 		Source = source;
 	}
 
-	[GeneratedRegex(
-		@"^(?:(?<alias>[A-Za-z][A-Za-z0-9_\-]*):)?(?:(?<registry>[A-Za-z][A-Za-z0-9_\-]*)#)?(?<scope>[a-z0-9_\-]+)/(?<name>[a-z0-9_\-]+)(?:(?<op>[=+^~])(?<ver>\S*)|@(?<source>.+))?$",
-		RegexOptions.IgnoreCase)]
+	public const string Pattern = @"^(?:(?<alias>[A-Za-z][A-Za-z0-9_\-]*):)?(?:(?<registry>[A-Za-z][A-Za-z0-9_\-]*)#)?(?<scope>[a-z0-9_\-]+)/(?<name>[a-z0-9_\-]+)(?:(?<op>[=+^~])(?<ver>\S*)|@(?<source>.+))?$";
+
+	[GeneratedRegex(Pattern, RegexOptions.IgnoreCase)]
 	private static partial Regex SpecRegex();
 
 	[GeneratedRegex(@"^[a-z0-9_\-]+/[a-z0-9_\-]+$")]
