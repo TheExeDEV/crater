@@ -78,14 +78,15 @@
 				},
 				{
 					"name": "outdated",
-					"flags": ["--all"],
+					"flags": ["--all", "--json"],
 					"complete": ["@dependencies"],
-					"help": [["outdated [--all]", "show dependencies that have newer versions"]]
+					"help": [["outdated [--all] [--json]", "show dependencies that have newer versions"]]
 				},
 				{
 					"name": "list",
 					"aliases": ["ls"],
-					"help": [["list", "show the installed package tree"]]
+					"flags": ["--json"],
+					"help": [["list [--json]", "show the installed package tree"]]
 				},
 				{
 					"name": "why",
@@ -135,9 +136,17 @@
 				},
 				{
 					"name": "search",
-					"flags": ["--registry <location>", "--type <package|interface|tool>", "--tag, --tags <tags>", "--implements <author/name>"],
+					"flags": ["--registry <location>", "--type <package|interface|tool>", "--tag, --tags <tags>", "--implements <author/name>", "--sort <relevance|name|updated>", "--json"],
 					"complete": ["package", "interface", "tool"],
-					"help": [["search [query] [type] [--tag t] [--implements a/b]", "search packages, interfaces or tools, by tag or interface"]]
+					"help": [
+						["search [query] [type] [--tag t] [--implements a/b]", "search packages, interfaces or tools, by tag or interface"],
+						["search ... [--sort name|updated] [--json]", "sort the results or print them as JSON"]
+					]
+				},
+				{
+					"name": "tags",
+					"flags": ["--registry <location>", "--json"],
+					"help": [["tags [word]", "list the tags packages use, the most used first"]]
 				},
 				{
 					"name": "find-interface",
@@ -146,9 +155,15 @@
 				},
 				{
 					"name": "info",
-					"flags": ["--registry <location>"],
+					"flags": ["--registry <location>", "--json"],
 					"complete": ["@dependencies"],
-					"help": [["info <scope/name>", "show package details"]]
+					"help": [["info <scope/name> [--json]", "show package details"]]
+				},
+				{
+					"name": "changelog",
+					"flags": ["--registry <location>", "--json"],
+					"complete": ["@dependencies"],
+					"help": [["changelog <scope/name> [version]", "release notes of every version, or of one"]]
 				},
 				{
 					"name": "versions",

@@ -526,6 +526,17 @@ An interface is a package that describes an API, usually types, that other packa
 - `crater search logger interface` finds only interfaces, `crater search logger package` only packages, `crater search lint tool` the [tools](#tools) you can pin. `--type interface` works too.
 - `crater search --tag ui` finds packages and interfaces by their `keywords`. Several tags are written with commas, `--tag ui,animation`, and a package must have all of them. The tag filter works with a word and a type too: `crater search button interface --tag ui`.
 - `crater search --implements studio/logger-api` finds the packages that implement an interface, and can be combined with a word and `--tag`.
+- `crater tags` lists the tags packages use, the most used first. `crater tags anim` shows only tags with that word.
+- `--sort name` or `--sort updated` orders the results; without it the best matches come first.
+
+### JSON output
+
+`search`, `tags`, `info`, `changelog`, `outdated` and `list` take `--json` and then print only JSON, so scripts, editors and other package managers can read them. Warnings go to stderr and nothing else is printed:
+
+```bash
+crater search --tag ui --json
+crater outdated --all --json
+```
 
 ---
 
@@ -726,6 +737,8 @@ What changed in evaera/promise
   4.1.0 (2026-10-24)
     - Added Promise.each
 ```
+
+`crater outdated` shows the same notes for versions you have not installed yet. A long list is cut short; `crater changelog evaera/promise` prints the notes of every version and marks the installed one, `crater changelog Promise 4.1.0` only one version.
 
 **`crater graph`** prints the installed tree as a [Mermaid](https://mermaid.js.org) diagram from `crater.lock`, nothing is downloaded. `crater graph -o deps.md` writes it as a Markdown file that GitHub shows as a picture, so you can put it in a README or a pull request. `--client`, `--server` or `--dev` draws one folder, `--depth 1` only your direct dependencies. Aliases are written on the arrows.
 
@@ -1386,13 +1399,15 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `add --packages-list [search]` | Search all registries and pick a package and version with the arrow keys. |
 | `remove <name...> [--client\|--server\|--dev]` (`rm`) | Remove by `scope/name` or alias. |
 | `update [name...] [-i] [--workspace]` (`up`) | Update all or the given packages. `-i` to pick. |
-| `outdated [--all]` | Show newer versions. |
-| `list` (`ls`) | Installed tree. |
+| `outdated [--all] [--json]` | Show newer versions and what changed in them. |
+| `list` (`ls`) `[--json]` | Installed tree. |
 | `why <scope/name>` | Why a package is installed. |
 | `graph [-o file.md] [--client\|--server\|--dev] [--depth n]` | Mermaid diagram of the installed tree. |
-| `search [query] [package\|interface\|tool] [--tag t] [--implements a/b]` | Search the registry catalog, only interfaces, only packages, or the tools you can pin. Filter by tags or by the interface a package implements. |
+| `search [query] [package\|interface\|tool] [--tag t] [--implements a/b] [--sort name\|updated] [--json]` | Search the registry catalog, only interfaces, only packages, or the tools you can pin. Filter by tags or by the interface a package implements. |
+| `tags [word]` | Tags packages use, the most used first. |
 | `find-interface <author/name>` | Packages that implement an interface, see [Interfaces](#interfaces). |
-| `info <scope/name>` | Package details. |
+| `info <scope/name> [--json]` | Package details. |
+| `changelog <scope/name> [version]` | Release notes of every version, or of one. A dependency alias like `Promise` works too. |
 | `versions <scope/name>` | Published versions. |
 | `run [script] [-- args]` | Run a script. |
 | `doctor` | Check the project. |

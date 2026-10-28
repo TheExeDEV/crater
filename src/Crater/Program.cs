@@ -38,6 +38,8 @@ public static class Program
 
 		Args args = Args.Parse(argv);
 
+		Out.Quiet = args.Has("json") && args.Command is string command && CommandList.Current.Find(command)?.FindFlag("json") is not null;
+
 		if (args.Has("offline"))
 		{
 			Http.Offline = true;
@@ -142,11 +144,19 @@ public static class Program
 				return 0;
 
 			case "search":
-				await InspectCommands.SearchAsync(args);
+				await SearchCommand.SearchAsync(args);
 				return 0;
 
 			case "find-interface":
-				await InspectCommands.FindInterfaceAsync(args);
+				await SearchCommand.FindInterfaceAsync(args);
+				return 0;
+
+			case "tags":
+				await SearchCommand.TagsAsync(args);
+				return 0;
+
+			case "changelog":
+				await ChangelogCommand.RunAsync(args);
 				return 0;
 
 			case "info":

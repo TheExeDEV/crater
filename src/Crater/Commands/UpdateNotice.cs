@@ -22,6 +22,7 @@ public static class UpdateNotice
 	{
 		bool skipped = command is null or "self-update" or "version" ||
 			Http.Offline ||
+			Out.Quiet ||
 			Console.IsOutputRedirected ||
 			Environment.GetEnvironmentVariable("CI") is not null ||
 			Environment.GetEnvironmentVariable("CRATER_NO_UPDATE_CHECK") is not null ||
