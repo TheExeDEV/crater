@@ -99,7 +99,7 @@ public static partial class ReportCommands
 		{
 			try
 			{
-				using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest));
+				using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifest), Json.DocumentOptions);
 
 				if (document.RootElement.TryGetProperty("license", out JsonElement license) && license.ValueKind == JsonValueKind.String)
 				{

@@ -48,7 +48,6 @@ public static class CraterDeclare
 			},
 			["registries"] = Object(NamedRegistries.BuiltinNames.Select(name => (name, (JsonNode?)NamedRegistries.Location(name, null)))),
 			["realms"] = Object(Realms.All.Select(realm => (realm.ManifestField(), (JsonNode?)realm.Key()))),
-			["label_prefix"] = ManifestFile.LabelPrefix,
 			["dependency"] = new JsonObject
 			{
 				["pattern"] = DependencySpec.Pattern,

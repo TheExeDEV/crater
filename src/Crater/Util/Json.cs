@@ -19,7 +19,7 @@ public static class Json
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
 	};
 
-	static readonly JsonDocumentOptions DocumentOptions = new()
+	public static readonly JsonDocumentOptions DocumentOptions = new()
 	{
 		CommentHandling = JsonCommentHandling.Skip,
 		AllowTrailingCommas = true,

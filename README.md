@@ -193,13 +193,12 @@ local Promise = require(ReplicatedStorage.Packages.promise)
 
 ## crater.json
 
-Every project and every package has a `crater.json`. `crater init` writes every field below (except `icon`), empty ones included, so you can see what exists and fill in what you need. crater keeps the fields in groups, each with a label line like `"// dependencies": "packages this project uses"`; JSON has no comments, so the labels are ordinary fields that crater ignores and writes back every time it saves the file. The first line, `"$schema"`, points at [`schemas/crater.schema.json`](schemas/crater.schema.json): VS Code and other editors then explain every field when you hover it, suggest fields as you type and underline mistakes. `crater.settings.json` gets [its own schema](schemas/crater.settings.schema.json).
+Every project and every package has a `crater.json`. `crater init` writes every field below (except `icon`), empty ones included, so you can see what exists and fill in what you need. crater keeps the fields in groups separated by empty lines and writes them in the same order every time it saves the file. The first line, `"$schema"`, points at [`schemas/crater.schema.json`](schemas/crater.schema.json): VS Code and other editors then explain every field when you hover it, suggest fields as you type and underline mistakes. `crater.settings.json` gets [its own schema](schemas/crater.settings.schema.json).
 
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/TheExeDEV/crater/main/schemas/crater.schema.json",
 
-  "// package": "what this package is",
   "name": "theexedev/my-game",
   "version": "1.0.0",
   "description": "My game",
@@ -208,31 +207,26 @@ Every project and every package has a `crater.json`. `crater init` writes every 
   "keywords": ["game"],
   "repository": "https://github.com/TheExeDEV/my-game",
 
-  "// registries": "where packages come from and where this one is published",
   "registry": ["crater", "team"],
   "registries": { "team": "https://github.com/MyStudio/team-registry" },
   "can_publish": true,
   "import_to": "shared",
 
-  "// files": "the entry module and what goes into the published package",
   "path_to_main": "src/init.luau",
   "icon": "assets/icon.png",
   "path_to_definition_files": ["types/api.d.luau", "defs", "extra/*.d.luau"],
   "package_files": { "exclude": ["tests/"], "allow": ["scripts/setup.sh"] },
 
-  "// dependencies": "packages this project uses",
   "import_client": ["beta/adof+0.12.44", "Promise:evaera/promise^4", "team#mystudio/combat^1"],
   "import_server": ["dep/dependency^"],
   "import_develop": ["roblox/testez^0.4"],
   "overrides": ["evaera/promise^4.1.0"],
 
-  "// project": "workspace, scripts, pinned tools and packages that may run scripts",
   "workspace": ["packages/*"],
   "scripts": { "build": "rojo build -o build.rbxl" },
   "tools": { "rojo": "rojo-rbx/rojo@7.7.1", "luau-lsp": "JohnnyMorganz/luau-lsp@1.70.1" },
   "package_scripts": { "block": false, "allow": ["sleitnick/cmdr"] },
 
-  "// kind": "monorepository packages and interfaces",
   "monorepository-elements": {},
   "interface": false,
   "realized_interfaces": []
@@ -262,7 +256,6 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `monorepository-elements` | The packages of a monorepository; not empty makes this package one, see [Monorepositories](#monorepositories). |
 | `interface`, `realized_interfaces` | Marks the package as an interface, or lists the interfaces it implements, see [Interfaces](#interfaces). |
 | `$schema` | Lets editors show the descriptions of the fields. crater ignores it. |
-| `"// ..."` | Group labels. crater ignores them and writes them back when it saves the file. |
 
 ---
 
@@ -326,7 +319,6 @@ Older projects keep working: `crater.config.json` is still read when there is no
   "schemas": { "package_info": "https://.../crater.schema.json", "crater_settings": "https://.../crater.settings.schema.json" },
   "registries": { "crater": "...", "wally": "https://github.com/UpliftGames/wally-index", "pesde": "...", "forest": "...", "ember": "..." },
   "realms": { "import_client": "client", "import_server": "server", "import_develop": "develop" },
-  "label_prefix": "//",
   "dependency": { "pattern": "...", "operators": { ... }, "sources": { ... }, "registry": "..." },
   "defaults": { "authors": [], "description": "", "registry": "crater", "package_scripts": { "block": false, "allow": [] }, ... }
 }
@@ -340,7 +332,6 @@ Older projects keep working: `crater.config.json` is still read when there is no
 | `schemas` | JSON schemas of both files: every field, its type and what it does. |
 | `registries` | The built in registry names (`crater#`, `wally#`, `pesde#`, `forest#`, `ember#`) and their addresses. Names from `registries` in `crater.json` come on top. |
 | `realms` | Which dependency list installs where. |
-| `label_prefix` | Keys that start with it are group labels, not settings: skip them. |
 | `dependency` | How to read a dependency string like `Promise:wally#evaera/promise^4`: a regular expression with named groups (`alias`, `registry`, `scope`, `name`, `op`, `ver`, `source`), what every version operator means, the `@path:` and `@git+` sources, and which registry a dependency without a prefix comes from. |
 | `defaults` | The value of every optional `crater.json` field that sets nothing: a field equal to it behaves as if it were missing, so a tool can drop it. An empty `registry` (`""` or `[]`) also means `crater`. |
 
@@ -352,7 +343,7 @@ crater checks it on every command. When the file is missing, broken, points at f
 |---|---|
 | `1` | crater 0.5.5: long names in `crater.settings.json` (`import_client_path`, `on_install_update_luaurc`...), `"monorepository": true` next to `monorepository-elements`. |
 | `2` | crater 0.5.6: `crater.settings.json` uses `client`, `server`, `develop` (`path`, `alias`), `luaurc`, `vscode_definitions`, `confirm`; a package is a monorepository when `monorepository-elements` is not empty. Files in format 1 are still read. |
-| `3` | crater 0.5.7: `crater.json` has `package_scripts` (`block`, `allow`) and `package_files` (`exclude`, `allow`), `registry` may name registries (`"crater"`, `"team"`), and fields come in groups with `"// ..."` labels. Files in formats 1 and 2 are still read. |
+| `3` | crater 0.5.7: `crater.json` has `package_scripts` (`block`, `allow`) and `package_files` (`exclude`, `allow`), `registry` may name registries (`"crater"`, `"team"`), and fields come in groups. Files in formats 1 and 2 are still read. |
 
 ## Dependency syntax
 
