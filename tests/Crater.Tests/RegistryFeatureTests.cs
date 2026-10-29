@@ -125,6 +125,63 @@ public sealed class RegistryFeatureTests : IDisposable
 	}
 
 	[Fact]
+	public void VersionConflictsSuggestTheUpdateThatSolvesThem()
+	{
+		string dependency = Project("t/dep", []);
+
+		Assert.Equal(0, Crater(dependency, "publish", "-y").ExitCode);
+		SetVersion(dependency, "2.0.0");
+		Assert.Equal(0, Crater(dependency, "publish", "-y").ExitCode);
+
+		string a = Project("t/a", ["t/dep^1.0.0"]);
+
+		Assert.Equal(0, Crater(a, "publish", "-y").ExitCode);
+		Assert.Equal(0, Crater(Project("t/b", ["t/dep^2.0.0"]), "publish", "-y").ExitCode);
+		Assert.Equal(0, Crater(Project("t/c", ["t/dep^1.0.0"]), "publish", "-y").ExitCode);
+
+		string game = Project("t/game", ["t/a^1.0.0"]);
+
+		Assert.Equal(0, Crater(game, "install", "-y").ExitCode);
+
+		JsonObject manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(a, "crater.json")))!.AsObject();
+
+		manifest["version"] = "1.1.0";
+		manifest["import_client"] = new JsonArray("t/dep^2.0.0");
+		File.WriteAllText(Path.Combine(a, "crater.json"), manifest.ToJsonString());
+		Assert.Equal(0, Crater(a, "publish", "-y").ExitCode);
+
+		Assert.Equal(1, Crater(game, "add", "t/b^1.0.0", "-y").ExitCode);
+		Assert.Equal(0, Crater(game, "update", "t/a", "-y").ExitCode);
+		Assert.Equal(0, Crater(game, "add", "t/b^1.0.0", "-y").ExitCode);
+
+		string fixable = Resolve(["t/a=1.0.0", "t/b^1.0.0"]);
+
+		Assert.Contains("t/a@1.1.0 accepts t/dep@2.0.0", fixable);
+		Assert.Contains("crater update -i t/a", fixable);
+		Assert.Contains("Or, to force one version", fixable);
+		Assert.Contains("Your crater.json asks for", Resolve(["t/dep^1.0.0", "t/b^1.0.0"]));
+
+		string unfixable = Resolve(["t/c^1.0.0", "t/b^1.0.0"]);
+
+		Assert.DoesNotContain("accepts", unfixable);
+		Assert.Contains("To use one version for every package", unfixable);
+	}
+
+	string Resolve(string[] roots)
+	{
+		global::Crater.Core.ResolveRequest request = new()
+		{
+			Realm = global::Crater.Models.Realm.Client,
+			Roots = roots.Select(root => global::Crater.Versioning.DependencySpec.Parse(root)).ToList(),
+			DefaultRegistry = global::Crater.Registry.Registries.Open(Path.Combine(root, "registry"), root),
+		};
+
+		CraterException exception = Assert.ThrowsAsync<CraterException>(() => new global::Crater.Core.Resolver().ResolveAsync(request)).GetAwaiter().GetResult();
+
+		return global::Crater.Util.Out.Plain(exception.Message);
+	}
+
+	[Fact]
 	public void TagsChangelogAndJsonOutput()
 	{
 		string log = Project("t/log", [], manifest => manifest["keywords"] = new JsonArray("Logging", "debug"));

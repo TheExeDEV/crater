@@ -427,8 +427,11 @@ When requirements cannot be satisfied together (one package needs `^1`, another 
     x/old-user requires >=1.0.0 <2.0.0
     x/new-user requires >=2.0.0 <3.0.0
   Available versions: 1.0.0, 1.1.0, 2.0.0
-  To use one version for every package, add "overrides": ["dep/dependency^2.0.0"] to crater.json.
+  x/old-user@1.3.0 accepts dep/dependency@2.0.0: run crater update -i x/old-user.
+  Or, to force one version for every package, add "overrides": ["dep/dependency^2.0.0"] to crater.json.
 ```
+
+crater looks through the newer versions of the packages that block each other and names the update that ends the conflict without forcing anything: here `x/old-user` 1.3.0 already works with `dep/dependency` 2.0.0. When your own `crater.json` is the one asking for the old version, it says so and points at `crater update -i`. When no update helps yet, only `overrides` is suggested.
 
 `overrides` force one version for the whole project, in every folder:
 
