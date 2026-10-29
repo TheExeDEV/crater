@@ -271,6 +271,21 @@ public sealed class CommandTests : IDisposable
 		Assert.Contains("build.project.json", gitignore);
 		Assert.DoesNotContain("darklua", Crater("install", "-y").Output);
 
+		JsonObject edited = JsonNode.Parse(File.ReadAllText(Path.Combine(root, ".darklua.json")))!.AsObject();
+
+		edited["rules"]![1]!["current"]!["aliases"]!["@mine"] = "./src/mine";
+		edited["rules"]![1]!["target"]!["indexing_style"] = "wait_for_child";
+		File.WriteAllText(Path.Combine(root, ".darklua.json"), edited.ToJsonString());
+		File.WriteAllText(Path.Combine(root, ".luaurc"), "{ \"aliases\": { \"shared\": \"src/shared\" } }");
+		Assert.Equal(0, Crater("install", "-y").ExitCode);
+
+		JsonObject merged = JsonNode.Parse(File.ReadAllText(Path.Combine(root, ".darklua.json")))!["rules"]![1]!.AsObject();
+
+		Assert.Equal("./src/mine", merged["current"]!["aliases"]!["@mine"]!.GetValue<string>());
+		Assert.Equal("./src/shared", merged["current"]!["aliases"]!["@shared"]!.GetValue<string>());
+		Assert.Equal("./Packages", merged["current"]!["aliases"]!["@Packages"]!.GetValue<string>());
+		Assert.Equal("wait_for_child", merged["target"]!["indexing_style"]!.GetValue<string>());
+
 		File.Delete(Path.Combine(root, ".darklua.json"));
 		File.WriteAllText(Path.Combine(root, "crater.settings.json"), "{ \"darklua\": false }");
 		Assert.Equal(0, Crater("install", "-y").ExitCode);
