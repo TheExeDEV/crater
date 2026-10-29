@@ -137,7 +137,10 @@ public static class PackageFiles
 				return false;
 			}
 
-			if ((codeTop is null ? segments[..^1] : segments[1..^1]).Any(DevFolders.Contains))
+			int skipped = codeTop is null ? 0 : 1;
+			string[] folders = segments.Length > skipped ? segments[skipped..^1] : [];
+
+			if (folders.Any(DevFolders.Contains))
 			{
 				return false;
 			}

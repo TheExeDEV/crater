@@ -44,6 +44,7 @@ public sealed class OptimizationTests : IDisposable
 	public static TheoryData<string> Packages => new()
 	{
 		"project",
+		"single-file",
 		"generic",
 		"crater",
 	};
@@ -64,6 +65,15 @@ public sealed class OptimizationTests : IDisposable
 			["wally.toml"] = "[package]\nlicense = \"MIT\"\n",
 			["aftman.toml"] = "[tools]",
 			["types/promise.d.luau"] = "declare x: number",
+		},
+		"single-file" => new()
+		{
+			["default.project.json"] = "{\"name\":\"profilestore\",\"tree\":{\"$path\":\"ProfileStore.luau\"}}",
+			["ProfileStore.luau"] = "return {}",
+			["Example.luau"] = "print(1)",
+			["README.md"] = "readme",
+			["LICENSE.md"] = "MIT",
+			["wally.toml"] = "[package]",
 		},
 		"generic" => new()
 		{
@@ -100,6 +110,25 @@ public sealed class OptimizationTests : IDisposable
 		PackageFiles.ExtractPrepared(archive, filtered, "me/lib@1.0.0", "lib", manifest, quiet: true);
 
 		Assert.Equal(Snapshot(full), Snapshot(filtered));
+	}
+
+	[Fact]
+	public void SingleFileProjectKeepsItsModule()
+	{
+		string filtered = Path.Combine(root, "filtered");
+		Manifest manifest = new() { Name = "lm-loleris/profilestore", Version = "1.0.0", License = "MIT" };
+
+		PackageFiles.ExtractPrepared(Zip(Sample("single-file")), filtered, "lm-loleris/profilestore@1.0.0", "profilestore", manifest, quiet: true);
+
+		Assert.Equal("return {}", File.ReadAllText(Path.Combine(filtered, "init.luau")));
+		Assert.False(File.Exists(Path.Combine(filtered, "ProfileStore.luau")));
+		Assert.False(File.Exists(Path.Combine(filtered, "default.project.json")));
+		Assert.False(File.Exists(Path.Combine(filtered, "Example.luau")));
+
+		PackageEntry entry = PackageEntry.Analyze(filtered, "");
+
+		Assert.Equal(EntryKind.Module, entry.Kind);
+		Assert.Empty(entry.Segments);
 	}
 
 	[Fact]
