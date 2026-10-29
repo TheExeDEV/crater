@@ -146,6 +146,7 @@ public static partial class ProjectCommands
 			["vscode_definitions"] = true,
 			["confirm"] = true,
 			["link_style"] = "roblox",
+			["darklua"] = true,
 		};
 	}
 

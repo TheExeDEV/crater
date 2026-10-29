@@ -24,6 +24,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		if (update is null && InstallState.IsCurrent(project, oldLock))
 		{
 			InstallSummary.Print(oldLock, oldLock, watch.Elapsed);
+			Darklua.Update(project, prompt);
 			return;
 		}
 
@@ -81,6 +82,8 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		{
 			LuauRc.Update(project, graphs, prompt);
 		}
+
+		Darklua.Update(project, prompt);
 
 		if (project.Config.OnInstallUpdateVscodeLuauDefinitionFiles || (project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project)))
 		{

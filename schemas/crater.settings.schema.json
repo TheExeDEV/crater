@@ -53,6 +53,11 @@
       "enum": ["roblox", "string"],
       "description": "How link files require packages: roblox uses script.Parent paths, string uses require(\"./name\") paths."
     },
+    "darklua": {
+      "type": "boolean",
+      "default": true,
+      "description": "When your code requires through aliases like @Packages, install sets up darklua (.darklua.json, build.project.json and a build script) so the code works in Roblox. false turns it off."
+    },
     "import_client_path": { "type": "string", "description": "Old name of client.path, still read." },
     "import_server_path": { "type": "string", "description": "Old name of server.path, still read." },
     "import_develop_path": { "type": "string", "description": "Old name of develop.path, still read." },

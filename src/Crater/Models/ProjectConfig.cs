@@ -24,6 +24,8 @@ public sealed class ProjectConfig
 
 	[JsonPropertyName("link_style")] public string LinkStyle { get; set; } = "roblox";
 
+	[JsonPropertyName("darklua")] public bool Darklua { get; set; } = true;
+
 	[JsonPropertyName("self_update_repo")] public string SelfUpdateRepo { get; set; } = "";
 
 	public static string GlobalDirectory =>
