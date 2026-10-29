@@ -140,7 +140,7 @@ public sealed class Resolver
 
 			if (candidates.Count == 0)
 			{
-				throw NoMatchingVersion(name, requirements, index);
+				throw await NoMatchingVersionAsync(name, requirements, index);
 			}
 
 			RegistryRelease pick = Pick(name, candidates);
@@ -223,22 +223,116 @@ public sealed class Resolver
 			return packageRegistry;
 		}
 
-		CraterException NoMatchingVersion(string name, List<Constraint> requirements, RegistryIndex index)
+		async Task<CraterException> NoMatchingVersionAsync(string name, List<Constraint> requirements, RegistryIndex index)
 		{
 			string details = string.Join("\n", requirements.Select(item => $"    {Fmt.Pkg(item.From)} requires {Fmt.Val(item.Req.Describe())}"));
 			string available = index.Versions.Count == 0 ? "none" : string.Join(", ", index.Versions.Select(release => release.Version));
 			string message = $"[{request.Realm.Key()}] No version of {Fmt.Pkg(name)} satisfies all requirements:\n{details}\n" +
 				$"  Available versions: {Fmt.Val(available)}";
 
+			List<string> fixes = await UpdatesThatFixAsync(name, requirements, index);
+
+			if (fixes.Count > 0)
+			{
+				message += "\n" + string.Join("\n", fixes);
+			}
+
 			RegistryRelease? latest = index.Latest;
 
 			if (latest is not null && !request.Overrides.ContainsKey(name))
 			{
-				message += $"\n  To use one version for every package, add {Fmt.Cmd($"\"overrides\": [\"{name}^{latest.Version}\"]")} " +
+				string lead = fixes.Count > 0 ? "Or, to force one version for every package" : "To use one version for every package";
+
+				message += $"\n  {lead}, add {Fmt.Cmd($"\"overrides\": [\"{name}^{latest.Version}\"]")} " +
 					$"to {Fmt.File(Manifest.FileName)}.";
 			}
 
 			return new CraterException(message);
+		}
+
+		async Task<List<string>> UpdatesThatFixAsync(string name, List<Constraint> requirements, RegistryIndex index)
+		{
+			foreach (RegistryRelease target in index.Versions.Where(release => release.Deprecated is null).OrderByDescending(release => release.SemVer))
+			{
+				List<string> fixes = [];
+
+				foreach (Constraint constraint in requirements.Where(item => !item.Req.Matches(target.SemVer)))
+				{
+					string? fix = await FixForAsync(constraint, name, target);
+
+					if (fix is null)
+					{
+						fixes.Clear();
+						break;
+					}
+
+					fixes.Add(fix);
+				}
+
+				if (fixes.Count > 0)
+				{
+					return fixes;
+				}
+			}
+
+			return [];
+		}
+
+		async Task<string?> FixForAsync(Constraint constraint, string name, RegistryRelease target)
+		{
+			if (constraint.From == OverrideOwner)
+			{
+				return null;
+			}
+
+			if (constraint.From == RootOwner)
+			{
+				return $"  Your {Fmt.File(Manifest.FileName)} asks for {Fmt.Val(constraint.Req.Describe())}: {Fmt.Cmd($"crater update -i {name}")} can move it to {Fmt.Val(target.Version)}.";
+			}
+
+			string? parentVersion = await NewerAcceptingAsync(constraint.From, name, target);
+
+			return parentVersion is null
+				? null
+				: $"  {Fmt.Pkg($"{constraint.From}@{parentVersion}")} accepts {Fmt.Pkg($"{name}@{target.Version}")}: run {Fmt.Cmd($"crater update -i {constraint.From}")}.";
+		}
+
+		async Task<string?> NewerAcceptingAsync(string parent, string name, RegistryRelease target)
+		{
+			if (!selected.TryGetValue(parent, out RegistryRelease? current) || !selectedRegistries.TryGetValue(parent, out IRegistry? registry))
+			{
+				return null;
+			}
+
+			RegistryIndex? index;
+
+			try
+			{
+				index = await registry.GetIndexAsync(parent);
+			}
+			catch (CraterException)
+			{
+				return null;
+			}
+
+			return index?.Versions
+				.Where(release => release.SemVer > current.SemVer && release.Deprecated is null)
+				.OrderBy(release => release.SemVer)
+				.FirstOrDefault(release => Accepts(release, parent, name, target))
+				?.Version;
+		}
+
+		bool Accepts(RegistryRelease release, string parent, string name, RegistryRelease target)
+		{
+			try
+			{
+				return DependenciesOf(release.Manifest, request.Realm, $"dependency of {parent}@{release.Version}")
+					.Any(spec => spec.FullName == name && spec.Req.Matches(target.SemVer));
+			}
+			catch (CraterException)
+			{
+				return false;
+			}
 		}
 
 		public ResolvedGraph BuildGraph()
