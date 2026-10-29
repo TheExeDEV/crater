@@ -233,6 +233,51 @@ public sealed class CommandTests : IDisposable
 	}
 
 	[Fact]
+	public void AliasRequiresSetUpDarklua()
+	{
+		Assert.Equal(0, Crater("init", "--name", "t/game", "--template", "game", "-y").ExitCode);
+		Assert.Equal(0, Crater("install", "-y").ExitCode);
+		Assert.False(File.Exists(Path.Combine(root, ".darklua.json")));
+
+		Directory.CreateDirectory(Path.Combine(root, "src", "client"));
+		File.WriteAllText(Path.Combine(root, "src", "client", "main.client.luau"), "local Promise = require(\"@Packages/promise\")\n");
+		File.WriteAllText(Path.Combine(root, ".darklua.json"), "{ \"rules\": [\"remove_comments\", { \"rule\": \"convert_require\", \"current\": \"path\", \"target\": \"roblox\" }] }");
+
+		Assert.Contains("crater run build", Crater("install", "-y").Output);
+
+		JsonArray rules = JsonNode.Parse(File.ReadAllText(Path.Combine(root, ".darklua.json")))!["rules"]!.AsArray();
+		JsonObject convert = rules[1]!.AsObject();
+
+		Assert.Equal(2, rules.Count);
+		Assert.Equal("remove_comments", rules[0]!.GetValue<string>());
+		Assert.Equal("luau", convert["current"]!["name"]!.GetValue<string>());
+		Assert.Equal("./Packages", convert["current"]!["aliases"]!["@Packages"]!.GetValue<string>());
+		Assert.Equal("./sourcemap.json", convert["target"]!["rojo_sourcemap"]!.GetValue<string>());
+
+		JsonObject build = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "build.project.json")))!.AsObject();
+		JsonObject storage = build["tree"]!["ReplicatedStorage"]!.AsObject();
+
+		Assert.Equal("dist/src/shared", storage["Shared"]!["$path"]!.GetValue<string>());
+		Assert.Equal("Packages", storage["Packages"]!["$path"]!["optional"]!.GetValue<string>());
+
+		string script = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "crater.json")))!["scripts"]!["build"]!.GetValue<string>();
+
+		Assert.Contains("darklua process src dist/src --config .darklua.json", script);
+		Assert.EndsWith("rojo build build.project.json --output build.rbxl", script);
+
+		string gitignore = File.ReadAllText(Path.Combine(root, ".gitignore"));
+
+		Assert.Contains("dist/", gitignore);
+		Assert.Contains("build.project.json", gitignore);
+		Assert.DoesNotContain("darklua", Crater("install", "-y").Output);
+
+		File.Delete(Path.Combine(root, ".darklua.json"));
+		File.WriteAllText(Path.Combine(root, "crater.settings.json"), "{ \"darklua\": false }");
+		Assert.Equal(0, Crater("install", "-y").ExitCode);
+		Assert.False(File.Exists(Path.Combine(root, ".darklua.json")));
+	}
+
+	[Fact]
 	public void AuditNeedsAnInstall()
 	{
 		Project(_ => { });

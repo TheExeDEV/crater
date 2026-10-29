@@ -56,7 +56,7 @@ It started as a package manager like Wally or pesde, borrows ideas from Cargo an
 14. [Everyday commands](#everyday-commands)
 15. [Patching packages](#patching-packages)
 16. [Tools](#tools)
-17. [Live development](#live-development)
+17. [Aliases in game code](#aliases-in-game-code), [Live development](#live-development)
 18. [Package reports](#package-reports)
 19. [The registry](#the-registry)
 20. [Publishing](#publishing)
@@ -283,6 +283,7 @@ Install settings of your project. The folder names live here and only here: crat
 | `vscode_definitions` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date with the `.d.luau` files of installed packages. |
 | `confirm` | Ask before every change. `-y` skips the questions for one run. |
 | `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
+| `darklua` | `true` (default): when your code requires through aliases like `@Packages/promise`, `install` sets up darklua so the code works in Roblox, see [Aliases in game code](#aliases-in-game-code). `false` turns it off. |
 | `self_update_repo` | Global settings only: `Owner/Repo` used by `crater self-update`. |
 
 The long names of older crater versions are still read: `import_client_path` and `import_client_alias` (and the same for server and develop), `on_install_update_luaurc` with `luaurc_path`, `on_install_update_vscode_luau_definition_files` and `on_install_should_i_ask_your_permission_to_do_any_action`. When a file has both, the new name wins.
@@ -874,6 +875,31 @@ The known names are not built into crater. They come from [`tools.json`](tools.j
 | `assets` | Which release file to download per platform (`windows`, `macos` or `linux`, plus `-x64` or `-arm64`), `*` matches anything. Without it crater guesses from the file names, which works for almost every tool. |
 
 `CRATER_TOOLS_URL` points crater at another list: a URL, a local file or `file://...`, for example a company list of approved tools.
+
+---
+
+## Aliases in game code
+
+luau-lsp understands `require("@Packages/promise")` through the aliases crater writes to `.luaurc`, but Roblox does not read `.luaurc`. When `install` finds such requires in the code of a project with `default.project.json`, it offers to set up [darklua](https://darklua.com), which turns them into instance paths:
+
+```luau
+local Promise = require("@Packages/promise")
+local Thing = require("../shared/Thing")
+-- becomes
+local Promise = require(game:GetService('ReplicatedStorage'):FindFirstChild('Packages'):FindFirstChild('promise'))
+local Thing = require(game:GetService('ReplicatedStorage'):FindFirstChild('Shared'):FindFirstChild('Thing'))
+```
+
+crater writes:
+
+| File | What it is |
+|---|---|
+| `.darklua.json` | A `convert_require` rule from Luau requires to Roblox instances through `sourcemap.json`. The aliases of the package folders are filled in; your own aliases in `.luaurc` are read by darklua too. Other rules already in the file are kept, only this one is replaced. |
+| `build.project.json` | A copy of `default.project.json` that serves the converted code from `dist/` instead of `src/`. Package folders stay as they are. |
+| `scripts.build` | `crater run build`: sourcemap, darklua, then `rojo build build.project.json --output build.rbxl`. Added once, edit it as you like. |
+| `.gitignore` | `dist/` and `build.project.json`, both are generated. |
+
+`crater dev` notices the setup: it runs `darklua process --watch` next to `rojo sourcemap --watch` and serves `build.project.json`, so Studio gets the converted code while you keep writing aliases. luau-lsp still reads `src/`. Pin the tools with `crater tool add darklua rojo` so everyone uses the same versions. Set `"darklua": false` in `crater.settings.json` to turn this off.
 
 ---
 

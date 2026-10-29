@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Crater.Cli;
 using Crater.Core;
+using Crater.Integrations;
 using Crater.Models;
 using Crater.Util;
 
@@ -30,12 +31,20 @@ public static class DevCommand
 			if (!args.Has("no-serve") && File.Exists(Path.Combine(project.Directory, ProjectSources.RojoProject)))
 			{
 				string rojo = await ToolCommand.ExecutableAsync("rojo");
+				bool darklua = project.Config.Darklua && Darklua.IsSetUp(project);
 
-				commands.Add((rojo, ["serve", ProjectSources.RojoProject, .. args.Passthrough]));
-
-				if (File.Exists(Path.Combine(project.Directory, "sourcemap.json")))
+				if (darklua)
 				{
-					commands.Add((rojo, ["sourcemap", ProjectSources.RojoProject, "--output", "sourcemap.json", "--watch"]));
+					Shell.Capture(rojo, ["sourcemap", ProjectSources.RojoProject, "--output", Darklua.Sourcemap], project.Directory);
+					commands.AddRange(Darklua.WatchCommands(project, await ToolCommand.ExecutableAsync("darklua")));
+					Out.Dim($"  darklua converts {string.Join(", ", Darklua.Roots(project))} into {Darklua.Output}/, Rojo serves {Darklua.BuildProject}");
+				}
+
+				commands.Add((rojo, ["serve", darklua ? Darklua.BuildProject : ProjectSources.RojoProject, .. args.Passthrough]));
+
+				if (darklua || File.Exists(Path.Combine(project.Directory, Darklua.Sourcemap)))
+				{
+					commands.Add((rojo, ["sourcemap", ProjectSources.RojoProject, "--output", Darklua.Sourcemap, "--watch"]));
 				}
 
 				children.AddRange(commands.Select(command => Start(command.Executable, project.Directory, command.Arguments)));
