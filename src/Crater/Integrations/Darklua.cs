@@ -126,21 +126,33 @@ public static partial class Darklua
 			config["rules"] = rules;
 		}
 
-		JsonObject aliases = [];
+		int index = rules.ToList().FindIndex(item => item is JsonObject existing && existing["rule"]?.GetValue<string>() == "convert_require");
+		JsonObject rule = index >= 0 ? (JsonObject)rules[index]!.DeepClone() : new JsonObject { ["rule"] = "convert_require" };
+
+		if (rule["current"] is not JsonObject current)
+		{
+			current = new JsonObject { ["name"] = "luau" };
+			rule["current"] = current;
+		}
+
+		JsonObject aliases = current["aliases"] as JsonObject ?? [];
+
+		foreach ((string name, string target) in LuaurcAliases(project))
+		{
+			aliases["@" + name] = target;
+		}
 
 		foreach ((Realm realm, string folder) in project.Config.ConfiguredFolders())
 		{
 			aliases["@" + project.Config.AliasFor(realm, folder)] = "./" + folder;
 		}
 
-		JsonObject rule = new()
-		{
-			["rule"] = "convert_require",
-			["current"] = new JsonObject { ["name"] = "luau", ["aliases"] = aliases },
-			["target"] = new JsonObject { ["name"] = "roblox", ["rojo_sourcemap"] = "./" + Sourcemap, ["indexing_style"] = "find_first_child" },
-		};
+		current["aliases"] = aliases.DeepClone();
 
-		int index = rules.ToList().FindIndex(item => item is JsonObject existing && existing["rule"]?.GetValue<string>() == "convert_require");
+		if (rule["target"] is not JsonObject)
+		{
+			rule["target"] = new JsonObject { ["name"] = "roblox", ["rojo_sourcemap"] = "./" + Sourcemap, ["indexing_style"] = "find_first_child" };
+		}
 
 		if (index >= 0)
 		{
@@ -152,6 +164,35 @@ public static partial class Darklua
 		}
 
 		return config;
+	}
+
+	static IEnumerable<(string Name, string Target)> LuaurcAliases(Project project)
+	{
+		string path = LuauRc.PathIn(project);
+		JsonObject? aliases;
+
+		try
+		{
+			aliases = Json.ReadObject(path)["aliases"] as JsonObject;
+		}
+		catch (CraterException)
+		{
+			yield break;
+		}
+
+		string directory = Path.GetDirectoryName(path)!;
+
+		foreach ((string name, JsonNode? value) in aliases ?? [])
+		{
+			if (value is not JsonValue text || !text.TryGetValue(out string? target))
+			{
+				continue;
+			}
+
+			string relative = Path.GetRelativePath(project.Directory, Path.GetFullPath(Path.Combine(directory, target))).Replace('\\', '/');
+
+			yield return (name.TrimStart('@'), relative.StartsWith("..") ? relative : "./" + relative);
+		}
 	}
 
 	public static JsonObject BuildProjectFor(Project project)

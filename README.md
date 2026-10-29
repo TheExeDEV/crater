@@ -894,7 +894,7 @@ crater writes:
 
 | File | What it is |
 |---|---|
-| `.darklua.json` | A `convert_require` rule from Luau requires to Roblox instances through `sourcemap.json`. The aliases of the package folders are filled in; your own aliases in `.luaurc` are read by darklua too. Other rules already in the file are kept, only this one is replaced. |
+| `.darklua.json` | A `convert_require` rule from Luau requires to Roblox instances through `sourcemap.json`. crater fills in the aliases of the package folders and every alias of the `.luaurc` crater writes to (also a custom one like `src/config.luaurc`), with paths from the project root. Aliases and options you add to the rule yourself, and other rules in the file, are kept. |
 | `build.project.json` | A copy of `default.project.json` that serves the converted code from `dist/` instead of `src/`. Package folders stay as they are. |
 | `scripts.build` | `crater run build`: sourcemap, darklua, then `rojo build build.project.json --output build.rbxl`. Added once, edit it as you like. |
 | `.gitignore` | `dist/` and `build.project.json`, both are generated. |
