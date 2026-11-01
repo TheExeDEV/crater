@@ -36,6 +36,11 @@ public static class ToolStore
 
 	public static string ExecutablePath(string name, ToolSpec spec)
 	{
+		if (spec.IsNpm)
+		{
+			return Path.Combine(ToolsDirectory, "npm", spec.NpmPackage!.Replace('/', '+'), spec.Version, OperatingSystem.IsWindows() ? name + ".cmd" : name);
+		}
+
 		return Path.Combine(ToolsDirectory, spec.Owner.ToLowerInvariant(), spec.Repo.ToLowerInvariant(), spec.Version, ExecutableName(name));
 	}
 
@@ -43,6 +48,17 @@ public static class ToolStore
 
 	public static async Task<string> LatestVersionAsync(string repository)
 	{
+		if (repository.StartsWith(ToolSpec.NpmPrefix, StringComparison.Ordinal))
+		{
+			string package = repository[ToolSpec.NpmPrefix.Length..];
+			string text = await Http.GetTextOrNullAsync($"https://registry.npmjs.org/{package.Replace("/", "%2f")}/latest")
+				?? throw new CraterException($"{Fmt.Val(package)} is not on npm.");
+
+			using JsonDocument document = JsonDocument.Parse(text);
+
+			return document.RootElement.GetProperty("version").GetString()!;
+		}
+
 		JsonElement release = await GitHubApi.GetAsync($"repos/{repository}/releases/latest")
 			?? throw new CraterException($"{Fmt.Val(repository)} has no releases on GitHub.");
 
@@ -56,6 +72,14 @@ public static class ToolStore
 		if (File.Exists(target))
 		{
 			return target;
+		}
+
+		if (spec.IsNpm)
+		{
+			using (new Spinner($"Installing {name} {spec.Version} from npm"))
+			{
+				return NpmTool.Install(name, spec, target);
+			}
 		}
 
 		using Spinner spinner = new($"Installing {name} {spec.Version}");

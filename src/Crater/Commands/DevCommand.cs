@@ -26,9 +26,24 @@ public static class DevCommand
 
 		await InstallAsync(project.Directory);
 
+		string? azul = null;
+
 		try
 		{
-			if (!args.Has("no-serve") && File.Exists(Path.Combine(project.Directory, ProjectSources.RojoProject)))
+			if (!args.Has("no-serve") && Azul.IsUsed(project))
+			{
+				azul = await ToolCommand.ExecutableAsync("azul");
+
+				if (Azul.NeedsPush(project))
+				{
+					Azul.Push(project, azul);
+				}
+
+				commands.Add((azul, [.. args.Passthrough]));
+				children.AddRange(commands.Select(command => Start(command.Executable, project.Directory, command.Arguments)));
+				Out.Dim($"  azul syncs Studio with {Azul.SyncDirectory}/, crater pushes the packages again when they change");
+			}
+			else if (!args.Has("no-serve") && File.Exists(Path.Combine(project.Directory, ProjectSources.RojoProject)))
 			{
 				string rojo = await ToolCommand.ExecutableAsync("rojo");
 				bool darklua = project.Config.Darklua && Darklua.IsSetUp(project);
@@ -90,6 +105,12 @@ public static class DevCommand
 				Out.Step("Dependencies changed, installing");
 				await InstallAsync(project.Directory);
 
+				if (azul is not null && Reload(project.Directory) is Project current && Azul.NeedsPush(current))
+				{
+					StopAll(children);
+					Azul.Push(current, azul);
+				}
+
 				for (int index = 0; index < children.Count; index++)
 				{
 					if (children[index].HasExited)
@@ -98,20 +119,17 @@ public static class DevCommand
 
 						children[index].Dispose();
 						children[index] = Start(executable, project.Directory, arguments);
-						Out.Dim($"  restarted rojo {arguments[0]}, reconnect the Rojo plugin in Studio if it shows disconnected");
+						Out.Dim($"  restarted {string.Join(' ', arguments.Prepend(Path.GetFileNameWithoutExtension(executable)))}, reconnect the plugin in Studio if it shows disconnected");
 					}
 				}
 			}
 		}
 		finally
 		{
+			StopAll(children);
+
 			foreach (Process child in children)
 			{
-				if (!child.HasExited)
-				{
-					child.Kill(entireProcessTree: true);
-				}
-
 				child.Dispose();
 			}
 		}
@@ -120,6 +138,27 @@ public static class DevCommand
 		Out.Ok("Stopped");
 
 		return 0;
+	}
+
+	static void StopAll(List<Process> children)
+	{
+		foreach (Process child in children.Where(child => !child.HasExited))
+		{
+			child.Kill(entireProcessTree: true);
+			child.WaitForExit();
+		}
+	}
+
+	static Project? Reload(string directory)
+	{
+		try
+		{
+			return Project.LoadExact(directory);
+		}
+		catch (CraterException)
+		{
+			return null;
+		}
 	}
 
 	static async Task InstallAsync(string directory)

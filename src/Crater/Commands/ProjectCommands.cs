@@ -147,6 +147,7 @@ public static partial class ProjectCommands
 			["confirm"] = true,
 			["link_style"] = "roblox",
 			["darklua"] = true,
+			["sync"] = "auto",
 		};
 	}
 

@@ -53,6 +53,12 @@
       "enum": ["roblox", "string"],
       "description": "How link files require packages: roblox uses script.Parent paths, string uses require(\"./name\") paths."
     },
+    "sync": {
+      "type": "string",
+      "enum": ["auto", "rojo", "azul"],
+      "default": "auto",
+      "description": "Which tool syncs the project with Studio. auto picks rojo when default.project.json exists and azul when a sync folder exists. With azul, crater push and crater dev send the package folders into Studio."
+    },
     "darklua": {
       "type": "boolean",
       "default": true,

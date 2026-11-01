@@ -26,6 +26,8 @@ public sealed class ProjectConfig
 
 	[JsonPropertyName("darklua")] public bool Darklua { get; set; } = true;
 
+	[JsonPropertyName("sync")] public string Sync { get; set; } = "auto";
+
 	[JsonPropertyName("self_update_repo")] public string SelfUpdateRepo { get; set; } = "";
 
 	public static string GlobalDirectory =>
@@ -223,6 +225,11 @@ public sealed class ProjectConfig
 		if (LinkStyle is not ("roblox" or "string"))
 		{
 			throw new CraterException($"link_style = {Fmt.Val(LinkStyle)}: expected roblox or string.");
+		}
+
+		if (Sync is not ("auto" or "rojo" or "azul"))
+		{
+			throw new CraterException($"sync = {Fmt.Val(Sync)}: expected auto, rojo or azul.");
 		}
 
 		ImportClientPath = NormalizeFolder(ImportClientPath);

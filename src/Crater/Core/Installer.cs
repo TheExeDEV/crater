@@ -24,7 +24,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		if (update is null && InstallState.IsCurrent(project, oldLock))
 		{
 			InstallSummary.Print(oldLock, oldLock, watch.Elapsed);
-			Darklua.Update(project, prompt);
+			AfterInstall(project, prompt);
 			return;
 		}
 
@@ -83,8 +83,6 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 			LuauRc.Update(project, graphs, prompt);
 		}
 
-		Darklua.Update(project, prompt);
-
 		if (project.Config.OnInstallUpdateVscodeLuauDefinitionFiles || (project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project)))
 		{
 			VsCodeSettings.Update(project, graphs, prompt);
@@ -98,6 +96,24 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		WriteLock(newLock);
 		InstallSummary.Print(oldLock, newLock, watch.Elapsed);
 		await VersionNotices.PrintChangesAsync(oldLock, graphs.Values);
+		AfterInstall(project, prompt);
+	}
+
+	static void AfterInstall(Project project, Prompter prompt)
+	{
+		Darklua.Update(project, prompt);
+
+		if (!Azul.IsUsed(project))
+		{
+			return;
+		}
+
+		Azul.UpdateGitignore(project, prompt);
+
+		if (Azul.NeedsPush(project))
+		{
+			Out.Dim($"  Studio does not have these packages yet: {Fmt.Cmd("crater push")} sends them, {Fmt.Cmd("crater dev")} does it by itself");
+		}
 	}
 
 	static Dictionary<ResolvedPackage, string> Stage(Dictionary<ResolvedPackage, byte[]> archives, string staging)

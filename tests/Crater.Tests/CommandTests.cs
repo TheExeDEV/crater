@@ -293,6 +293,43 @@ public sealed class CommandTests : IDisposable
 	}
 
 	[Fact]
+	public void AzulProjectsAreDetectedAndDeclared()
+	{
+		Project(manifest => manifest["import_server"] = new JsonArray());
+
+		global::Crater.Core.Project project = global::Crater.Core.Project.Load(root);
+		JsonObject declared() => JsonNode.Parse(File.ReadAllText(Path.Combine(root, ".crater-declare")))!["sync"]!.AsObject();
+
+		Assert.False(global::Crater.Integrations.Azul.IsUsed(project));
+		Assert.Equal(1, Crater("push").ExitCode);
+		Assert.Equal("none", declared()["tool"]!.GetValue<string>());
+
+		Directory.CreateDirectory(Path.Combine(root, "sync", "ServerScriptService"));
+		Directory.CreateDirectory(Path.Combine(root, "sync", "ReplicatedStorage", "Packages"));
+		Directory.CreateDirectory(Path.Combine(root, "Packages"));
+		File.WriteAllText(Path.Combine(root, "sync", "ServerScriptService", "Main.server.luau"), "print(1)\n");
+		File.WriteAllText(Path.Combine(root, "sync", "ReplicatedStorage", "Packages", "promise.luau"), "return {}\n");
+		File.WriteAllText(Path.Combine(root, ".gitignore"), "Packages/\n");
+
+		Assert.Equal(0, Crater("install", "-y").ExitCode);
+		project = global::Crater.Core.Project.Load(root);
+
+		Assert.True(global::Crater.Integrations.Azul.IsUsed(project));
+		Assert.Equal([("Packages", "ReplicatedStorage.Packages")], global::Crater.Integrations.Azul.Pushes(project));
+		Assert.Equal(["sync"], global::Crater.Core.ProjectSources.Folders(project));
+		Assert.Equal(["Main.server.luau"], global::Crater.Core.ProjectSources.LuauFiles(project, ["sync"]).Select(Path.GetFileName));
+		Assert.Contains("sync/ReplicatedStorage/Packages/", File.ReadAllText(Path.Combine(root, ".gitignore")));
+		Assert.Equal("azul", declared()["tool"]!.GetValue<string>());
+		Assert.Equal("ServerStorage.ServerPackages", declared()["packages"]!["ServerPackages"]!.GetValue<string>());
+		Assert.Equal(3, JsonNode.Parse(File.ReadAllText(Path.Combine(root, ".crater-declare")))!["features"]!["sync"]!.GetValue<int>());
+
+		File.WriteAllText(Path.Combine(root, "crater.settings.json"), "{ \"sync\": \"rojo\" }");
+		Assert.False(global::Crater.Integrations.Azul.IsUsed(global::Crater.Core.Project.Load(root)));
+		File.WriteAllText(Path.Combine(root, "crater.settings.json"), "{ \"sync\": \"studio\" }");
+		Assert.Equal(1, Crater("list").ExitCode);
+	}
+
+	[Fact]
 	public void AuditNeedsAnInstall()
 	{
 		Project(_ => { });
