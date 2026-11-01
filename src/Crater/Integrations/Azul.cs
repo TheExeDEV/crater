@@ -155,8 +155,15 @@ public static class Azul
 
 	static string LockHash(Project project)
 	{
-		return File.Exists(project.LockPath)
-			? Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(project.LockPath)))
-			: "";
+		if (!File.Exists(project.LockPath))
+		{
+			return "";
+		}
+
+		string packages = string.Join("\n", LockFile.Load(project.LockPath).Packages
+			.Select(package => $"{package.Realm} {package.Name} {package.Version} {package.Sha256}")
+			.Order(StringComparer.Ordinal));
+
+		return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(packages)));
 	}
 }
