@@ -97,6 +97,9 @@ public static class Program
 			case "dev":
 				return await DevCommand.RunAsync(args);
 
+			case "push":
+				return await PushCommand.RunAsync();
+
 			case "doctor":
 				return await DoctorCommand.RunAsync();
 

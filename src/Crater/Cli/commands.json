@@ -41,7 +41,11 @@
 				{
 					"name": "dev",
 					"flags": ["--no-serve"],
-					"help": [["dev [--no-serve]", "rojo serve plus reinstall when crater.json changes"]]
+					"help": [["dev [--no-serve]", "rojo serve or azul, plus reinstall when crater.json changes"]]
+				},
+				{
+					"name": "push",
+					"help": [["push", "send the package folders to Studio through Azul"]]
 				}
 			]
 		},

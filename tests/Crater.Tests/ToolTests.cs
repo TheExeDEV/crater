@@ -41,9 +41,29 @@ public sealed class ToolTests
 	[InlineData("rojo", "rojo", "rojo-rbx/rojo", null)]
 	[InlineData("luau-lsp@1.70.1", "luau-lsp", "JohnnyMorganz/luau-lsp", "1.70.1")]
 	[InlineData("JohnnyMorganz/StyLua@v2.6.0", "stylua", "JohnnyMorganz/StyLua", "2.6.0")]
+	[InlineData("azul", "azul", "npm:azul-sync", null)]
+	[InlineData("azul@2.4.0", "azul", "npm:azul-sync", "2.4.0")]
+	[InlineData("npm:@scope/tool", "tool", "npm:@scope/tool", null)]
+	[InlineData("npm:@scope/tool@1.2.3", "tool", "npm:@scope/tool", "1.2.3")]
 	public void ParsesToolRequests(string request, string name, string repository, string? version)
 	{
 		Assert.Equal((name, repository, version), ToolSpec.ParseRequest(request, Catalog()));
+	}
+
+	[Fact]
+	public void ParsesNpmTools()
+	{
+		ToolSpec azul = ToolSpec.Parse("azul", "npm:azul-sync@2.4.0");
+		ToolSpec scoped = ToolSpec.Parse("tool", "npm:@scope/tool@v1.2.3");
+
+		Assert.True(azul.IsNpm);
+		Assert.Equal("npm:azul-sync@2.4.0", azul.ToString());
+		Assert.Equal("@scope/tool", scoped.NpmPackage);
+		Assert.Equal("1.2.3", scoped.Version);
+		Assert.False(ToolSpec.NeedsCatalog("azul"));
+		Assert.EndsWith(OperatingSystem.IsWindows() ? "azul.cmd" : "azul", ToolStore.ExecutablePath("azul", azul));
+		Assert.Throws<CraterException>(() => ToolSpec.Parse("azul", "npm:azul-sync"));
+		Assert.Throws<CraterException>(() => ToolSpec.Parse("azul", "npm:Bad Name@1.0.0"));
 	}
 
 	[Fact]

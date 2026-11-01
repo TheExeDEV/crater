@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Crater.Integrations;
 using Crater.Models;
 
 namespace Crater.Core;
@@ -40,6 +41,11 @@ public static class ProjectSources
 			return sources;
 		}
 
+		if (Azul.IsUsed(project) && Directory.Exists(Path.Combine(project.Directory, Azul.SyncDirectory)))
+		{
+			return [Azul.SyncDirectory];
+		}
+
 		return Directory.Exists(Path.Combine(project.Directory, "src")) ? ["src"] : ["."];
 	}
 
@@ -48,6 +54,7 @@ public static class ProjectSources
 		HashSet<string> skipped = project.Config.ConfiguredFolders()
 			.Select(pair => Path.GetFullPath(project.Abs(pair.Folder)))
 			.Append(Path.GetFullPath(Patches.Root(project)))
+			.Concat(Azul.MirrorFolders(project).Select(folder => Path.GetFullPath(project.Abs(folder))))
 			.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 		List<string> files = [];

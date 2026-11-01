@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Crater.Cli;
 using Crater.Commands;
+using Crater.Integrations;
 using Crater.Models;
 using Crater.Registry;
 using Crater.Util;
@@ -28,6 +29,7 @@ public static class CraterDeclare
 		("settings", 2),
 		("package_rules", 3),
 		("registry_names", 3),
+		("sync", 3),
 	];
 
 	public static string PathIn(string directory) => Path.Combine(directory, FileName);
@@ -70,6 +72,7 @@ public static class CraterDeclare
 			},
 			["defaults"] = Defaults(),
 			["path_to_lock_file"] = LockFile.FileName,
+			["sync"] = Azul.Declare(Settings(directory), directory),
 			["cli"] = new JsonObject
 			{
 				["json_output"] = Object(CommandList.Current.Commands
@@ -78,6 +81,18 @@ public static class CraterDeclare
 					.Select(command => (command.Name, (JsonNode?)command.JsonVersion))),
 			},
 		};
+	}
+
+	static ProjectConfig Settings(string directory)
+	{
+		try
+		{
+			return ProjectConfig.Load(directory);
+		}
+		catch (CraterException)
+		{
+			return new ProjectConfig();
+		}
 	}
 
 	static JsonObject Defaults()

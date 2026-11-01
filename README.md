@@ -56,7 +56,7 @@ It started as a package manager like Wally or pesde, borrows ideas from Cargo an
 14. [Everyday commands](#everyday-commands)
 15. [Patching packages](#patching-packages)
 16. [Tools](#tools)
-17. [Aliases in game code](#aliases-in-game-code), [Live development](#live-development)
+17. [Aliases in game code](#aliases-in-game-code), [Live development](#live-development), [Azul](#azul)
 18. [Package reports](#package-reports)
 19. [The registry](#the-registry)
 20. [Publishing](#publishing)
@@ -284,6 +284,7 @@ Install settings of your project. The folder names live here and only here: crat
 | `confirm` | Ask before every change. `-y` skips the questions for one run. |
 | `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
 | `darklua` | `true` (default): when your code requires through aliases like `@Packages/promise`, `install` sets up darklua so the code works in Roblox, see [Aliases in game code](#aliases-in-game-code). `false` turns it off. |
+| `sync` | `auto` (default), `rojo` or `azul`: which tool syncs the project with Studio, see [Azul](#azul). `auto` picks Rojo when `default.project.json` exists and Azul when a `sync/` folder exists. |
 | `self_update_repo` | Global settings only: `Owner/Repo` used by `crater self-update`. |
 
 The long names of older crater versions are still read: `import_client_path` and `import_client_alias` (and the same for server and develop), `on_install_update_luaurc` with `luaurc_path`, `on_install_update_vscode_luau_definition_files` and `on_install_should_i_ask_your_permission_to_do_any_action`. When a file has both, the new name wins.
@@ -316,14 +317,15 @@ Older projects keep working: `crater.config.json` is still read when there is no
   "path_to_crater_settings": "crater.settings.json",
   "path_to_package_info": "crater.json",
   "api_version": 3,
-  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3 },
+  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3, "sync": 3 },
   "schemas": { "package_info": "https://.../crater.schema.json", "crater_settings": "https://.../crater.settings.schema.json" },
   "registries": { "crater": "...", "wally": "https://github.com/UpliftGames/wally-index", "pesde": "...", "forest": "...", "ember": "..." },
   "realms": { "import_client": "client", "import_server": "server", "import_develop": "develop" },
   "dependency": { "pattern": "...", "operators": { ... }, "sources": { ... }, "registry": "..." },
   "defaults": { "authors": [], "description": "", "registry": "crater", "package_scripts": { "block": false, "allow": [] }, ... },
   "path_to_lock_file": "crater.lock",
-  "cli": { "json_output": { "changelog": 1, "info": 1, "list": 1, "outdated": 1, "search": 1, "tags": 1 } }
+  "cli": { "json_output": { "changelog": 1, "info": 1, "list": 1, "outdated": 1, "search": 1, "tags": 1 } },
+  "sync": { "tool": "azul", "directory": "sync", "packages": { "Packages": "ReplicatedStorage.Packages", ... } }
 }
 ```
 
@@ -338,6 +340,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
 | `dependency` | How to read a dependency string like `Promise:wally#evaera/promise^4`: a regular expression with named groups (`alias`, `registry`, `scope`, `name`, `op`, `ver`, `source`), what every version operator means, the `@path:` and `@git+` sources, and which registry a dependency without a prefix comes from. |
 | `defaults` | The value of every optional `crater.json` field that sets nothing: a field equal to it behaves as if it were missing, so a tool can drop it. An empty `registry` (`""` or `[]`) also means `crater`. |
 | `path_to_lock_file` | Where `crater.lock` is: the exact installed versions, their registries and sha256. |
+| `sync` | Which tool syncs the project with Studio: `{ "tool": "rojo", "project": "default.project.json" }`, `{ "tool": "azul", "directory": "sync", "packages": { folder: place } }` with where each package folder goes in Studio, or `{ "tool": "none" }`. |
 | `cli.json_output` | Each command that prints JSON with `--json` and the version of its JSON format, see [JSON output](#json-output). The version goes up when the output of that command changes, so a tool can check it before reading. A tool can run `crater outdated --all --json` instead of reading the registry itself. |
 
 The file is hidden (a dot file, and marked hidden on Windows, so you only see it with "show hidden items" turned on), it stays out of published packages, and it should be committed with the project.
@@ -847,6 +850,12 @@ crater tool add rojo luau-lsp selene stylua
 
 Tools live in `%LOCALAPPDATA%\crater\tools` or `~/.crater/tools`, one folder per version. If rokit or aftman put their own `rojo` earlier on `PATH`, `tool add` says so.
 
+Tools published on npm instead of GitHub releases are pinned as `npm:package@version`. crater installs them with npm into its own tools folder, so Node.js is needed, and runs them like any other tool. `crater tool add azul` is the short form for [Azul](#azul):
+
+```json
+"tools": { "azul": "npm:azul-sync@2.4.0" }
+```
+
 ### The tool list
 
 The known names are not built into crater. They come from [`tools.json`](tools.json) in the crater repository, which crater downloads when you add a tool by name (and keeps a copy of for offline use and Tab completion). A new tool shows up for everyone as soon as it is added to that file, without a new crater release:
@@ -909,7 +918,28 @@ crater writes:
 crater dev
 ```
 
-Installs, then starts `rojo serve` (and `rojo sourcemap --watch` when `sourcemap.json` exists) and watches `crater.json` and `crater.settings.json`. Save a change there, for example a new dependency, and crater installs it at once; Rojo picks up the new `Packages` folder by itself. If Rojo stops during an install it is started again, reconnect the plugin in Studio if it shows disconnected. An error in the file is shown and crater keeps watching, so fix it and save again. `Ctrl+C` stops everything. `--no-serve` only watches and installs; arguments after `--` go to `rojo serve`, for example `crater dev -- --port 34873`.
+Installs, then starts `rojo serve` (and `rojo sourcemap --watch` when `sourcemap.json` exists), or `azul` in an [Azul](#azul) project, and watches `crater.json` and `crater.settings.json`. Save a change there, for example a new dependency, and crater installs it at once; Rojo picks up the new `Packages` folder by itself. If Rojo stops during an install it is started again, reconnect the plugin in Studio if it shows disconnected. An error in the file is shown and crater keeps watching, so fix it and save again. `Ctrl+C` stops everything. `--no-serve` only watches and installs; arguments after `--` go to `rojo serve`, for example `crater dev -- --port 34873`.
+
+### Azul
+
+[Azul](https://github.com/Ransomwave/azul) is a two-way sync where Studio is the source of truth: it mirrors the whole place into `sync/` and back. crater works with it when `crater.settings.json` has `"sync": "azul"`, or by itself when the project has a `sync/` folder and no `default.project.json` (`"sync": "auto"`, the default; `"rojo"` forces Rojo).
+
+Packages are not part of the place, so crater sends them into Studio with `azul push`:
+
+| Folder | In Studio |
+|---|---|
+| `Packages` (`client`) | `ReplicatedStorage.Packages` |
+| `ServerPackages` (`server`) | `ServerStorage.ServerPackages` |
+| `DevPackages` (`develop`) | `ReplicatedStorage.DevPackages` |
+
+- `crater push` sends every package folder (`azul push -s <folder> -d <place> --destructive --rojo`). Open the place and connect the Azul plugin: the push waits for it.
+- `crater dev` runs `azul` instead of `rojo serve`. It pushes the packages before it starts when Studio does not have the installed versions yet, and again whenever an install changes them: it stops `azul`, pushes, and starts it again, because both use the same port.
+- After an install that changed the packages, crater reminds you that Studio does not have them yet.
+- Azul copies the pushed packages back into `sync/ReplicatedStorage/Packages` and so on. crater adds these folders to `.gitignore` and leaves them out of `unused`, `size` and the other code checks, which read the code in `sync/`.
+- Azul writes its own `sourcemap.json`, so crater does not run `rojo sourcemap`, and darklua is not set up: the code in `sync/` comes from Studio.
+- `.crater-declare` says which tool syncs the project, see `sync` in [.crater-declare](#crater-declare).
+
+Pin Azul for everyone on the project with `crater tool add azul` (it needs Node.js).
 
 ---
 
@@ -1464,7 +1494,8 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `tool add|known|list|remove|install|run` | Pinned tools, see [Tools](#tools). |
 | `unused` | Dependencies your code never requires, see [Package reports](#package-reports). |
 | `audit [--strict]` | Deprecated and risky packages, licenses, suspicious code and updates, see [Package reports](#package-reports). |
-| `dev [--no-serve] [-- rojo args]` | Rojo plus reinstall on save, see [Live development](#live-development). |
+| `dev [--no-serve] [-- rojo args]` | Rojo or Azul plus reinstall on save, see [Live development](#live-development). |
+| `push` | Send the package folders into Studio through Azul, see [Azul](#azul). |
 | `completion [install\|powershell\|bash\|zsh\|fish]` | Turn on Tab completion, see [Tab completion](#tab-completion). |
 | `size`, `licenses` | See [Package reports](#package-reports). |
 | `version`, `--help` | Version and help. |
