@@ -12,6 +12,10 @@
       "repository": "seaofvoices/darklua",
       "description": "Transform and minify Luau code"
     },
+    "jest-roblox-cli": {
+      "repository": "christopher-buss/jest-roblox-cli",
+      "description": "Run Jest Lua tests in Roblox from the command line"
+    },
     "lune": {
       "repository": "lune-org/lune",
       "description": "Run Luau scripts outside Roblox"
