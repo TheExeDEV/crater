@@ -9,7 +9,9 @@ namespace Crater.Tools;
 
 public static class ToolStore
 {
-	static readonly string[] SkippedExtensions = [".sha256", ".sig", ".asc", ".pdb", ".vsix", ".txt", ".json", ".deb", ".rpm", ".msi", ".pkg", ".dmg"];
+	static readonly string[] SystemTarExtensions = [".tar.xz", ".txz", ".tar.bz2", ".tbz2", ".tar.zst"];
+
+	static readonly string[] SkippedExtensions =[".sha256", ".sig", ".asc", ".pdb", ".vsix", ".txt", ".json", ".deb", ".rpm", ".msi", ".pkg", ".dmg"];
 
 	public static string Home
 	{
@@ -209,6 +211,7 @@ public static class ToolStore
 		string lower = assetName.ToLowerInvariant();
 		List<(string Path, byte[] Data)> files = lower.EndsWith(".zip") ? FromZip(data)
 			: lower.EndsWith(".tar.gz") || lower.EndsWith(".tgz") ? FromTar(data)
+			: SystemTarExtensions.Any(lower.EndsWith) ? FromSystemTar(assetName, data)
 			: [(assetName, data)];
 
 		string[] wanted = [name.ToLowerInvariant(), repo.ToLowerInvariant()];
@@ -248,6 +251,38 @@ public static class ToolStore
 				return (entry.FullName, buffer.ToArray());
 			})
 			.ToList();
+	}
+
+	static List<(string Path, byte[] Data)> FromSystemTar(string assetName, byte[] data)
+	{
+		string directory = Path.Combine(Path.GetTempPath(), $"crater-extract-{Guid.NewGuid():N}");
+		string archive = Path.Combine(directory, assetName);
+		string output = Path.Combine(directory, "files");
+		string tar = OperatingSystem.IsWindows() && File.Exists(Path.Combine(Environment.SystemDirectory, "tar.exe"))
+			? Path.Combine(Environment.SystemDirectory, "tar.exe")
+			: "tar";
+
+		Directory.CreateDirectory(output);
+
+		try
+		{
+			File.WriteAllBytes(archive, data);
+
+			ShellResult result = Shell.Capture(tar, ["-xf", archive, "-C", output], directory);
+
+			if (!result.Success)
+			{
+				throw new CraterException($"Could not unpack {Fmt.File(assetName)}: {(result.Error.Length > 0 ? result.Error : result.Output)}");
+			}
+
+			return Directory.EnumerateFiles(output, "*", SearchOption.AllDirectories)
+				.Select(file => (Path.GetRelativePath(output, file).Replace('\\', '/'), File.ReadAllBytes(file)))
+				.ToList();
+		}
+		finally
+		{
+			Directory.Delete(directory, recursive: true);
+		}
 	}
 
 	static List<(string Path, byte[] Data)> FromTar(byte[] data)
