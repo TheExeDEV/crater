@@ -124,9 +124,12 @@ public sealed class Resolver
 			{
 				string owners = string.Join(", ", requirements.Select(item => item.From).Distinct());
 				string where = registry is RegistryChain ? "any of the registries" : "registry";
+				string hint = registry is LuarocksRegistry && !name.StartsWith(LuarocksRegistry.Scope + "/", StringComparison.Ordinal)
+					? $". LuaRocks packages are named {Fmt.Pkg($"{LuarocksRegistry.Scope}/{name[(name.IndexOf('/') + 1)..]}")}"
+					: "";
 
 				throw new CraterException(
-					$"Package {Fmt.Pkg(name)} not found in {where} {Fmt.File(registry.Location)} (required by {owners})");
+					$"Package {Fmt.Pkg(name)} not found in {where} {Fmt.File(registry.Location)} (required by {owners}){hint}");
 			}
 
 			if (registry is RegistryChain chain)

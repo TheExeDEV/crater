@@ -15,12 +15,13 @@ public static class NamedRegistries
 		["pesde"] = PesdeIndex,
 		["forest"] = ForestApi,
 		["ember"] = EmberRegistry.DefaultIndex,
+		["luarocks"] = LuarocksRegistry.DefaultUrl,
 		["crater"] = BuildInfo.DefaultRegistry,
 	};
 
 	public static bool IsBuiltin(string name) => Builtin.ContainsKey(name);
 
-	public static IEnumerable<string> BuiltinNames => ["crater", "wally", "pesde", "forest", "ember"];
+	public static IEnumerable<string> BuiltinNames => ["crater", "wally", "pesde", "forest", "ember", "luarocks"];
 
 	public static string? NameOf(string location, Manifest? manifest)
 	{
@@ -71,7 +72,7 @@ public static class NamedRegistries
 		}
 
 		throw new CraterException(
-			$"Unknown registry {Fmt.Val(name)}. Built in: {Fmt.Val("crater")}, {Fmt.Val("wally")}, {Fmt.Val("pesde")}, {Fmt.Val("forest")}, {Fmt.Val("ember")}. " +
+			$"Unknown registry {Fmt.Val(name)}. Built in: {Fmt.Val("crater")}, {Fmt.Val("wally")}, {Fmt.Val("pesde")}, {Fmt.Val("forest")}, {Fmt.Val("ember")}, {Fmt.Val("luarocks")}. " +
 			$"Add your own in {Fmt.File(Manifest.FileName)}: {Fmt.Cmd($"\"registries\": {{ \"{name}\": \"https://github.com/Owner/Repo\" }}")}");
 	}
 }

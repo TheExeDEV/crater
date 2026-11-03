@@ -4,7 +4,7 @@
 
 A project manager for Luau and Roblox, written in C# on .NET 10.
 
-One `crater.json` describes the whole project: the packages it uses, the tools it needs (Rojo, luau-lsp, StyLua and others), its scripts and how it is published. crater creates the project from a template, installs packages from the crater registry, Wally, pesde, Forest and Ember, pins the same tool versions for the whole team, runs Rojo with a live reinstall and checks the project with `doctor` and `audit`.
+One `crater.json` describes the whole project: the packages it uses, the tools it needs (Rojo, luau-lsp, StyLua and others), its scripts and how it is published. crater creates the project from a template, installs packages from the crater registry, Wally, pesde, Forest, Ember and LuaRocks, pins the same tool versions for the whole team, runs Rojo with a live reinstall and checks the project with `doctor` and `audit`.
 
 It started as a package manager like Wally or pesde, borrows ideas from Cargo and npm, and keeps its registry in a plain GitHub repository where anyone can publish through a pull request.
 
@@ -24,7 +24,7 @@ It started as a package manager like Wally or pesde, borrows ideas from Cargo an
 - Every package is installed once per folder, and `overrides` force one version for the whole tree
 - Link files re-export `export type` declarations, so luau-lsp sees package types
 - Lock file with sha256 checks, parallel downloads, a summary of what changed
-- Installs from the crater registry, Wally, pesde, Forest and Ember, also mixed in one project
+- Installs from the crater registry, Wally, pesde, Forest, Ember and LuaRocks (plain Lua rocks), also mixed in one project
 - `outdated`, interactive `update -i`, `why`, `graph`, `search`, `info`, `patch`, `unused`, `size`, `licenses`
 - Changelogs and deprecation messages from package authors, shown on install, update and the website
 - Optional updates of `.luaurc` aliases and the luau-lsp definition files in VS Code
@@ -335,7 +335,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
 | `api_version` | The format of the crater files, see the table below. |
 | `features` | Each feature crater files use and the format version of that feature, so a tool can support some of them and skip the rest. |
 | `schemas` | JSON schemas of both files: every field, its type and what it does. |
-| `registries` | The built in registry names (`crater#`, `wally#`, `pesde#`, `forest#`, `ember#`) and their addresses. Names from `registries` in `crater.json` come on top. |
+| `registries` | The built in registry names (`crater#`, `wally#`, `pesde#`, `forest#`, `ember#`, `luarocks#`) and their addresses. Names from `registries` in `crater.json` come on top. |
 | `realms` | Which dependency list installs where. |
 | `dependency` | How to read a dependency string like `Promise:wally#evaera/promise^4`: a regular expression with named groups (`alias`, `registry`, `scope`, `name`, `op`, `ver`, `source`), what every version operator means, the `@path:` and `@git+` sources, and which registry a dependency without a prefix comes from. |
 | `defaults` | The value of every optional `crater.json` field that sets nothing: a field equal to it behaves as if it were missing, so a tool can drop it. An empty `registry` (`""` or `[]`) also means `crater`. |
@@ -1048,6 +1048,27 @@ Packages from [Ember](https://emberpm.dev) install with the `ember#` prefix:
 ```
 
 crater reads the public Ember index (`github.com/ember-luau/index`), takes the Roblox builds (`roblox`, `shared` and server targets) and downloads the archive each version lists. The entry module comes from the `[target] main` of the `ember.toml` (or `lpm.toml`) inside the archive, so packages built into `out/` work. Dependencies keep their aliases, and dependencies on Wally, pesde or Forest packages are converted to `wally#`, `pesde#` and `forest#`. Publishing to Ember is done with `embr publish`.
+
+### LuaRocks packages
+
+Plain Lua libraries from [LuaRocks](https://luarocks.org) install with the `luarocks#` prefix. LuaRocks names have no scope, so they all live under `rocks/`:
+
+```json
+"import_client": ["luarocks#rocks/inspect^3", "luarocks#rocks/middleclass", "luarocks#rocks/lustache"]
+```
+
+```luau
+local inspect = require(ReplicatedStorage.Packages.inspect)
+```
+
+LuaRocks is made for Lua on a computer, so crater turns each rock into something Roblox can load:
+
+- **Only plain Lua.** Rocks with C modules (`luasocket`, `lpeg`, `luafilesystem`...) cannot run in Roblox, and `install` stops with a message that says so.
+- **Modules become instances.** A rock's modules are laid out by name: `pl.utils` becomes `pl/utils.lua`, and a module with submodules becomes the `init.lua` of its folder, so `lustache` and `lustache.renderer` end up as a ModuleScript with a child.
+- **Requires are rewritten.** `require("lustache.scanner")` inside the rock becomes `require(script.Parent["lustache"]["scanner"])`, requires of modules from another rock point at that rock's folder next to it, and `require("debug")` and the other standard libraries become the global (`debug`, `string`, `table`, `math`, `os`, `coroutine`, `utf8`, `bit32`). A require crater cannot resolve (a C module, or one built from a variable) stays as it is, and `install` names it.
+- **Versions.** LuaRocks versions like `3.1.3-0` become `3.1.3`, the newest revision wins, and `scm` or `dev` versions are skipped. Dependencies are read from the rockspec and their ranges (`>= 1.0`, `~> 2.5`, `>= 1.5, < 2.0`) become crater requirements; `lua` itself is ignored.
+
+Code written for Lua 5.2+ (`goto`, integer division, bitwise operators) or that uses `io`, `os.execute`, `package` or the Lua 5.1 `module()` function does not work in Luau even if it installs; crater warns about `module()`. `crater search --registry luarocks json` searches LuaRocks and `crater info luarocks#rocks/inspect` shows a rock. Publishing to LuaRocks is done with `luarocks upload`.
 
 ### Several registries
 
