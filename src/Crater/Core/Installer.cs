@@ -96,7 +96,33 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		WriteLock(newLock);
 		InstallSummary.Print(oldLock, newLock, watch.Elapsed);
 		await VersionNotices.PrintChangesAsync(oldLock, graphs.Values);
+		WarnHiddenDefinitions(project, graphs, oldLock);
 		AfterInstall(project, prompt);
+	}
+
+	static void WarnHiddenDefinitions(Project project, IReadOnlyDictionary<Realm, ResolvedGraph> graphs, LockFile oldLock)
+	{
+		if (project.Config.OnInstallUpdateVscodeLuauDefinitionFiles)
+		{
+			return;
+		}
+
+		HashSet<string> before = oldLock.Packages.Select(package => package.Id).ToHashSet();
+		List<string> packages = Layout.DefinitionFiles(project, graphs)
+			.Select(item => item.Package.Id)
+			.Where(id => !before.Contains(id))
+			.Distinct()
+			.Order(StringComparer.Ordinal)
+			.ToList();
+
+		if (packages.Count == 0)
+		{
+			return;
+		}
+
+		Out.Warn(
+			$"{string.Join(", ", packages.Select(id => Fmt.Pkg(id)))} {(packages.Count == 1 ? "comes" : "come")} with type definitions ({Fmt.File(".d.luau")}), " +
+			$"but {Fmt.Val("vscode_definitions")} is off in {Fmt.File(ProjectConfig.FileName)}, so luau-lsp will not see them. Set {Fmt.Val("\"vscode_definitions\": true")} to add them.");
 	}
 
 	static void AfterInstall(Project project, Prompter prompt)

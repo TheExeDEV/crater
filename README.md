@@ -280,7 +280,7 @@ Install settings of your project. The folder names live here and only here: crat
 |---|---|
 | `client`, `server`, `develop` | Where the packages of `import_client`, `import_server` and `import_develop` go. `path` is the folder (required when the list has dependencies, nested paths work); `alias` is its name in `.luaurc`, so `"Shared"` gives `require("@Shared/promise")`, empty means the folder name (`@Packages`). A plain string, `"client": "Packages"`, sets only the folder. |
 | `luaurc` | Which `.luaurc` gets an alias for every package folder on install, or `false` to leave `.luaurc` alone. If `.vscode/settings.json` already has `"luau-lsp.server.baseLuaurc"`, that file is used instead. Another file, for example `"src/config.luaurc"`, gets the aliases with paths relative to it (`"../Packages"`), and crater sets `"luau-lsp.server.baseLuaurc"` so luau-lsp uses it. |
-| `vscode_definitions` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date with the `.d.luau` files of installed packages. |
+| `vscode_definitions` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date with the `.d.luau` files of installed packages. When it is `false` and a new or updated package comes with `.d.luau` files, `install` says once that luau-lsp will not see them. |
 | `confirm` | Ask before every change. `-y` skips the questions for one run. |
 | `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
 | `darklua` | `true` (default): when your code requires through aliases like `@Packages/promise`, `install` sets up darklua so the code works in Roblox, see [Aliases in game code](#aliases-in-game-code). `false` turns it off. |
