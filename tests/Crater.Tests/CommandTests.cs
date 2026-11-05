@@ -330,6 +330,46 @@ public sealed class CommandTests : IDisposable
 	}
 
 	[Fact]
+	public void DoctorFindsMissingLocalFoldersAndDefinitions()
+	{
+		Project(manifest => manifest["import_client"] = new JsonArray("Lib:t/lib@path:../missing-lib"));
+		Directory.CreateDirectory(Path.Combine(root, ".vscode"));
+		File.WriteAllText(Path.Combine(root, ".vscode", "settings.json"), "{ \"luau-lsp.types.definitionFiles\": [\"types/gone.d.luau\"] }");
+
+		TextWriter previousError = Console.Error;
+		StringWriter errors = new();
+		(int exitCode, string output) result;
+
+		Console.SetError(errors);
+
+		try
+		{
+			result = Crater("doctor");
+		}
+		finally
+		{
+			Console.SetError(previousError);
+		}
+
+		Assert.Equal(1, result.exitCode);
+		Assert.Contains("Local dependencies point to folders that do not exist: t/lib (../missing-lib)", errors.ToString());
+		Assert.Contains("definition files that do not exist: types/gone.d.luau", result.output);
+
+		string library = Path.Combine(Path.GetDirectoryName(root)!, "missing-lib");
+
+		Directory.CreateDirectory(library);
+
+		try
+		{
+			Assert.Contains("1 local dependency folder exists", Crater("doctor").Output);
+		}
+		finally
+		{
+			Directory.Delete(library, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void AuditNeedsAnInstall()
 	{
 		Project(_ => { });
