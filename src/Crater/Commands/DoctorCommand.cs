@@ -49,14 +49,14 @@ public static class DoctorCommand
 		List<DependencySpec> specs = project.Manifest.AllDependencies().ToList();
 		LockFile lockFile = LockFile.Load(project.LockPath);
 
-		await CheckRegistryAsync(project, specs, report);
-		CheckGit(specs, report);
-		CheckLock(project, lockFile, report);
-		CheckFolders(project, lockFile, report);
-		CheckLuauRc(project, lockFile, report);
-		CheckVsCode(project, report);
-		CheckRojo(project, lockFile, report);
-		CheckWorkspace(project, report);
+		await RunAsync("registry", () => CheckRegistryAsync(project, specs, report), report);
+		await RunAsync("git", () => Task.Run(() => CheckGit(specs, report)), report);
+		await RunAsync("crater.lock", () => Task.Run(() => CheckLock(project, lockFile, report)), report);
+		await RunAsync("package folders", () => Task.Run(() => CheckFolders(project, lockFile, report)), report);
+		await RunAsync(".luaurc", () => Task.Run(() => CheckLuauRc(project, lockFile, report)), report);
+		await RunAsync("VS Code settings", () => Task.Run(() => CheckVsCode(project, report)), report);
+		await RunAsync("Rojo project", () => Task.Run(() => CheckRojo(project, lockFile, report)), report);
+		await RunAsync("workspace", () => Task.Run(() => CheckWorkspace(project, report)), report);
 
 		Out.Info("");
 
@@ -69,6 +69,22 @@ public static class DoctorCommand
 		Out.Ok(report.Warnings == 0 ? "No problems found" : $"No problems, {Fmt.Plural(report.Warnings, "warning", "warnings")}");
 
 		return 0;
+	}
+
+	static async Task RunAsync(string name, Func<Task> check, Report report)
+	{
+		try
+		{
+			await check();
+		}
+		catch (CraterException exception)
+		{
+			report.Fail(exception.Message);
+		}
+		catch (Exception exception) when (Environment.GetEnvironmentVariable("CRATER_DEBUG") is null)
+		{
+			report.Fail($"The {name} check failed: {Program.Describe(exception)} (set {Fmt.Cmd("CRATER_DEBUG=1")} for details)");
+		}
 	}
 
 	static async Task CheckRegistryAsync(Project project, List<DependencySpec> specs, Report report)

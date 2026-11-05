@@ -69,10 +69,22 @@ public static class Program
 		catch (Exception exception) when (Environment.GetEnvironmentVariable("CRATER_DEBUG") is null)
 		{
 			LiveLine.Set(null);
-			Out.Error($"Internal error: {exception.Message} (set {Fmt.Cmd("CRATER_DEBUG=1")} for details)");
+			Out.Error($"Internal error: {Describe(exception)} (set {Fmt.Cmd("CRATER_DEBUG=1")} for details)");
 
 			return 2;
 		}
+	}
+
+	public static string Describe(Exception exception)
+	{
+		string? path = exception switch
+		{
+			FileNotFoundException missing => missing.FileName,
+			System.ComponentModel.Win32Exception => "a program crater tried to start",
+			_ => null,
+		};
+
+		return path is null ? $"{exception.GetType().Name}: {exception.Message}" : $"{exception.GetType().Name}: {exception.Message} ({path})";
 	}
 
 	static async Task<int> DispatchAsync(Args args)
