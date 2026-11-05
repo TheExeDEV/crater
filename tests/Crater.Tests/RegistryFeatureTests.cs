@@ -182,6 +182,32 @@ public sealed class RegistryFeatureTests : IDisposable
 	}
 
 	[Fact]
+	public void WarnsWhenDefinitionsAreTurnedOff()
+	{
+		string library = Project("t/typed", [], manifest => manifest["path_to_definition_files"] = new JsonArray("types.d.luau"));
+
+		File.WriteAllText(Path.Combine(library, "types.d.luau"), "declare TYPED_GLOBAL: number\n");
+		Assert.Equal(0, Crater(library, "publish", "-y").ExitCode);
+
+		string game = Project("t/game", ["t/typed^1.0.0"]);
+		string settings = Path.Combine(game, "crater.settings.json");
+		JsonObject config = JsonNode.Parse(File.ReadAllText(settings))!.AsObject();
+
+		config["vscode_definitions"] = false;
+		File.WriteAllText(settings, config.ToJsonString());
+
+		string first = Crater(game, "install", "-y").Output;
+
+		Assert.Contains("t/typed@1.0.0 comes with type definitions", first);
+		Assert.Contains("\"vscode_definitions\": true", first);
+		Assert.DoesNotContain("type definitions", Crater(game, "install", "-y").Output);
+
+		config["vscode_definitions"] = true;
+		File.WriteAllText(settings, config.ToJsonString());
+		Assert.DoesNotContain("vscode_definitions", Crater(game, "install", "-y").Output);
+	}
+
+	[Fact]
 	public void TagsChangelogAndJsonOutput()
 	{
 		string log = Project("t/log", [], manifest => manifest["keywords"] = new JsonArray("Logging", "debug"));
