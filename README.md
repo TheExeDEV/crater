@@ -790,7 +790,7 @@ Packages/ (import_client)
 
 **`crater run build -- --verbose`** runs a script from `crater.json` in the project folder. `CRATER_PROJECT_DIR`, `CRATER_PACKAGE_NAME` and `CRATER_PACKAGE_VERSION` are set. `crater run` lists the scripts.
 
-**`crater doctor`** checks the config, registry access, lock vs manifest, package folders and links, `.luaurc`, VS Code definitions, Rojo mapping and git.
+**`crater doctor`** checks the config, registry access, lock vs manifest, package folders and links, local dependency folders (`@path:`), `.luaurc`, every definition file listed in `.vscode/settings.json`, Rojo mapping and git. If one check breaks, the others still run and the broken one is named.
 
 **`crater import`** converts `wally.toml` or `pesde.toml`. Run it anywhere, for example `crater import ../wally.toml`: `crater.json` is written next to the file you import. A Wally project gets `"registry": ["https://github.com/TheExeDEV/crater-registry", "https://github.com/UpliftGames/wally-index"]`, a pesde project gets `pesde#` and `wally#` before its dependencies, so `crater install` works right away. `--force` overwrites an existing `crater.json`. Wally aliases are kept (so `require(Packages.Promise)` still works), `[server-dependencies]` go to `import_server`, `[dev-dependencies]` to `import_develop`, version ranges are converted. Anything without an equivalent is reported.
 

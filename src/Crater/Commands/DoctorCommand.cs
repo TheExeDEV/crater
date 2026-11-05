@@ -51,6 +51,7 @@ public static class DoctorCommand
 
 		await RunAsync("registry", () => CheckRegistryAsync(project, specs, report), report);
 		await RunAsync("git", () => Task.Run(() => CheckGit(specs, report)), report);
+		await RunAsync("local dependencies", () => Task.Run(() => CheckLocalSources(project, specs, report)), report);
 		await RunAsync("crater.lock", () => Task.Run(() => CheckLock(project, lockFile, report)), report);
 		await RunAsync("package folders", () => Task.Run(() => CheckFolders(project, lockFile, report)), report);
 		await RunAsync(".luaurc", () => Task.Run(() => CheckLuauRc(project, lockFile, report)), report);
@@ -288,11 +289,38 @@ public static class DoctorCommand
 		}
 	}
 
+	static void CheckLocalSources(Project project, List<DependencySpec> specs, Report report)
+	{
+		List<DependencySpec> local = specs
+			.Concat(project.Manifest.ParseOverrides())
+			.Where(spec => spec.Source?.Kind == SourceKind.Path)
+			.ToList();
+
+		if (local.Count == 0)
+		{
+			return;
+		}
+
+		List<string> missing = local
+			.Where(spec => !Directory.Exists(Path.GetFullPath(Path.Combine(project.Directory, spec.Source!.Location))))
+			.Select(spec => $"{Fmt.Pkg(spec.FullName)} ({Fmt.File(spec.Source!.Location)})")
+			.ToList();
+
+		if (missing.Count == 0)
+		{
+			report.Pass($"{Fmt.Plural(local.Count, "local dependency folder exists", "local dependency folders exist")}");
+		}
+		else
+		{
+			report.Fail($"Local dependencies point to folders that do not exist: {string.Join(", ", missing)}. Fix the path in {Fmt.File(Manifest.FileName)}.");
+		}
+	}
+
 	static void CheckVsCode(Project project, Report report)
 	{
 		string path = VsCodeSettings.PathIn(project);
 
-		if (!project.Config.OnInstallUpdateVscodeLuauDefinitionFiles || !File.Exists(path))
+		if (!File.Exists(path))
 		{
 			return;
 		}
@@ -305,20 +333,37 @@ public static class DoctorCommand
 			_ => [],
 		};
 
+		if (files.Count == 0)
+		{
+			return;
+		}
+
 		List<string> prefixes = Layout.ManagedPrefixes(project).ToList();
-		List<string> broken = files
-			.Where(file => prefixes.Any(prefix => file.StartsWith(prefix)))
-			.Where(file => !File.Exists(Path.Combine(project.Directory, file)))
-			.ToList();
+		List<string> broken = files.Where(file => file.Length > 0 && !File.Exists(DefinitionPath(project, file))).ToList();
+		List<string> fromPackages = broken.Where(file => prefixes.Any(prefix => file.Replace('\\', '/').StartsWith(prefix, StringComparison.OrdinalIgnoreCase))).ToList();
+		List<string> own = broken.Except(fromPackages).ToList();
+
+		if (fromPackages.Count > 0)
+		{
+			report.Warn($"VS Code points to missing package definition files: {string.Join(", ", fromPackages.Take(3))}. Run {Fmt.Cmd("crater install")}.");
+		}
+
+		if (own.Count > 0)
+		{
+			report.Warn($"VS Code points to definition files that do not exist: {string.Join(", ", own.Take(3))}. Fix or remove them in {Fmt.File(".vscode/settings.json")} ({Fmt.Val(VsCodeSettings.Key)}).");
+		}
 
 		if (broken.Count == 0)
 		{
 			report.Pass($"VS Code definition files exist");
 		}
-		else
-		{
-			report.Warn($"VS Code points to missing definition files: {string.Join(", ", broken.Take(3))}. Run {Fmt.Cmd("crater install")}.");
-		}
+	}
+
+	static string DefinitionPath(Project project, string file)
+	{
+		string expanded = file.Replace("${workspaceFolder}", project.Directory).Replace("${workspaceRoot}", project.Directory);
+
+		return Path.GetFullPath(Path.Combine(project.Directory, expanded));
 	}
 
 	static void CheckRojo(Project project, LockFile lockFile, Report report)
