@@ -30,6 +30,12 @@ public sealed class ProjectConfig
 
 	[JsonPropertyName("self_update_repo")] public string SelfUpdateRepo { get; set; } = "";
 
+	[JsonPropertyName("vendor")] public string Vendor { get; set; } = DefaultVendor;
+
+	public const string DefaultVendor = "_vendor";
+
+	public string VendorFolder(Realm realm) => $"{Vendor}/{realm.Key()}";
+
 	public static string GlobalDirectory =>
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "crater");
 
@@ -251,6 +257,25 @@ public sealed class ProjectConfig
 			{
 				throw new CraterException($"{FolderField(realm)} = {Fmt.Val(folder)} is already used by another realm.");
 			}
+		}
+
+		Vendor = NormalizeFolder(Vendor);
+
+		bool vendorOutside = Vendor.Length == 0 || Vendor == "." || Vendor.Split('/').Contains("..") || Path.IsPathRooted(Vendor);
+
+		if (vendorOutside)
+		{
+			throw new CraterException($"vendor = {Fmt.Val(Vendor)}: must be a relative path inside the project, for example {Fmt.Val(DefaultVendor)}.");
+		}
+
+		(_, string? clash) = ConfiguredFolders().FirstOrDefault(pair =>
+			pair.Folder.Equals(Vendor, StringComparison.OrdinalIgnoreCase) ||
+			Vendor.StartsWith(pair.Folder + "/", StringComparison.OrdinalIgnoreCase) ||
+			pair.Folder.StartsWith(Vendor + "/", StringComparison.OrdinalIgnoreCase));
+
+		if (clash is not null)
+		{
+			throw new CraterException($"vendor = {Fmt.Val(Vendor)} overlaps the package folder {Fmt.Val(clash)}. Pick a separate folder.");
 		}
 
 		HashSet<string> aliases = new(StringComparer.OrdinalIgnoreCase);

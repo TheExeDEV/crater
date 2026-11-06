@@ -30,6 +30,7 @@ public static class CraterDeclare
 		("package_rules", 3),
 		("registry_names", 3),
 		("sync", 3),
+		("vendor_packages", 3),
 	];
 
 	public static string PathIn(string directory) => Path.Combine(directory, FileName);
@@ -72,6 +73,16 @@ public static class CraterDeclare
 			},
 			["defaults"] = Defaults(),
 			["path_to_lock_file"] = LockFile.FileName,
+			["vendor"] = new JsonObject
+			{
+				["field"] = "vendor_packages",
+				["realms"] = new JsonArray(Manifest.VendorRealms.Select(realm => (JsonNode?)realm.Key()).ToArray()),
+				["folder"] = Settings(directory).Vendor,
+				["lock_section"] = "vendor",
+				["artifact_path"] = $"{Packer.VendorFolder}/<realm>/<alias>",
+				["package_root"] = "package_root",
+				["prepack_script"] = Packer.PrepackScript,
+			},
 			["sync"] = Azul.Declare(Settings(directory), directory),
 			["cli"] = new JsonObject
 			{
@@ -129,6 +140,8 @@ public static class CraterDeclare
 			["allow_scripts_from"] = Empty(),
 			["exclude"] = Empty(),
 			["allow_files"] = Empty(),
+			["vendor_packages"] = new JsonObject { ["client"] = Empty(), ["server"] = Empty() },
+			["package_root"] = "",
 		};
 	}
 

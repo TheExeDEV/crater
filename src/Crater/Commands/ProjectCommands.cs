@@ -242,16 +242,19 @@ public static partial class ProjectCommands
 		IEnumerable<string> extra = args.Positional.Skip(1).Concat(args.Passthrough).Select(Quote);
 		string commandLine = string.Join(' ', new[] { script }.Concat(extra));
 
-		Dictionary<string, string> environment = new()
+		Out.Step(Fmt.Cmd(commandLine));
+
+		return Shell.RunInteractive(commandLine, project.Directory, ScriptEnvironment(project));
+	}
+
+	public static Dictionary<string, string> ScriptEnvironment(Project project)
+	{
+		return new Dictionary<string, string>
 		{
 			["CRATER_PROJECT_DIR"] = project.Directory,
 			["CRATER_PACKAGE_NAME"] = project.Manifest.Name,
 			["CRATER_PACKAGE_VERSION"] = project.Manifest.Version,
 		};
-
-		Out.Step(Fmt.Cmd(commandLine));
-
-		return Shell.RunInteractive(commandLine, project.Directory, environment);
 	}
 
 	static string Quote(string argument)

@@ -47,7 +47,7 @@ It started as a package manager like Wally or pesde, borrows ideas from Cargo an
 5. [Dependency syntax](#dependency-syntax)
 6. [Aliases](#aliases)
 7. [One copy per package and overrides](#one-copy-per-package-and-overrides)
-8. [Local and git dependencies](#local-and-git-dependencies)
+8. [Local and git dependencies](#local-and-git-dependencies), [Vendored dependencies](#vendored-dependencies)
 9. [Workspaces](#workspaces), [Monorepositories](#monorepositories), [Interfaces](#interfaces)
 10. [Realms and transitive dependencies](#realms-and-transitive-dependencies)
 11. [What gets installed](#what-gets-installed)
@@ -249,6 +249,8 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `path_to_definition_files` | `.d.luau` files added to VS Code settings on install. Each entry is a file, a folder (every `.d.luau` inside it) or a pattern with `*` / `**`. Empty means every `*.d.luau` in the package (up to 10). The old single-file field `path_to_definition_file` still works. |
 | `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
+| `vendor_packages` | Dependencies shipped inside this package instead of installed by the consumer: `{ "client": [...], "server": [...] }`. See [Vendored dependencies](#vendored-dependencies). |
+| `package_root` | Folder to pack and publish instead of the project folder, for example `"bin/core"` with a build output. See [Publishing a build](#publishing-a-build). |
 | `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
 | `scripts` | Commands for `crater run`. |
 | `tools` | Tools pinned to the project, `owner/repo@version`, written by `crater tool add`. See [Tools](#tools). |
@@ -285,6 +287,7 @@ Install settings of your project. The folder names live here and only here: crat
 | `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
 | `darklua` | `true` (default): when your code requires through aliases like `@Packages/promise`, `install` sets up darklua so the code works in Roblox, see [Aliases in game code](#aliases-in-game-code). `false` turns it off. |
 | `sync` | `auto` (default), `rojo` or `azul`: which tool syncs the project with Studio, see [Azul](#azul). `auto` picks Rojo when `default.project.json` exists and Azul when a `sync/` folder exists. |
+| `vendor` | Folder for `vendor_packages`, `_vendor` by default, with `client/` and `server/` inside. See [Vendored dependencies](#vendored-dependencies). |
 | `self_update_repo` | Global settings only: `Owner/Repo` used by `crater self-update`. |
 
 The long names of older crater versions are still read: `import_client_path` and `import_client_alias` (and the same for server and develop), `on_install_update_luaurc` with `luaurc_path`, `on_install_update_vscode_luau_definition_files` and `on_install_should_i_ask_your_permission_to_do_any_action`. When a file has both, the new name wins.
@@ -317,13 +320,14 @@ Older projects keep working: `crater.config.json` is still read when there is no
   "path_to_crater_settings": "crater.settings.json",
   "path_to_package_info": "crater.json",
   "api_version": 3,
-  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3, "sync": 3 },
+  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3, "sync": 3, "vendor_packages": 3 },
   "schemas": { "package_info": "https://.../crater.schema.json", "crater_settings": "https://.../crater.settings.schema.json" },
   "registries": { "crater": "...", "wally": "https://github.com/UpliftGames/wally-index", "pesde": "...", "forest": "...", "ember": "..." },
   "realms": { "import_client": "client", "import_server": "server", "import_develop": "develop" },
   "dependency": { "pattern": "...", "operators": { ... }, "sources": { ... }, "registry": "..." },
   "defaults": { "authors": [], "description": "", "registry": "crater", "package_scripts": { "block": false, "allow": [] }, ... },
   "path_to_lock_file": "crater.lock",
+  "vendor": { "field": "vendor_packages", "realms": ["client", "server"], "folder": "_vendor", "lock_section": "vendor", "artifact_path": "_vendor/<realm>/<alias>", "package_root": "package_root", "prepack_script": "prepack" },
   "cli": { "json_output": { "changelog": 1, "info": 1, "list": 1, "outdated": 1, "search": 1, "tags": 1 } },
   "sync": { "tool": "azul", "directory": "sync", "packages": { "Packages": "ReplicatedStorage.Packages", ... } }
 }
@@ -340,6 +344,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
 | `dependency` | How to read a dependency string like `Promise:wally#evaera/promise^4`: a regular expression with named groups (`alias`, `registry`, `scope`, `name`, `op`, `ver`, `source`), what every version operator means, the `@path:` and `@git+` sources, and which registry a dependency without a prefix comes from. |
 | `defaults` | The value of every optional `crater.json` field that sets nothing: a field equal to it behaves as if it were missing, so a tool can drop it. An empty `registry` (`""` or `[]`) also means `crater`. |
 | `path_to_lock_file` | Where `crater.lock` is: the exact installed versions, their registries and sha256. |
+| `vendor` | How [vendored dependencies](#vendored-dependencies) work: the `crater.json` field and its realms, the folder they are installed into, the section of `crater.lock`, where they sit inside a packed archive, the field for [publishing a build](#publishing-a-build) and the script that runs before packing. |
 | `sync` | Which tool syncs the project with Studio: `{ "tool": "rojo", "project": "default.project.json" }`, `{ "tool": "azul", "directory": "sync", "packages": { folder: place } }` with where each package folder goes in Studio, or `{ "tool": "none" }`. |
 | `cli.json_output` | Each command that prints JSON with `--json` and the version of its JSON format, see [JSON output](#json-output). The version goes up when the output of that command changes, so a tool can check it before reading. A tool can run `crater outdated --all --json` instead of reading the registry itself. |
 
@@ -465,6 +470,32 @@ An override can also point to your own modified copy of a package: `"overrides":
 - Git dependencies need `git`. The ref can be a tag, branch or commit. The commit is stored in `crater.lock`, so `install` keeps it even when the branch moves, and `crater update me/gitlib` moves to the newest commit.
 - Dependencies of a local package come from its own `registry` (relative to its folder) or from your registry.
 - Published packages cannot have path or git dependencies.
+
+---
+
+## Vendored dependencies
+
+A library can ship its dependencies inside itself instead of asking the consumer to install them:
+
+```json
+"vendor_packages": {
+  "client": ["evaera/promise^4"],
+  "server": []
+}
+```
+
+- `crater install` resolves them like any other dependency, with their own dependencies, and installs them into `_vendor/client` and `_vendor/server` (the `vendor` setting changes the folder). The exact versions go into the `vendor` section of `crater.lock`.
+- `crater pack` and `crater publish` copy the locked versions, their dependencies and their licenses into the archive at `_vendor/<realm>/<alias>`, next to `crater.json`. If the folder does not match `crater.lock`, they ask you to run `crater install` first.
+- Consumers do not resolve or install vendored packages: they are not in the import lists, so they never conflict with the versions the game uses. A game can use Promise 2 while your library carries Promise 1.
+- Inside your code, require them relative to the package root: `script._vendor.client.Promise` from a root `init.luau`, `script.Parent._vendor.client.Promise` from `src/init.luau`. The default folder name keeps the same paths during development.
+- Vendored dependencies may come from any registry, a path or git, since consumers never fetch them.
+- The same package cannot be both vendored and in an import list. Two vendored packages that need incompatible versions of one dependency stop `install` with the conflict; `overrides` apply here too.
+- There is no `shared` key: `client` packages already go to ReplicatedStorage and both sides see them.
+
+Two things to keep in mind:
+
+- **A vendored package is a second copy.** A package that keeps state (Promise, signals, stores, anything that checks `instanceof` or a registry of objects) is a separate copy from the one the game installs. Do not pass its objects between your library and the game. `pack` and `publish` remind you of this.
+- **Server packages travel with your package.** `_vendor/server` is installed wherever your package goes; with `import_to: shared` that is ReplicatedStorage, so clients can read the code. Vendor only what may be public.
 
 ---
 
@@ -711,6 +742,7 @@ Exact versions, sources, git commits and sha256 of everything installed. Commit 
 - `update` takes the newest matching versions, `update name` only for the given packages.
 - A locked version whose sha256 changed in the registry stops the install (`crater update name` if that is expected).
 - Local registry paths are stored relative to the project.
+- `vendor_packages` are locked in a separate `vendor` section. Lock files without it, from older crater versions, are read as before.
 - `crater install --locked` fails instead of changing `crater.lock` when it does not match `crater.json`. Use it in CI.
 - Merge conflicts in `crater.lock` fix themselves: when two people added different packages and git leaves `<<<<<<<` markers in the lock file, resolve `crater.json` as usual and run `crater install`. crater reads both sides of the conflict, keeps the versions each side had, resolves again from `crater.json` and writes a clean `crater.lock`. `crater install --locked` refuses a lock file with conflict markers.
 - When nothing changed since the last install (same `crater.json`, folders and patches), `install` finishes in a fraction of a second without touching the network. crater keeps a fingerprint of `crater.json` in `crater.lock` for that.
@@ -1347,9 +1379,24 @@ You do not need this to publish. The registry is a GitHub repository, and only i
 
 crater does not download the registry for this: it reads the index of your package and uploads only the new archive and index through the GitHub API, so publishing takes a few seconds no matter how big the registry is.
 
+### Publishing a build
+
+`package_root` publishes a built folder instead of the sources:
+
+```json
+"package_root": "bin/core",
+"path_to_main": "init.luau",
+"scripts": { "prepack": "darklua process src bin/core" }
+```
+
+- `crater pack` and `crater publish` run the `prepack` script first, if there is one, and stop when it fails. Path dependencies on this package are packed without running it.
+- The archive is the content of `bin/core`: `path_to_main`, `icon` and `path_to_definition_files` are relative to it. `crater.json`, `README`, `LICENSE`, `COPYING` and `CHANGELOG` come from the project folder.
+- `.gitignore` does not apply inside the folder, because build output is usually ignored. `.craterignore` and `package_files.exclude` still do.
+- Vendored dependencies go into `_vendor/` at the root of the archive.
+
 ### What goes into the package
 
-Everything in the package folder except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the installed package folders, whatever your `.gitignore` and `.craterignore` files ignore, and the patterns in `exclude`. Archives use fixed timestamps, so the same files always give the same sha256.
+Everything in the package folder except `.git/`, `.github/`, `.vs/`, `.vscode/`, `.idea/`, `node_modules/`, `*.zip`, `crater.lock`, `crater.settings.json`, the installed package folders (vendored packages go in from `crater.lock`, see [Vendored dependencies](#vendored-dependencies)), whatever your `.gitignore` and `.craterignore` files ignore, and the patterns in `exclude`. Archives use fixed timestamps, so the same files always give the same sha256.
 
 Docs and changelogs (every `.md` file, `README` and `CHANGELOG`) must be written in **English or Russian**. Code blocks, inline code and links are not checked, so examples and names in any language are fine. If the text is in another language, `pack` and `publish` stop and name the file, and the registry check rejects such a version too.
 

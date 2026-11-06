@@ -12,7 +12,7 @@ public static class ProjectSources
 
 	public static List<string> Folders(Project project)
 	{
-		List<string> packageFolders = project.Config.ConfiguredFolders().Select(pair => pair.Folder.TrimEnd('/')).ToList();
+		List<string> packageFolders = project.Config.ConfiguredFolders().Select(pair => pair.Folder.TrimEnd('/')).Append(project.Config.Vendor).ToList();
 		string projectFile = Path.Combine(project.Directory, RojoProject);
 		List<string> paths = [];
 
@@ -54,6 +54,7 @@ public static class ProjectSources
 		HashSet<string> skipped = project.Config.ConfiguredFolders()
 			.Select(pair => Path.GetFullPath(project.Abs(pair.Folder)))
 			.Append(Path.GetFullPath(Patches.Root(project)))
+			.Append(Path.GetFullPath(project.Abs(project.Config.Vendor)))
 			.Concat(Azul.MirrorFolders(project).Select(folder => Path.GetFullPath(project.Abs(folder))))
 			.ToHashSet(StringComparer.OrdinalIgnoreCase);
 

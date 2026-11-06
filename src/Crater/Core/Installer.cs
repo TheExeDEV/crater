@@ -29,31 +29,37 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		}
 
 		Dictionary<Realm, ResolvedGraph> graphs;
+		Dictionary<Realm, ResolvedGraph> vendor;
 
 		using (new Spinner("Resolving dependencies"))
 		{
-			graphs = await ResolutionContext.ResolveAllAsync(project, oldLock, update);
+			(graphs, vendor) = await ResolutionContext.ResolveWithVendorAsync(project, oldLock, update);
 		}
 
-		foreach (string note in graphs.Values.SelectMany(graph => graph.Notes))
+		List<ResolvedGraph> everything = graphs.Values.Concat(vendor.Values).ToList();
+
+		foreach (string note in everything.SelectMany(graph => graph.Notes))
 		{
 			Out.Warn(note);
 		}
 
-		RejectRepublished(graphs, oldLock);
+		RejectRepublished(everything, oldLock);
 		await VersionNotices.PrintAsync(project, graphs.Values);
 
-		LockFile newLock = LockFile.From(graphs, project.Directory);
+		LockFile newLock = LockFile.From(graphs, vendor, project.Directory);
 		newLock.ManifestHash = InstallState.ManifestHash(project);
 
-		if (locked && (!File.Exists(project.LockPath) || Json.Serialize(newLock.Packages) != Json.Serialize(oldLock.Packages)))
+		bool lockDiffers = Json.Serialize(newLock.Packages) != Json.Serialize(oldLock.Packages) ||
+			Json.Serialize(newLock.Vendor ?? []) != Json.Serialize(oldLock.Vendor ?? []);
+
+		if (locked && (!File.Exists(project.LockPath) || lockDiffers))
 		{
 			throw new CraterException(
 				$"{Fmt.File(LockFile.FileName)} does not match {Fmt.File(Manifest.FileName)}. Run {Fmt.Cmd("crater install")} and commit {Fmt.File(LockFile.FileName)}.");
 		}
 
 		FolderBuilder builder = new(project, prompt);
-		List<ResolvedGraph> stale = graphs.Values.Where(graph => !builder.IsUpToDate(graph, oldLock)).ToList();
+		List<ResolvedGraph> stale = everything.Where(graph => !builder.IsUpToDate(graph, oldLock)).ToList();
 		Dictionary<ResolvedPackage, byte[]> archives = await DownloadAsync(stale.SelectMany(builder.PackagesToExtract).ToList());
 		string staging = Path.Combine(project.Directory, ".crater-staging");
 
@@ -63,7 +69,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 
 			archives.Clear();
 
-			await ScriptPolicy.CheckAsync(project, graphs.Values.SelectMany(graph => graph.All), prepared, oldLock);
+			await ScriptPolicy.CheckAsync(project, everything.SelectMany(graph => graph.All), prepared, oldLock);
 
 			foreach (ResolvedGraph graph in stale)
 			{
@@ -93,8 +99,14 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 			RojoSourcemap.Refresh(project);
 		}
 
+		if (vendor.Values.Any(graph => graph.All.Count > 0))
+		{
+			Layout.IgnoreVendor(project, prompt);
+		}
+
 		WriteLock(newLock);
 		InstallSummary.Print(oldLock, newLock, watch.Elapsed);
+		PrintVendored(vendor);
 		await VersionNotices.PrintChangesAsync(oldLock, graphs.Values);
 		WarnHiddenDefinitions(project, graphs, oldLock);
 		AfterInstall(project, prompt);
@@ -163,13 +175,23 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		return prepared;
 	}
 
-	static void RejectRepublished(Dictionary<Realm, ResolvedGraph> graphs, LockFile oldLock)
+	static void PrintVendored(Dictionary<Realm, ResolvedGraph> vendor)
 	{
-		foreach ((Realm realm, ResolvedGraph graph) in graphs)
+		foreach (ResolvedGraph graph in vendor.Values.Where(graph => graph.All.Count > 0))
+		{
+			string list = string.Join(", ", graph.All.OrderBy(package => package.Name, StringComparer.Ordinal).Select(package => Fmt.Pkg(package.Id)));
+
+			Out.Dim($"  vendored ({graph.Realm.Key()}, in {graph.VendorFolder}): {list}");
+		}
+	}
+
+	static void RejectRepublished(IEnumerable<ResolvedGraph> graphs, LockFile oldLock)
+	{
+		foreach (ResolvedGraph graph in graphs)
 		{
 			foreach (ResolvedPackage package in graph.All.Where(package => !package.IsSource))
 			{
-				LockedPackage? locked = oldLock.For(realm).FirstOrDefault(
+				LockedPackage? locked = oldLock.ForGraph(graph).FirstOrDefault(
 					item => item.Name == package.Name && item.Version == package.Version.ToString());
 
 				bool republished = locked is not null &&
@@ -239,7 +261,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 	{
 		bool lockExists = File.Exists(project.LockPath);
 
-		if (!lockExists && newLock.Packages.Count == 0)
+		if (!lockExists && !newLock.Everything.Any())
 		{
 			return;
 		}

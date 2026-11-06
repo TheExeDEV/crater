@@ -58,6 +58,22 @@ public sealed class Manifest : IJsonOnDeserialized
 	[JsonPropertyName("import_server")] public List<string> ImportServer { get; set; } = [];
 	[JsonPropertyName("import_develop")] public List<string> ImportDevelop { get; set; } = [];
 
+	[JsonPropertyName("vendor_packages")] public VendorPackages? VendorPackages { get; set; }
+	[JsonPropertyName("package_root")] public string? PackageRoot { get; set; }
+
+	public static readonly Realm[] VendorRealms = [Realm.Client, Realm.Server];
+
+	public static string VendorField(Realm realm) => $"vendor_packages.{realm.Key()}";
+
+	public List<string> VendorFor(Realm realm) => realm switch
+	{
+		Realm.Client => VendorPackages?.Client ?? [],
+		Realm.Server => VendorPackages?.Server ?? [],
+		_ => [],
+	};
+
+	[JsonIgnore] public bool HasVendored => VendorRealms.Any(realm => VendorFor(realm).Count > 0);
+
 	[JsonPropertyName("overrides")] public List<string>? Overrides { get; set; }
 	[JsonPropertyName("workspace")] public List<string>? Workspace { get; set; }
 	[JsonPropertyName("scripts")] public Dictionary<string, string>? Scripts { get; set; }
@@ -128,6 +144,52 @@ public sealed class Manifest : IJsonOnDeserialized
 		}
 	}
 
+	public IEnumerable<(Realm Realm, DependencySpec Spec)> AllVendored()
+	{
+		foreach (Realm realm in VendorRealms)
+		{
+			foreach (string raw in VendorFor(realm))
+			{
+				yield return (realm, DependencySpec.Parse(raw, $"{VendorField(realm)} in {FileName}"));
+			}
+		}
+	}
+
+	void ValidateVendor()
+	{
+		foreach (string key in (VendorPackages?.Extra?.Keys ?? Enumerable.Empty<string>()).Where(key => !ManifestFile.IsLabel(key)))
+		{
+			string hint = key == "shared"
+				? "crater has no shared realm: client packages go to ReplicatedStorage and both sides see them. Use vendor_packages.client."
+				: "expected client or server.";
+
+			throw new CraterException($"vendor_packages.{key}: {hint}");
+		}
+
+		HashSet<string> imported = AllDependencies().Select(spec => spec.FullName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		foreach ((Realm realm, DependencySpec spec) in AllVendored())
+		{
+			if (imported.Contains(spec.FullName))
+			{
+				throw new CraterException(
+					$"{Fmt.Pkg(spec.FullName)} is in {Fmt.Val(VendorField(realm))} and in an import list. " +
+					$"A dependency is either vendored (shipped inside this package) or imported (installed by the consumer), not both.");
+			}
+		}
+
+		if (PackageRoot is string root && root.Trim().Length > 0)
+		{
+			string normalized = Crater.Core.Links.NormalizeRelative(root);
+			bool outside = normalized is "" or "." || normalized.Split('/').Contains("..") || Path.IsPathRooted(root);
+
+			if (outside)
+			{
+				throw new CraterException($"package_root = {Fmt.Val(root)}: must be a folder inside the project, for example {Fmt.Val("bin/core")}.");
+			}
+		}
+	}
+
 	public List<DependencySpec> ParseOverrides()
 	{
 		List<DependencySpec> overrides = (Overrides ?? [])
@@ -166,6 +228,7 @@ public sealed class Manifest : IJsonOnDeserialized
 		}
 
 		ParseOverrides();
+		ValidateVendor();
 
 		foreach ((string element, string raw) in MonorepositoryElements ?? [])
 		{
@@ -216,6 +279,14 @@ public sealed class Manifest : IJsonOnDeserialized
 				$"{Fmt.Val(local)} uses a path or git source. Published packages can only depend on registry packages.");
 		}
 	}
+}
+
+public sealed class VendorPackages
+{
+	[JsonPropertyName("client")] public List<string>? Client { get; set; }
+	[JsonPropertyName("server")] public List<string>? Server { get; set; }
+
+	[JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
 public sealed class ScriptRules

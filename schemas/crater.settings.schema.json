@@ -59,6 +59,11 @@
       "default": "auto",
       "description": "Which tool syncs the project with Studio. auto picks rojo when default.project.json exists and azul when a sync folder exists. With azul, crater push and crater dev send the package folders into Studio."
     },
+    "vendor": {
+      "type": "string",
+      "default": "_vendor",
+      "description": "Folder for vendor_packages, with client/ and server/ inside. The default matches the _vendor folder in packed archives, so require paths are the same during development and for consumers."
+    },
     "darklua": {
       "type": "boolean",
       "default": true,
