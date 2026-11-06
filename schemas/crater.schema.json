@@ -85,7 +85,7 @@
       "additionalProperties": {
         "type": "string"
       },
-      "description": "Names for your own registries: { \"team\": \"https://github.com/Studio/team-registry\" } lets you write \"team#studio/combat^1\" and use \"team\" in registry. crater, wally, pesde, forest and ember are built in."
+      "description": "Names for your own registries: { \"team\": \"https://github.com/Studio/team-registry\" } lets you write \"team#studio/combat^1\" and use \"team\" in registry. crater, wally, pesde, forest, ember and luarocks are built in."
     },
     "import_to": {
       "type": "string",
