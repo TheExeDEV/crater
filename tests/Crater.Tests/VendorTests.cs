@@ -79,7 +79,16 @@ public sealed class VendorTests : IDisposable
 
 	static Action<JsonObject> Imports(params string[] dependencies) => manifest => manifest["import_client"] = List(dependencies);
 
-	static Action<JsonObject> Vendors(params string[] dependencies) => manifest => manifest["vendor_packages"] = new JsonObject { ["client"] = List(dependencies) };
+	static Action<JsonObject> Vendors(params string[] dependencies) => manifest => manifest["vendor_packages"] = new JsonObject { ["import_client"] = List(dependencies) };
+
+	static void Settings(string directory, JsonObject vendor)
+	{
+		string path = Path.Combine(directory, ProjectConfig.FileName);
+		JsonObject settings = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+
+		settings["vendor"] = vendor;
+		File.WriteAllText(path, settings.ToJsonString());
+	}
 
 	void Publish(string name, string version, params string[] dependencies)
 	{
@@ -190,7 +199,7 @@ public sealed class VendorTests : IDisposable
 		(int code, string errors) = CraterErrors(library, "install", "-y");
 
 		Assert.NotEqual(0, code);
-		Assert.Contains("vendor_packages.client", errors);
+		Assert.Contains("vendor_packages.import_client", errors);
 		Assert.Contains("t/promise", errors);
 	}
 
@@ -239,7 +248,68 @@ public sealed class VendorTests : IDisposable
 		(int code, string errors) = CraterErrors(library, "install", "-y");
 
 		Assert.NotEqual(0, code);
-		Assert.Contains("vendor_packages.client", errors);
+		Assert.Contains("vendor_packages.import_client", errors);
+	}
+
+	[Fact]
+	public void VendorFoldersFollowTheSettingsAndShipAtTheSamePath()
+	{
+		Publish("t/promise", "1.0.0");
+
+		string library = Project("lib", "t/lib", "1.0.0", Vendors("t/promise^1"));
+
+		Settings(library, new JsonObject { ["client"] = new JsonObject { ["path"] = "src/deps", ["alias"] = "Deps" } });
+
+		Assert.Equal(0, Crater(library, "install", "-y"));
+
+		Assert.Equal(new List<string> { "t/promise@1.0.0" }, Installed(Path.Combine(library, "src", "deps")));
+		Assert.Contains("\"Deps\"", File.ReadAllText(Path.Combine(library, ".luaurc")));
+
+		List<string> entries = Pack(library);
+
+		Assert.Contains("src/deps/" + PackageLayout.VendorMarkerFile, entries);
+		Assert.Contains(entries, entry => entry.StartsWith("src/deps/", StringComparison.Ordinal) && entry.EndsWith("/init.luau", StringComparison.Ordinal));
+		Assert.DoesNotContain(entries, entry => entry.StartsWith("_vendor/", StringComparison.Ordinal));
+
+		Assert.Equal(0, Crater(library, "publish", "-y"));
+
+		string game = Project("game", "t/game", "1.0.0", Imports("t/lib^1"));
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		string copy = Directory.EnumerateFiles(Path.Combine(game, "Packages", "lib", "src", "deps"), "init.luau", SearchOption.AllDirectories).Single();
+
+		Assert.Contains("t/promise@1.0.0", File.ReadAllText(copy));
+	}
+
+	[Fact]
+	public void DevelopVendoredPackagesAreInstalledButNotPacked()
+	{
+		Publish("t/testkit", "1.0.0");
+
+		string library = Project("lib", "t/lib", "1.0.0", manifest => manifest["vendor_packages"] = new JsonObject { ["import_develop"] = List("t/testkit^1") });
+
+		Assert.Equal(0, Crater(library, "install", "-y"));
+
+		Assert.Equal(new List<string> { "t/testkit@1.0.0" }, Installed(Path.Combine(library, "_vendor", "develop")));
+		Assert.DoesNotContain(Pack(library), entry => entry.StartsWith("_vendor/", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void TheFormatOfVersion074IsStillRead()
+	{
+		Publish("t/promise", "1.0.0");
+
+		string library = Project("lib", "t/lib", "1.0.0", manifest => manifest["vendor_packages"] = new JsonObject { ["client"] = List("t/promise^1") });
+		string path = Path.Combine(library, ProjectConfig.FileName);
+		JsonObject settings = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+
+		settings["vendor"] = "deps";
+		File.WriteAllText(path, settings.ToJsonString());
+
+		Assert.Equal(0, Crater(library, "install", "-y"));
+
+		Assert.Equal(new List<string> { "t/promise@1.0.0" }, Installed(Path.Combine(library, "deps", "client")));
 	}
 
 	[Fact]

@@ -86,7 +86,7 @@ public static class LuauRc
 		return relative.StartsWith("..") ? relative : "./" + relative;
 	}
 
-	public static void Update(Project project, IReadOnlyDictionary<Realm, ResolvedGraph> graphs, Prompter prompt)
+	public static void Update(Project project, IReadOnlyCollection<ResolvedGraph> graphs, Prompter prompt)
 	{
 		string path = PathIn(project);
 		string shown = RelativePath(project);
@@ -105,9 +105,8 @@ public static class LuauRc
 			root["aliases"] = aliases;
 		}
 
-		foreach ((Realm realm, string folder) in project.Config.ConfiguredFolders())
+		foreach ((Realm realm, string folder, string alias, bool vendor) in project.Config.AliasedFolders())
 		{
-			string alias = project.Config.AliasFor(realm, folder);
 			string value = AliasValue(project, folder);
 			List<string> renamed = aliases
 				.Where(pair => pair.Key != alias && pair.Value?.GetValueKind() == JsonValueKind.String && (string?)pair.Value == value)
@@ -119,7 +118,7 @@ public static class LuauRc
 				aliases.Remove(old);
 			}
 
-			bool installed = graphs.TryGetValue(realm, out ResolvedGraph? graph) && graph.All.Count > 0;
+			bool installed = graphs.Any(graph => graph.Realm == realm && graph.IsVendor == vendor && graph.All.Count > 0);
 
 			if (installed)
 			{

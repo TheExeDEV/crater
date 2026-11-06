@@ -73,16 +73,7 @@ public static class CraterDeclare
 			},
 			["defaults"] = Defaults(),
 			["path_to_lock_file"] = LockFile.FileName,
-			["vendor"] = new JsonObject
-			{
-				["field"] = "vendor_packages",
-				["realms"] = new JsonArray(Manifest.VendorRealms.Select(realm => (JsonNode?)realm.Key()).ToArray()),
-				["folder"] = Settings(directory).Vendor,
-				["lock_section"] = "vendor",
-				["artifact_path"] = $"{Packer.VendorFolder}/<realm>/<alias>",
-				["package_root"] = "package_root",
-				["prepack_script"] = Packer.PrepackScript,
-			},
+			["vendor"] = Vendor(Settings(directory)),
 			["sync"] = Azul.Declare(Settings(directory), directory),
 			["cli"] = new JsonObject
 			{
@@ -91,6 +82,31 @@ public static class CraterDeclare
 					.OrderBy(command => command.Name, StringComparer.Ordinal)
 					.Select(command => (command.Name, (JsonNode?)command.JsonVersion))),
 			},
+		};
+	}
+
+	static JsonObject Vendor(ProjectConfig settings)
+	{
+		List<string[]> folders = settings.VendorFolders().Select(pair => pair.Folder.Split('/')).ToList();
+		int common = Enumerable.Range(0, folders.Min(parts => parts.Length)).TakeWhile(index => folders.All(parts => parts[index] == folders[0][index])).Count();
+
+		return new JsonObject
+		{
+			["field"] = "vendor_packages",
+			["realms"] = new JsonArray(Realms.All.Select(realm => (JsonNode?)realm.Key()).ToArray()),
+			["folder"] = string.Join('/', folders[0][..common]),
+			["lock_section"] = "vendor",
+			["artifact_path"] = "<vendor folder of the realm>/<alias>, the same path as in development",
+			["package_root"] = "package_root",
+			["prepack_script"] = Packer.PrepackScript,
+			["lists"] = Object(Realms.All.Select(realm => (realm.ManifestField(), (JsonNode?)realm.Key()))),
+			["folders"] = Object(Realms.All.Select(realm => (realm.Key(), (JsonNode?)new JsonObject
+			{
+				["path"] = settings.VendorFolder(realm),
+				["alias"] = settings.VendorAlias(realm),
+			}))),
+			["packed_realms"] = new JsonArray(Manifest.PackedVendorRealms.Select(realm => (JsonNode?)realm.Key()).ToArray()),
+			["marker_file"] = PackageLayout.VendorMarkerFile,
 		};
 	}
 
@@ -140,7 +156,7 @@ public static class CraterDeclare
 			["allow_scripts_from"] = Empty(),
 			["exclude"] = Empty(),
 			["allow_files"] = Empty(),
-			["vendor_packages"] = new JsonObject { ["client"] = Empty(), ["server"] = Empty() },
+			["vendor_packages"] = new JsonObject { ["import_client"] = Empty(), ["import_server"] = Empty(), ["import_develop"] = Empty() },
 			["package_root"] = "",
 		};
 	}

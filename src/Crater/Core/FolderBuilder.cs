@@ -40,6 +40,11 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			return false;
 		}
 
+		if (graph.IsVendor && !File.Exists(Path.Combine(folder, PackageLayout.VendorMarkerFile)))
+		{
+			return false;
+		}
+
 		string patches = Patches.Fingerprint(project, graph.All);
 
 		if (PackageLayout.ReadMarker(folder).GetValueOrDefault(Patches.MarkerKey, "") != patches)
@@ -147,15 +152,31 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		WriteAliases(layout, extracted, folder);
 		WritePesdeLinks(graph, layout, extracted, folder);
 		layout.WriteMarker(folder, Patches.Fingerprint(project, graph.All), project.Config.LinkStyle);
+
+		if (graph.IsVendor)
+		{
+			WriteVendorMarker(graph, folder);
+		}
 		Report(graph.All.Where(changed.Contains), extracted, layout, folder);
 	}
 
 
 	sealed record Extracted(PackageEntry Entry, List<TypeExport> Types);
 
+	static void WriteVendorMarker(ResolvedGraph graph, string folder)
+	{
+		JsonObject marker = new()
+		{
+			["realm"] = graph.Realm.Key(),
+			["packages"] = new JsonArray(graph.All.Select(package => package.Id).Order(StringComparer.Ordinal).Select(id => (JsonNode?)id).ToArray()),
+		};
+
+		Json.WriteText(Path.Combine(folder, PackageLayout.VendorMarkerFile), Json.Serialize(marker));
+	}
+
 	string? FolderOf(ResolvedGraph graph) => graph.VendorFolder ?? project.Config.TryFolderFor(graph.Realm);
 
-	static string FolderField(ResolvedGraph graph) => graph.IsVendor ? "vendor" : ProjectConfig.FolderField(graph.Realm);
+	static string FolderField(ResolvedGraph graph) => graph.IsVendor ? ProjectConfig.VendorFolderField(graph.Realm) : ProjectConfig.FolderField(graph.Realm);
 
 	void RemoveEmpty(ResolvedGraph graph)
 	{

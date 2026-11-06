@@ -249,7 +249,7 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `path_to_definition_files` | `.d.luau` files added to VS Code settings on install. Each entry is a file, a folder (every `.d.luau` inside it) or a pattern with `*` / `**`. Empty means every `*.d.luau` in the package (up to 10). The old single-file field `path_to_definition_file` still works. |
 | `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
-| `vendor_packages` | Dependencies shipped inside this package instead of installed by the consumer: `{ "client": [...], "server": [...] }`. See [Vendored dependencies](#vendored-dependencies). |
+| `vendor_packages` | Internal dependencies the package embeds instead of the consumer installing them: `{ "import_client": [...], "import_server": [...], "import_develop": [...] }`. See [Vendored dependencies](#vendored-dependencies). |
 | `package_root` | Folder to pack and publish instead of the project folder, for example `"bin/core"` with a build output. See [Publishing a build](#publishing-a-build). |
 | `workspace` | Folders of a monorepo, see [Workspaces](#workspaces). |
 | `scripts` | Commands for `crater run`. |
@@ -287,7 +287,7 @@ Install settings of your project. The folder names live here and only here: crat
 | `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
 | `darklua` | `true` (default): when your code requires through aliases like `@Packages/promise`, `install` sets up darklua so the code works in Roblox, see [Aliases in game code](#aliases-in-game-code). `false` turns it off. |
 | `sync` | `auto` (default), `rojo` or `azul`: which tool syncs the project with Studio, see [Azul](#azul). `auto` picks Rojo when `default.project.json` exists and Azul when a `sync/` folder exists. |
-| `vendor` | Folder for `vendor_packages`, `_vendor` by default, with `client/` and `server/` inside. See [Vendored dependencies](#vendored-dependencies). |
+| `vendor` | Where `vendor_packages` go: `client`, `server` and `develop`, each with `path` (`_vendor/<realm>` when empty) and `alias`, like the package folders above. See [Vendored dependencies](#vendored-dependencies). |
 | `self_update_repo` | Global settings only: `Owner/Repo` used by `crater self-update`. |
 
 The long names of older crater versions are still read: `import_client_path` and `import_client_alias` (and the same for server and develop), `on_install_update_luaurc` with `luaurc_path`, `on_install_update_vscode_luau_definition_files` and `on_install_should_i_ask_your_permission_to_do_any_action`. When a file has both, the new name wins.
@@ -327,7 +327,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
   "dependency": { "pattern": "...", "operators": { ... }, "sources": { ... }, "registry": "..." },
   "defaults": { "authors": [], "description": "", "registry": "crater", "package_scripts": { "block": false, "allow": [] }, ... },
   "path_to_lock_file": "crater.lock",
-  "vendor": { "field": "vendor_packages", "realms": ["client", "server"], "folder": "_vendor", "lock_section": "vendor", "artifact_path": "_vendor/<realm>/<alias>", "package_root": "package_root", "prepack_script": "prepack" },
+  "vendor": { "field": "vendor_packages", "realms": ["client", "server", "develop"], "folder": "_vendor", "lock_section": "vendor", "artifact_path": "...", "package_root": "package_root", "prepack_script": "prepack", "lists": { "import_client": "client", ... }, "folders": { "client": { "path": "_vendor/client", "alias": "client" }, ... }, "packed_realms": ["client", "server"], "marker_file": ".crater-vendor" },
   "cli": { "json_output": { "changelog": 1, "info": 1, "list": 1, "outdated": 1, "search": 1, "tags": 1 } },
   "sync": { "tool": "azul", "directory": "sync", "packages": { "Packages": "ReplicatedStorage.Packages", ... } }
 }
@@ -344,7 +344,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
 | `dependency` | How to read a dependency string like `Promise:wally#evaera/promise^4`: a regular expression with named groups (`alias`, `registry`, `scope`, `name`, `op`, `ver`, `source`), what every version operator means, the `@path:` and `@git+` sources, and which registry a dependency without a prefix comes from. |
 | `defaults` | The value of every optional `crater.json` field that sets nothing: a field equal to it behaves as if it were missing, so a tool can drop it. An empty `registry` (`""` or `[]`) also means `crater`. |
 | `path_to_lock_file` | Where `crater.lock` is: the exact installed versions, their registries and sha256. |
-| `vendor` | How [vendored dependencies](#vendored-dependencies) work: the `crater.json` field and its realms, the folder they are installed into, the section of `crater.lock`, where they sit inside a packed archive, the field for [publishing a build](#publishing-a-build) and the script that runs before packing. |
+| `vendor` | How [vendored dependencies](#vendored-dependencies) work: the `crater.json` field and which list goes to which realm, the folder and alias of every realm, the section of `crater.lock`, which realms are shipped and the file that marks a shipped vendor folder, the field for [publishing a build](#publishing-a-build) and the script that runs before packing. |
 | `sync` | Which tool syncs the project with Studio: `{ "tool": "rojo", "project": "default.project.json" }`, `{ "tool": "azul", "directory": "sync", "packages": { folder: place } }` with where each package folder goes in Studio, or `{ "tool": "none" }`. |
 | `cli.json_output` | Each command that prints JSON with `--json` and the version of its JSON format, see [JSON output](#json-output). The version goes up when the output of that command changes, so a tool can check it before reading. A tool can run `crater outdated --all --json` instead of reading the registry itself. |
 
@@ -475,27 +475,41 @@ An override can also point to your own modified copy of a package: `"overrides":
 
 ## Vendored dependencies
 
-A library can ship its dependencies inside itself instead of asking the consumer to install them:
+`vendor_packages` are the internal dependencies of a package. crater installs them the same way as `import_*`, but the package embeds them inside itself, and nobody who installs the package resolves them. A library with many dependencies keeps working with the exact versions it was written for, whatever the game installs, and the game never has to sort out its dependency tree:
 
 ```json
 "vendor_packages": {
-  "client": ["evaera/promise^4"],
-  "server": []
+  "import_client": ["evaera/promise^4"],
+  "import_server": ["sleitnick/signal^2"],
+  "import_develop": ["jsdotlua/jest^3"]
 }
 ```
 
-- `crater install` resolves them like any other dependency, with their own dependencies, and installs them into `_vendor/client` and `_vendor/server` (the `vendor` setting changes the folder). The exact versions go into the `vendor` section of `crater.lock`.
-- `crater pack` and `crater publish` copy the locked versions, their dependencies and their licenses into the archive at `_vendor/<realm>/<alias>`, next to `crater.json`. If the folder does not match `crater.lock`, they ask you to run `crater install` first.
-- Consumers do not resolve or install vendored packages: they are not in the import lists, so they never conflict with the versions the game uses. A game can use Promise 2 while your library carries Promise 1.
-- Inside your code, require them relative to the package root: `script._vendor.client.Promise` from a root `init.luau`, `script.Parent._vendor.client.Promise` from `src/init.luau`. The default folder name keeps the same paths during development.
+Their folders live in `crater.settings.json`, in the same form as the ordinary package folders:
+
+```json
+"vendor": {
+  "client": { "path": "", "alias": "" },
+  "server": { "path": "", "alias": "" },
+  "develop": { "path": "", "alias": "" }
+}
+```
+
+An empty `path` means `_vendor/client`, `_vendor/server` and `_vendor/develop`; an empty `alias` means the folder name. Folders cannot overlap each other or the `client`, `server` and `develop` package folders.
+
+- `crater install` resolves vendored packages with their own dependencies, in a tree of their own, and installs them into the vendor folders with the usual layout (`promise.luau`, `_Index/...`). The exact versions go into the `vendor` section of `crater.lock`. The aliases go into `.luaurc` like the other folders, so `require("@client/promise")` works with luau-lsp and darklua.
+- `crater pack` and `crater publish` copy the locked `import_client` and `import_server` packages, their dependencies and their licenses into the archive **at the same paths** as in your project, so every require path is the same during development and for consumers. If a folder does not match `crater.lock`, they ask you to run `crater install` first. `import_develop` packages are never shipped: they are for your tests and tools.
+- Every shipped vendor folder carries a `.crater-vendor` file with its realm and packages. crater keeps such folders whole when it installs the package for a consumer.
+- Consumers do not resolve or install vendored packages, so they never conflict with the versions the game uses. A game can use Promise 2 while your library carries Promise 1.
 - Vendored dependencies may come from any registry, a path or git, since consumers never fetch them.
 - The same package cannot be both vendored and in an import list. Two vendored packages that need incompatible versions of one dependency stop `install` with the conflict; `overrides` apply here too.
-- There is no `shared` key: `client` packages already go to ReplicatedStorage and both sides see them.
+- There is no `shared` list: `import_client` packages already go to ReplicatedStorage and both sides see them.
+- The format of crater 0.7.4 is still read: `"client"` and `"server"` lists in `vendor_packages`, and `"vendor": "_vendor"` as one folder with `client`, `server` and `develop` inside.
 
 Two things to keep in mind:
 
 - **A vendored package is a second copy.** A package that keeps state (Promise, signals, stores, anything that checks `instanceof` or a registry of objects) is a separate copy from the one the game installs. Do not pass its objects between your library and the game. `pack` and `publish` remind you of this.
-- **Server packages travel with your package.** `_vendor/server` is installed wherever your package goes; with `import_to: shared` that is ReplicatedStorage, so clients can read the code. Vendor only what may be public.
+- **Server packages travel with your package.** The server vendor folder is installed wherever your package goes; with `import_to: shared` that is ReplicatedStorage, so clients can read the code. Vendor only what may be public.
 
 ---
 
@@ -1392,7 +1406,7 @@ crater does not download the registry for this: it reads the index of your packa
 - `crater pack` and `crater publish` run the `prepack` script first, if there is one, and stop when it fails. Path dependencies on this package are packed without running it.
 - The archive is the content of `bin/core`: `path_to_main`, `icon` and `path_to_definition_files` are relative to it. `crater.json`, `README`, `LICENSE`, `COPYING` and `CHANGELOG` come from the project folder.
 - `.gitignore` does not apply inside the folder, because build output is usually ignored. `.craterignore` and `package_files.exclude` still do.
-- Vendored dependencies go into `_vendor/` at the root of the archive.
+- Vendored dependencies go into the archive at their vendor folder paths, relative to the root of the archive.
 
 ### What goes into the package
 

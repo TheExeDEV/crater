@@ -30,11 +30,60 @@ public sealed class ProjectConfig
 
 	[JsonPropertyName("self_update_repo")] public string SelfUpdateRepo { get; set; } = "";
 
-	[JsonPropertyName("vendor")] public string Vendor { get; set; } = DefaultVendor;
+	[JsonPropertyName("vendor_client_path")] public string VendorClientPath { get; set; } = "";
+	[JsonPropertyName("vendor_server_path")] public string VendorServerPath { get; set; } = "";
+	[JsonPropertyName("vendor_develop_path")] public string VendorDevelopPath { get; set; } = "";
+
+	[JsonPropertyName("vendor_client_alias")] public string VendorClientAlias { get; set; } = "";
+	[JsonPropertyName("vendor_server_alias")] public string VendorServerAlias { get; set; } = "";
+	[JsonPropertyName("vendor_develop_alias")] public string VendorDevelopAlias { get; set; } = "";
 
 	public const string DefaultVendor = "_vendor";
 
-	public string VendorFolder(Realm realm) => $"{Vendor}/{realm.Key()}";
+	public static string DefaultVendorFolder(Realm realm) => $"{DefaultVendor}/{realm.Key()}";
+
+	public static string VendorFolderField(Realm realm) => $"vendor.{realm.Key()}.path";
+
+	public static string VendorAliasField(Realm realm) => $"vendor.{realm.Key()}.alias";
+
+	public string VendorFolder(Realm realm)
+	{
+		string folder = realm switch
+		{
+			Realm.Client => VendorClientPath,
+			Realm.Server => VendorServerPath,
+			_ => VendorDevelopPath,
+		};
+
+		return folder.Length == 0 ? DefaultVendorFolder(realm) : folder;
+	}
+
+	public string VendorAlias(Realm realm)
+	{
+		string configured = realm switch
+		{
+			Realm.Client => VendorClientAlias,
+			Realm.Server => VendorServerAlias,
+			_ => VendorDevelopAlias,
+		};
+
+		return LastSegmentUnless(configured, VendorFolder(realm));
+	}
+
+	public IEnumerable<(Realm Realm, string Folder)> VendorFolders() => Realms.All.Select(realm => (realm, VendorFolder(realm)));
+
+	public IEnumerable<(Realm Realm, string Folder, string Alias, bool Vendor)> AliasedFolders()
+	{
+		foreach ((Realm realm, string folder) in ConfiguredFolders())
+		{
+			yield return (realm, folder, AliasFor(realm, folder), false);
+		}
+
+		foreach ((Realm realm, string folder) in VendorFolders())
+		{
+			yield return (realm, folder, VendorAlias(realm), true);
+		}
+	}
 
 	public static string GlobalDirectory =>
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "crater");
@@ -83,6 +132,7 @@ public sealed class ProjectConfig
 		}
 
 		settings.Remove("dev");
+		NormalizeVendor(settings);
 
 		if (settings["luaurc"] is JsonValue luaurc)
 		{
@@ -100,6 +150,50 @@ public sealed class ProjectConfig
 		settings.Remove("luaurc");
 		Rename(settings, "vscode_definitions", "on_install_update_vscode_luau_definition_files");
 		Rename(settings, "confirm", "on_install_should_i_ask_your_permission_to_do_any_action");
+	}
+
+	static void NormalizeVendor(JsonObject settings)
+	{
+		JsonNode? vendor = settings["vendor"];
+
+		settings.Remove("vendor");
+
+		if (vendor is JsonValue value && value.TryGetValue(out string? root))
+		{
+			foreach (Realm realm in Realms.All)
+			{
+				settings[$"vendor_{realm.Key()}_path"] = $"{root.Trim().TrimEnd('/', '\\')}/{realm.Key()}";
+			}
+
+			return;
+		}
+
+		if (vendor is not JsonObject folders)
+		{
+			return;
+		}
+
+		foreach (Realm realm in Realms.All)
+		{
+			string key = realm.Key();
+
+			if (folders[key] is JsonObject folder)
+			{
+				if (folder["path"] is JsonNode path)
+				{
+					settings[$"vendor_{key}_path"] = path.DeepClone();
+				}
+
+				if (folder["alias"] is JsonNode alias)
+				{
+					settings[$"vendor_{key}_alias"] = alias.DeepClone();
+				}
+			}
+			else if (folders[key] is JsonValue text && text.TryGetValue(out string? path))
+			{
+				settings[$"vendor_{key}_path"] = path;
+			}
+		}
 	}
 
 	static void Rename(JsonObject settings, string current, string internalName)
@@ -121,6 +215,11 @@ public sealed class ProjectConfig
 			_ => ImportDevelopAlias,
 		};
 
+		return LastSegmentUnless(configured, folder);
+	}
+
+	static string LastSegmentUnless(string configured, string folder)
+	{
 		configured = configured.Trim().TrimStart('@');
 
 		if (configured.Length > 0)
@@ -259,23 +358,30 @@ public sealed class ProjectConfig
 			}
 		}
 
-		Vendor = NormalizeFolder(Vendor);
+		VendorClientPath = NormalizeFolder(VendorClientPath);
+		VendorServerPath = NormalizeFolder(VendorServerPath);
+		VendorDevelopPath = NormalizeFolder(VendorDevelopPath);
 
-		bool vendorOutside = Vendor.Length == 0 || Vendor == "." || Vendor.Split('/').Contains("..") || Path.IsPathRooted(Vendor);
+		List<(string Field, string Folder)> taken = ConfiguredFolders().Select(pair => (FolderField(pair.Realm), pair.Folder)).ToList();
 
-		if (vendorOutside)
+		foreach ((Realm realm, string folder) in VendorFolders())
 		{
-			throw new CraterException($"vendor = {Fmt.Val(Vendor)}: must be a relative path inside the project, for example {Fmt.Val(DefaultVendor)}.");
-		}
+			string field = VendorFolderField(realm);
+			bool outside = folder == "." || folder.Split('/').Contains("..") || Path.IsPathRooted(folder);
 
-		(_, string? clash) = ConfiguredFolders().FirstOrDefault(pair =>
-			pair.Folder.Equals(Vendor, StringComparison.OrdinalIgnoreCase) ||
-			Vendor.StartsWith(pair.Folder + "/", StringComparison.OrdinalIgnoreCase) ||
-			pair.Folder.StartsWith(Vendor + "/", StringComparison.OrdinalIgnoreCase));
+			if (outside)
+			{
+				throw new CraterException($"{field} = {Fmt.Val(folder)}: must be a relative path inside the project, for example {Fmt.Val(DefaultVendorFolder(realm))}.");
+			}
 
-		if (clash is not null)
-		{
-			throw new CraterException($"vendor = {Fmt.Val(Vendor)} overlaps the package folder {Fmt.Val(clash)}. Pick a separate folder.");
+			(string? other, _) = taken.FirstOrDefault(item => Overlaps(item.Folder, folder));
+
+			if (other is not null)
+			{
+				throw new CraterException($"{field} = {Fmt.Val(folder)} overlaps {other}. Every package folder needs its own place.");
+			}
+
+			taken.Add((field, folder));
 		}
 
 		HashSet<string> aliases = new(StringComparer.OrdinalIgnoreCase);
@@ -294,6 +400,28 @@ public sealed class ProjectConfig
 				throw new CraterException($"{AliasField(realm)} = {Fmt.Val(alias)} is already used by another realm.");
 			}
 		}
+
+		foreach ((Realm realm, string _) in VendorFolders())
+		{
+			string alias = VendorAlias(realm);
+
+			if (alias.Any(character => char.IsWhiteSpace(character) || character is '/' or '\\' or '"'))
+			{
+				throw new CraterException($"{VendorAliasField(realm)} = {Fmt.Val(alias)}: use letters, digits, - or _ only.");
+			}
+
+			if (!aliases.Add(alias))
+			{
+				throw new CraterException($"{VendorAliasField(realm)} = {Fmt.Val(alias)} is already used by another folder. Set a different alias.");
+			}
+		}
+	}
+
+	static bool Overlaps(string first, string second)
+	{
+		return first.Equals(second, StringComparison.OrdinalIgnoreCase) ||
+			first.StartsWith(second + "/", StringComparison.OrdinalIgnoreCase) ||
+			second.StartsWith(first + "/", StringComparison.OrdinalIgnoreCase);
 	}
 
 	static string NormalizeFolder(string path)

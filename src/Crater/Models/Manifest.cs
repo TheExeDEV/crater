@@ -61,18 +61,15 @@ public sealed class Manifest : IJsonOnDeserialized
 	[JsonPropertyName("vendor_packages")] public VendorPackages? VendorPackages { get; set; }
 	[JsonPropertyName("package_root")] public string? PackageRoot { get; set; }
 
-	public static readonly Realm[] VendorRealms = [Realm.Client, Realm.Server];
+	public static readonly Realm[] PackedVendorRealms = [Realm.Client, Realm.Server];
 
-	public static string VendorField(Realm realm) => $"vendor_packages.{realm.Key()}";
+	public static string VendorField(Realm realm) => $"vendor_packages.{realm.ManifestField()}";
 
-	public List<string> VendorFor(Realm realm) => realm switch
-	{
-		Realm.Client => VendorPackages?.Client ?? [],
-		Realm.Server => VendorPackages?.Server ?? [],
-		_ => [],
-	};
+	public List<string> VendorFor(Realm realm) => VendorPackages?.For(realm) ?? [];
 
-	[JsonIgnore] public bool HasVendored => VendorRealms.Any(realm => VendorFor(realm).Count > 0);
+	[JsonIgnore] public bool HasVendored => Realms.All.Any(realm => VendorFor(realm).Count > 0);
+
+	[JsonIgnore] public bool PacksVendored => PackedVendorRealms.Any(realm => VendorFor(realm).Count > 0);
 
 	[JsonPropertyName("overrides")] public List<string>? Overrides { get; set; }
 	[JsonPropertyName("workspace")] public List<string>? Workspace { get; set; }
@@ -146,7 +143,7 @@ public sealed class Manifest : IJsonOnDeserialized
 
 	public IEnumerable<(Realm Realm, DependencySpec Spec)> AllVendored()
 	{
-		foreach (Realm realm in VendorRealms)
+		foreach (Realm realm in Realms.All)
 		{
 			foreach (string raw in VendorFor(realm))
 			{
@@ -159,9 +156,9 @@ public sealed class Manifest : IJsonOnDeserialized
 	{
 		foreach (string key in (VendorPackages?.Extra?.Keys ?? Enumerable.Empty<string>()).Where(key => !ManifestFile.IsLabel(key)))
 		{
-			string hint = key == "shared"
-				? "crater has no shared realm: client packages go to ReplicatedStorage and both sides see them. Use vendor_packages.client."
-				: "expected client or server.";
+			string hint = key is "shared" or "import_shared"
+				? $"crater has no shared realm: client packages go to ReplicatedStorage and both sides see them. Use {VendorField(Realm.Client)}."
+				: "expected import_client, import_server or import_develop.";
 
 			throw new CraterException($"vendor_packages.{key}: {hint}");
 		}
@@ -283,10 +280,21 @@ public sealed class Manifest : IJsonOnDeserialized
 
 public sealed class VendorPackages
 {
-	[JsonPropertyName("client")] public List<string>? Client { get; set; }
-	[JsonPropertyName("server")] public List<string>? Server { get; set; }
+	[JsonPropertyName("import_client")] public List<string>? ImportClient { get; set; }
+	[JsonPropertyName("import_server")] public List<string>? ImportServer { get; set; }
+	[JsonPropertyName("import_develop")] public List<string>? ImportDevelop { get; set; }
+
+	[JsonPropertyName("client")] public List<string>? LegacyClient { get; set; }
+	[JsonPropertyName("server")] public List<string>? LegacyServer { get; set; }
 
 	[JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }
+
+	public List<string> For(Realm realm) => realm switch
+	{
+		Realm.Client => [.. (ImportClient ?? []).Concat(LegacyClient ?? []).Distinct()],
+		Realm.Server => [.. (ImportServer ?? []).Concat(LegacyServer ?? []).Distinct()],
+		_ => ImportDevelop ?? [],
+	};
 }
 
 public sealed class ScriptRules

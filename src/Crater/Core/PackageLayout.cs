@@ -7,6 +7,7 @@ namespace Crater.Core;
 public sealed class PackageLayout
 {
 	public const string MarkerFile = ".crater";
+	public const string VendorMarkerFile = ".crater-vendor";
 	public const string IsolatedFolder = "_Isolated";
 
 	public Dictionary<ResolvedPackage, string> Folders { get; } = [];

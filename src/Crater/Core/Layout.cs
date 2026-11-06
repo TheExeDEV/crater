@@ -59,22 +59,35 @@ public static class Layout
 		return project.Config.ConfiguredFolders().Select(pair => $"{pair.Folder}/");
 	}
 
-	public static void IgnoreVendor(Project project, Prompter prompt)
+	public static void IgnoreVendor(Project project, List<string> folders, Prompter prompt)
 	{
 		string path = Path.Combine(project.Directory, ".gitignore");
 
-		if (!File.Exists(path))
+		if (folders.Count == 0 || !File.Exists(path))
 		{
 			return;
 		}
 
-		string entry = project.Config.Vendor + "/";
 		string text = File.ReadAllText(path);
-		bool listed = text.Replace("\r\n", "\n").Split('\n').Select(line => line.Trim().TrimStart('/')).Any(line => line == entry || line == project.Config.Vendor);
+		HashSet<string> lines = text.Replace("\r\n", "\n").Split('\n').Select(line => line.Trim().Trim('/')).ToHashSet();
+		List<string> missing = folders
+			.Where(folder => !Ancestors(folder).Any(lines.Contains))
+			.Select(folder => folder + "/")
+			.ToList();
 
-		if (!listed && prompt.Confirm($"Keep vendored packages out of git ({entry} in .gitignore, {Fmt.File(LockFile.FileName)} pins them)"))
+		if (missing.Count > 0 && prompt.Confirm($"Keep vendored packages out of git ({string.Join(", ", missing)} in .gitignore, {Fmt.File(LockFile.FileName)} pins them)"))
 		{
-			File.WriteAllText(path, text.TrimEnd('\r', '\n') + "\n" + entry + "\n");
+			File.WriteAllText(path, text.TrimEnd('\r', '\n') + "\n" + string.Join("\n", missing) + "\n");
+		}
+	}
+
+	static IEnumerable<string> Ancestors(string folder)
+	{
+		string[] segments = folder.Split('/');
+
+		for (int count = 1; count <= segments.Length; count++)
+		{
+			yield return string.Join('/', segments[..count]);
 		}
 	}
 }

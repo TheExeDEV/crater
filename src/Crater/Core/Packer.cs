@@ -25,8 +25,6 @@ public static class Packer
 
 	static readonly DateTimeOffset FixedTime = new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-	public const string VendorFolder = "_vendor";
-
 	static readonly string[] RootDocuments = ["README*", "LICENSE*", "LICENCE*", "COPYING*", "CHANGELOG*"];
 
 	public static string Root(Project project)
@@ -60,8 +58,7 @@ public static class Packer
 		bool built = root != project.Directory;
 		List<Pattern> patterns = DefaultExclude
 			.Concat(project.Config.ConfiguredFolders().Select(pair => pair.Folder + "/"))
-			.Append(project.Config.Vendor + "/")
-			.Append(VendorFolder + "/")
+			.Concat(project.Config.VendorFolders().Select(pair => pair.Folder + "/"))
 			.Concat(project.Manifest.ExcludedFiles)
 			.Select(Pattern.Create)
 			.ToList();
@@ -148,19 +145,19 @@ public static class Packer
 
 	public static List<LockedPackage> Vendored(Project project)
 	{
-		if (!project.Manifest.HasVendored)
+		if (!project.Manifest.PacksVendored)
 		{
 			return [];
 		}
 
 		LockFile lockFile = LockFile.Load(project.LockPath);
 
-		return Manifest.VendorRealms.SelectMany(lockFile.VendorFor).ToList();
+		return Manifest.PackedVendorRealms.SelectMany(lockFile.VendorFor).ToList();
 	}
 
 	static void AddVendored(Project project, Dictionary<string, string> sources)
 	{
-		if (!project.Manifest.HasVendored)
+		if (!project.Manifest.PacksVendored)
 		{
 			return;
 		}
@@ -168,7 +165,7 @@ public static class Packer
 		LockFile lockFile = LockFile.Load(project.LockPath);
 		string install = $"Run {Fmt.Cmd("crater install")} in {Fmt.File(project.Directory)} first";
 
-		foreach (Realm realm in Manifest.VendorRealms)
+		foreach (Realm realm in Manifest.PackedVendorRealms)
 		{
 			List<string> wanted = project.Manifest.AllVendored()
 				.Where(item => item.Realm == realm)
@@ -194,7 +191,7 @@ public static class Packer
 			string folder = project.Abs(folderName);
 			HashSet<string> installed = PackageLayout.ReadMarker(folder).Keys.Where(key => !key.StartsWith('#')).ToHashSet();
 
-			if (!installed.SetEquals(locked.Select(package => package.Id)))
+			if (!installed.SetEquals(locked.Select(package => package.Id)) || !File.Exists(Path.Combine(folder, PackageLayout.VendorMarkerFile)))
 			{
 				throw new CraterException($"{Fmt.File(folderName)} does not hold the vendored versions from {Fmt.File(LockFile.FileName)}. {install}.");
 			}
@@ -205,7 +202,7 @@ public static class Packer
 
 				if (relative != PackageLayout.MarkerFile)
 				{
-					sources[$"{VendorFolder}/{realm.Key()}/{relative}"] = file;
+					sources[$"{folderName}/{relative}"] = file;
 				}
 			}
 		}

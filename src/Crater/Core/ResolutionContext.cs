@@ -79,7 +79,7 @@ public sealed class ResolutionContext
 			graphs[realm] = await context.ResolveRealmAsync(realm);
 		}
 
-		foreach (Realm realm in Manifest.VendorRealms)
+		foreach (Realm realm in Realms.All)
 		{
 			vendor[realm] = await context.ResolveVendorAsync(realm);
 		}
