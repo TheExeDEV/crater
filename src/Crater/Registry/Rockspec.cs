@@ -142,7 +142,19 @@ public sealed partial class Rockspec
 			return null;
 		}
 
-		string padded = string.Join('.', numbers.Concat(Enumerable.Repeat("0", 3 - numbers.Length)).Select(part => int.Parse(part).ToString()));
+		List<int> parsed = [];
+
+		foreach (string part in numbers)
+		{
+			if (!int.TryParse(part, out int number))
+			{
+				return null;
+			}
+
+			parsed.Add(number);
+		}
+
+		string padded = string.Join('.', parsed.Concat(Enumerable.Repeat(0, 3 - parsed.Count)));
 
 		return SemVer.TryParse(padded, out SemVer version) ? version : null;
 	}

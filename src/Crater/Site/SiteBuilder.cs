@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Crater.Core;
 using Crater.Registry;
@@ -96,7 +97,9 @@ public static class SiteBuilder
 			Json.WriteText(pagePath, Json.Serialize(page));
 		}
 
-		if (!Http.Offline && Environment.GetEnvironmentVariable("CRATER_SITE_NO_EXTERNAL") is not { Length: > 0 })
+		bool external = !Http.Offline && Environment.GetEnvironmentVariable("CRATER_SITE_NO_EXTERNAL") is not { Length: > 0 };
+
+		if (external)
 		{
 			Catalog? ember = new EmberRegistry(EmberRegistry.RawIndex).ListAsync("", 500).GetAwaiter().GetResult();
 
@@ -106,12 +109,41 @@ public static class SiteBuilder
 			}
 		}
 
+		WriteSources(root, data, external);
+
 		List<RecentRelease> recent = SiteFeed.Recent(root, icons);
 
 		Json.WriteText(Path.Combine(data, SiteFeed.RecentFile), Json.Serialize(recent));
 		File.WriteAllText(Path.Combine(target, SiteFeed.FeedFile), SiteFeed.Rss(info, recent));
 
 		return catalog.Packages.Count;
+	}
+
+	static void WriteSources(string root, string data, bool external)
+	{
+		JsonArray registries = [];
+
+		foreach (RegistrySource source in RegistrySources.All)
+		{
+			string? catalogFile = null;
+			Catalog? listing = external && Registries.Open(NamedRegistries.Location(source.Name, null), root) is IListedRegistry listed
+				? listed.ListAllAsync().GetAwaiter().GetResult()
+				: null;
+
+			if (listing is { Packages.Count: > 0 })
+			{
+				JsonArray packages = new(listing.Packages
+					.Select(entry => (JsonNode)new JsonObject { ["name"] = entry.Name, ["latest"] = entry.Latest, ["description"] = entry.Description })
+					.ToArray());
+
+				catalogFile = $"data/sources/{source.Name}.json";
+				Json.WriteText(Path.Combine(data, "sources", source.Name + ".json"), new JsonObject { ["packages"] = packages }.ToJsonString());
+			}
+
+			registries.Add(RegistrySources.Describe(source, catalogFile));
+		}
+
+		Json.WriteText(Path.Combine(data, "registries.json"), Json.Serialize(new JsonObject { ["registries"] = registries }));
 	}
 
 	static Dictionary<string, string> WriteIcons(string root, string target)

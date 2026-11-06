@@ -7,7 +7,7 @@ using Crater.Versioning;
 
 namespace Crater.Registry;
 
-public sealed class EmberRegistry(string indexUrl) : IRegistry
+public sealed class EmberRegistry(string indexUrl) : IRegistry, IListedRegistry
 {
 	public const string DefaultIndex = "https://github.com/ember-luau/index";
 	public const string RawIndex = "https://raw.githubusercontent.com/ember-luau/index/main";
@@ -222,6 +222,8 @@ public sealed class EmberRegistry(string indexUrl) : IRegistry
 	{
 		return await ListAsync(query, 40);
 	}
+
+	public Task<Catalog?> ListAllAsync() => ListAsync("", 500);
 
 	public async Task<Catalog?> ListAsync(string query, int limit)
 	{

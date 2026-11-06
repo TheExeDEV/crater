@@ -10,7 +10,7 @@ using Crater.Versioning;
 
 namespace Crater.Registry;
 
-public sealed class LuarocksRegistry(string url) : IRegistry
+public sealed class LuarocksRegistry(string url) : IRegistry, IListedRegistry
 {
 	public const string DefaultUrl = "https://luarocks.org";
 	public const string Scope = "rocks";
@@ -85,7 +85,7 @@ public sealed class LuarocksRegistry(string url) : IRegistry
 		{
 			return new Rock(name, rockVersion, arches, Rockspec.Parse(Encoding.UTF8.GetString(data)));
 		}
-		catch (Exception exception) when (exception is FormatException or ArgumentException or InvalidOperationException)
+		catch (Exception exception) when (exception is FormatException or ArgumentException or InvalidOperationException or OverflowException)
 		{
 			return null;
 		}
@@ -388,6 +388,48 @@ public sealed class LuarocksRegistry(string url) : IRegistry
 		};
 	}
 
+	public async Task<Catalog?> ListAllAsync()
+	{
+		List<CatalogEntry> packages = [];
+
+		foreach ((string name, Dictionary<string, string[]> versions) in (await RepositoryAsync()).OrderBy(pair => pair.Key, StringComparer.Ordinal))
+		{
+			string? latest = versions.Keys
+				.Where(version => versions[version].Contains("rockspec") && Rockspec.ToSemVer(version) is not null)
+				.OrderByDescending(version => Rockspec.ToSemVer(version)!)
+				.ThenByDescending(Rockspec.Revision)
+				.FirstOrDefault();
+
+			if (latest is null)
+			{
+				continue;
+			}
+
+			packages.Add(new CatalogEntry
+			{
+				Name = $"{Scope}/{name}",
+				Latest = Rockspec.ToSemVer(latest)!.ToString(),
+				Description = CachedSummary(name, latest),
+			});
+		}
+
+		return new Catalog { Packages = packages, GeneratedAt = DateTimeOffset.UtcNow };
+	}
+
+	string CachedSummary(string name, string rockVersion)
+	{
+		string path = CachePath($"{url}/{name}-{rockVersion}.rockspec");
+
+		try
+		{
+			return File.Exists(path) ? Rockspec.Parse(File.ReadAllText(path)).Summary : "";
+		}
+		catch (Exception exception) when (exception is FormatException or ArgumentException or InvalidOperationException or OverflowException)
+		{
+			return "";
+		}
+	}
+
 	public Task PublishAsync(RegistryRelease release, byte[] archive)
 	{
 		throw new CraterException("crater cannot publish to LuaRocks. Publish there with luarocks upload.");
@@ -418,9 +460,14 @@ public sealed class LuarocksRegistry(string url) : IRegistry
 		return result;
 	}
 
+	static string CachePath(string address)
+	{
+		return Path.Combine(CraterPaths.Cache, "luarocks", Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(address))));
+	}
+
 	async Task<byte[]?> ImmutableAsync(string address)
 	{
-		string path = Path.Combine(CraterPaths.Cache, "luarocks", Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(address))));
+		string path = CachePath(address);
 
 		if (File.Exists(path))
 		{
