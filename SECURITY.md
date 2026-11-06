@@ -17,10 +17,7 @@ crater self-update
 
 Do not open a public issue for a vulnerability.
 
-Report it privately in one of these ways:
-
-- GitHub: open the [Security tab](https://github.com/TheExeDEV/crater/security) of this repository and press **Report a vulnerability**, or go straight to [a new advisory](https://github.com/TheExeDEV/crater/security/advisories/new). Only the maintainers see the report.
-- Discord: send a direct message to `@__ncall`.
+Report it privately through GitHub: open the [Security tab](https://github.com/TheExeDEV/crater/security) of this repository and press **Report a vulnerability**, or go straight to [a new advisory](https://github.com/TheExeDEV/crater/security/advisories/new). Only the maintainers see the report.
 
 Please include:
 
