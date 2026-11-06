@@ -380,6 +380,13 @@ public sealed class RegistryFeatureTests : IDisposable
 		Assert.Contains("\"icon\": \"data/icons/t/pretty.png\"", File.ReadAllText(Path.Combine(site, "data", "packages.json")));
 		Assert.Contains("<title>t/pretty 1.0.0</title>", File.ReadAllText(Path.Combine(site, "feed.xml")));
 		Assert.Contains("\"first\": true", File.ReadAllText(Path.Combine(site, "data", "recent.json")));
+
+		JsonArray registries = JsonNode.Parse(File.ReadAllText(Path.Combine(site, "data", "registries.json")))!["registries"]!.AsArray();
+		JsonObject luarocks = registries.Single(item => item!["name"]!.GetValue<string>() == "luarocks")!.AsObject();
+
+		Assert.Equal(["wally", "pesde", "forest", "ember", "luarocks"], registries.Select(item => item!["name"]!.GetValue<string>()));
+		Assert.Equal("luarocks#", luarocks["prefix"]!.GetValue<string>());
+		Assert.Null(luarocks["catalog"]);
 	}
 
 	[Fact]
