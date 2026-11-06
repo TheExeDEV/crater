@@ -326,6 +326,39 @@ public sealed class VendorTests : IDisposable
 	}
 
 	[Fact]
+	public void PackagesPackedByVersion074KeepTheirVendorFolder()
+	{
+		Dictionary<string, string> files = new()
+		{
+			[Manifest.FileName] = "{ \"name\": \"t/lib\", \"version\": \"1.0.0\", \"path_to_main\": \"src/init.luau\" }",
+			["src/init.luau"] = "return require(script.Parent._vendor.client.promise)\n",
+			["_vendor/client/promise.luau"] = "return require(script.Parent._Index.promise)\n",
+			["_vendor/client/_Index/promise/init.luau"] = "return {}\n",
+			["_vendor/client/_Index/promise/LICENSE"] = "MIT\n",
+		};
+
+		using MemoryStream stream = new();
+
+		using (System.IO.Compression.ZipArchive archive = new(stream, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+		{
+			foreach ((string path, string text) in files)
+			{
+				using StreamWriter writer = new(archive.CreateEntry(path).Open());
+				writer.Write(text);
+			}
+		}
+
+		string content = Path.Combine(root, "extracted");
+		Manifest manifest = Json.Parse<Manifest>(files[Manifest.FileName], Manifest.FileName);
+
+		PackageFiles.ExtractPrepared(stream.ToArray(), content, "t/lib@1.0.0", "lib", manifest, quiet: true);
+
+		Assert.True(File.Exists(Path.Combine(content, "_vendor", "client", "promise.luau")));
+		Assert.True(File.Exists(Path.Combine(content, "_vendor", "client", "_Index", "promise", "init.luau")));
+		Assert.True(File.Exists(Path.Combine(content, "_vendor", "client", "_Index", "promise", "LICENSE")));
+	}
+
+	[Fact]
 	public void PackageRootPacksTheBuiltFolder()
 	{
 		string library = Project("lib", "t/lib", "1.0.0", manifest => manifest["package_root"] = "bin/core", new()

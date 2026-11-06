@@ -114,6 +114,7 @@ public static class PackageFiles
 		List<string> vendorFolders = paths
 			.Where(path => path == PackageLayout.VendorMarkerFile || path.EndsWith("/" + PackageLayout.VendorMarkerFile, StringComparison.Ordinal))
 			.Select(path => path[..^PackageLayout.VendorMarkerFile.Length])
+			.Append(PackageLayout.LegacyVendorFolder + "/")
 			.ToList();
 
 		HashSet<string> definitionTops = paths
@@ -331,7 +332,7 @@ public static class PackageFiles
 
 	static void Trim(string content, Manifest manifest, string id)
 	{
-		HashSet<string> keep = new(StringComparer.OrdinalIgnoreCase);
+		HashSet<string> keep = new(StringComparer.OrdinalIgnoreCase) { PackageLayout.LegacyVendorFolder };
 
 		foreach (string marker in Directory.EnumerateFiles(content, PackageLayout.VendorMarkerFile, SearchOption.AllDirectories))
 		{

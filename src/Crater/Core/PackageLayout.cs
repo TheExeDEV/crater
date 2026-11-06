@@ -8,6 +8,7 @@ public sealed class PackageLayout
 {
 	public const string MarkerFile = ".crater";
 	public const string VendorMarkerFile = ".crater-vendor";
+	public const string LegacyVendorFolder = "_vendor";
 	public const string IsolatedFolder = "_Isolated";
 
 	public Dictionary<ResolvedPackage, string> Folders { get; } = [];
