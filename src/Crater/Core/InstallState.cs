@@ -35,9 +35,12 @@ public static class InstallState
 			}
 		}
 
-		builder.Append("vendor ").Append(project.Config.Vendor).Append('\n');
+		foreach ((Realm realm, string folder) in project.Config.VendorFolders())
+		{
+			builder.Append("vendor ").Append(realm.Key()).Append('=').Append(folder).Append(' ').Append(project.Config.VendorAlias(realm)).Append('\n');
+		}
 
-		foreach (Realm realm in Manifest.VendorRealms)
+		foreach (Realm realm in Realms.All)
 		{
 			foreach (string dependency in manifest.VendorFor(realm))
 			{
@@ -72,7 +75,7 @@ public static class InstallState
 			}
 		}
 
-		foreach (Realm realm in Manifest.VendorRealms)
+		foreach (Realm realm in Realms.All)
 		{
 			if (!FolderMatches(project, project.Config.VendorFolder(realm), lockFile.VendorFor(realm).Select(package => package.Id).ToList()))
 			{

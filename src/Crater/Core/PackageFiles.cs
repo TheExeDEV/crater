@@ -111,6 +111,11 @@ public static class PackageFiles
 
 	public static Func<string, bool> NeededFilter(List<string> paths, string? codeTop)
 	{
+		List<string> vendorFolders = paths
+			.Where(path => path == PackageLayout.VendorMarkerFile || path.EndsWith("/" + PackageLayout.VendorMarkerFile, StringComparison.Ordinal))
+			.Select(path => path[..^PackageLayout.VendorMarkerFile.Length])
+			.ToList();
+
 		HashSet<string> definitionTops = paths
 			.Where(path => path.EndsWith(".d.luau", StringComparison.OrdinalIgnoreCase) && path.Contains('/'))
 			.Select(path => path.Split('/')[0])
@@ -122,7 +127,7 @@ public static class PackageFiles
 			string name = segments[^1];
 			bool atRoot = segments.Length == 1;
 
-			if (!atRoot && segments[0] == Packer.VendorFolder)
+			if (vendorFolders.Any(folder => folder.Length > 0 && path.StartsWith(folder, StringComparison.Ordinal)))
 			{
 				return true;
 			}
@@ -326,7 +331,13 @@ public static class PackageFiles
 
 	static void Trim(string content, Manifest manifest, string id)
 	{
-		HashSet<string> keep = new(StringComparer.OrdinalIgnoreCase) { Packer.VendorFolder };
+		HashSet<string> keep = new(StringComparer.OrdinalIgnoreCase);
+
+		foreach (string marker in Directory.EnumerateFiles(content, PackageLayout.VendorMarkerFile, SearchOption.AllDirectories))
+		{
+			keep.Add(Path.GetRelativePath(content, marker).Replace('\\', '/').Split('/')[0]);
+		}
+
 		string? onlyCode = CodeRoot(content, manifest, id);
 
 		foreach (string definition in Definitions(content, manifest))
@@ -418,7 +429,7 @@ public static class PackageFiles
 		{
 			string name = Path.GetFileName(child);
 
-			if (atRoot && keep.Contains(name))
+			if ((atRoot && keep.Contains(name)) || File.Exists(Path.Combine(child, PackageLayout.VendorMarkerFile)))
 			{
 				continue;
 			}

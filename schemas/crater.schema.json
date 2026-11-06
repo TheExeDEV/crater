@@ -130,17 +130,29 @@
     "vendor_packages": {
       "type": "object",
       "properties": {
+        "import_client": {
+          "$ref": "#/definitions/dependencies",
+          "description": "Vendored dependencies for client and shared code, installed into vendor.client.path from crater.settings.json (_vendor/client by default) and shipped inside the package at the same path."
+        },
+        "import_server": {
+          "$ref": "#/definitions/dependencies",
+          "description": "Vendored dependencies for server code, installed into vendor.server.path (_vendor/server by default) and shipped inside the package. They travel with the package, so they replicate wherever it goes."
+        },
+        "import_develop": {
+          "$ref": "#/definitions/dependencies",
+          "description": "Vendored dependencies for development only, installed into vendor.develop.path (_vendor/develop by default) and never shipped."
+        },
         "client": {
           "$ref": "#/definitions/dependencies",
-          "description": "Vendored dependencies for client and shared code, installed into _vendor/client."
+          "description": "Old name of import_client from crater 0.7.4, still read."
         },
         "server": {
           "$ref": "#/definitions/dependencies",
-          "description": "Vendored dependencies for server code, installed into _vendor/server. They ship with the package, so they replicate wherever the package goes."
+          "description": "Old name of import_server from crater 0.7.4, still read."
         }
       },
       "additionalProperties": false,
-      "description": "Dependencies shipped inside this package instead of installed by the consumer. pack copies the locked versions, their dependencies and their licenses into _vendor/<realm>/ in the archive. Consumers do not resolve them, so their own versions never conflict. A package that keeps state (Promise, signals) becomes a second copy."
+      "description": "Internal dependencies of this package: crater installs them like import_* but into their own folders, and the package ships them inside itself. Consumers never resolve them, so the package keeps working with the versions it was written for, whatever the consumer installs. A package that keeps state (Promise, signals) becomes a second copy."
     },
     "overrides": {
       "$ref": "#/definitions/dependencies",

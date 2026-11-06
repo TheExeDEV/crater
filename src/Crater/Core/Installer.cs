@@ -86,7 +86,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 
 		if (project.Config.OnInstallUpdateLuaurc)
 		{
-			LuauRc.Update(project, graphs, prompt);
+			LuauRc.Update(project, everything, prompt);
 		}
 
 		if (project.Config.OnInstallUpdateVscodeLuauDefinitionFiles || (project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project)))
@@ -99,10 +99,7 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 			RojoSourcemap.Refresh(project);
 		}
 
-		if (vendor.Values.Any(graph => graph.All.Count > 0))
-		{
-			Layout.IgnoreVendor(project, prompt);
-		}
+		Layout.IgnoreVendor(project, vendor.Values.Where(graph => graph.All.Count > 0).Select(graph => graph.VendorFolder!).ToList(), prompt);
 
 		WriteLock(newLock);
 		InstallSummary.Print(oldLock, newLock, watch.Elapsed);

@@ -61,9 +61,14 @@ public static class PublishCommands
 			return;
 		}
 
-		string list = string.Join(", ", vendored.Select(package => Fmt.Pkg(package.Id)).Distinct());
+		foreach (IGrouping<string, LockedPackage> realm in vendored.GroupBy(package => package.Realm))
+		{
+			string folder = project.Config.VendorFolder(Realms.ParseKey(realm.Key));
+			string list = string.Join(", ", realm.Select(package => Fmt.Pkg(package.Id)).Distinct());
 
-		Out.Info($"  vendored into {Fmt.File($"{Packer.VendorFolder}/<realm>")}: {list}");
+			Out.Info($"  vendored into {Fmt.File(folder)}: {list}");
+		}
+
 		Out.Dim("  Consumers get these as private copies. A package that keeps state (Promise, signals, stores) is a separate copy from the one the game uses, so do not pass its objects across.");
 	}
 

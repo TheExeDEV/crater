@@ -142,9 +142,12 @@ public static partial class Darklua
 			aliases["@" + name] = target;
 		}
 
-		foreach ((Realm realm, string folder) in project.Config.ConfiguredFolders())
+		foreach ((Realm _, string folder, string alias, bool vendor) in project.Config.AliasedFolders())
 		{
-			aliases["@" + project.Config.AliasFor(realm, folder)] = "./" + folder;
+			if (!vendor || Directory.Exists(project.Abs(folder)))
+			{
+				aliases["@" + alias] = "./" + folder;
+			}
 		}
 
 		current["aliases"] = aliases.DeepClone();

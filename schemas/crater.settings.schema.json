@@ -60,9 +60,19 @@
       "description": "Which tool syncs the project with Studio. auto picks rojo when default.project.json exists and azul when a sync folder exists. With azul, crater push and crater dev send the package folders into Studio."
     },
     "vendor": {
-      "type": "string",
-      "default": "_vendor",
-      "description": "Folder for vendor_packages, with client/ and server/ inside. The default matches the _vendor folder in packed archives, so require paths are the same during development and for consumers."
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "client": { "$ref": "#/definitions/folder", "description": "Where vendor_packages.import_client goes, _vendor/client by default." },
+            "server": { "$ref": "#/definitions/folder", "description": "Where vendor_packages.import_server goes, _vendor/server by default." },
+            "develop": { "$ref": "#/definitions/folder", "description": "Where vendor_packages.import_develop goes, _vendor/develop by default." }
+          },
+          "additionalProperties": false
+        },
+        { "type": "string", "description": "Old form from crater 0.7.4: one folder with client, server and develop inside." }
+      ],
+      "description": "Folders for vendor_packages, in the same form as client, server and develop. An empty path uses _vendor/<realm>, an empty alias the folder name. pack puts vendored packages at the same paths inside the package, so require paths are the same during development and for consumers."
     },
     "darklua": {
       "type": "boolean",
