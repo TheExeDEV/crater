@@ -69,12 +69,15 @@ public static partial class DocLanguage
 
 	public static void Require(string root, IEnumerable<string> files)
 	{
+		Require(files.Select(relative => (relative, Path.Combine(root, relative))));
+	}
+
+	public static void Require(IEnumerable<(string Relative, string Path)> files)
+	{
 		List<string> problems = [];
 
-		foreach (string relative in files.Where(IsDocument))
+		foreach ((string relative, string path) in files.Where(file => IsDocument(file.Relative)))
 		{
-			string path = Path.Combine(root, relative);
-
 			if (new FileInfo(path).Length > 2 * 1024 * 1024)
 			{
 				continue;

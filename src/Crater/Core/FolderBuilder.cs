@@ -14,14 +14,14 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			.Select(package => LockedPackage.From(graph.Realm, graph, package, project.Directory))
 			.ToList();
 
-		List<LockedPackage> previous = oldLock.For(graph.Realm).ToList();
+		List<LockedPackage> previous = oldLock.ForGraph(graph).ToList();
 
 		if (Json.Serialize(current) != Json.Serialize(previous))
 		{
 			return false;
 		}
 
-		string? folderName = project.Config.TryFolderFor(graph.Realm);
+		string? folderName = FolderOf(graph);
 
 		if (folderName is null)
 		{
@@ -59,7 +59,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 	public HashSet<ResolvedPackage> PackagesToExtract(ResolvedGraph graph)
 	{
-		string? folderName = project.Config.TryFolderFor(graph.Realm);
+		string? folderName = FolderOf(graph);
 
 		if (folderName is null || graph.All.Count == 0)
 		{
@@ -90,15 +90,15 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 	{
 		if (graph.All.Count == 0)
 		{
-			RemoveEmpty(graph.Realm);
+			RemoveEmpty(graph);
 			return;
 		}
 
-		string folderName = project.Config.FolderFor(graph.Realm);
+		string folderName = graph.VendorFolder ?? project.Config.FolderFor(graph.Realm);
 		string folder = project.Abs(folderName);
 		PackageLayout layout = PackageLayout.Plan(graph, folderName);
 
-		EnsureManaged(graph.Realm, folderName, folder);
+		EnsureManaged(FolderField(graph), folderName, folder);
 
 		HashSet<ResolvedPackage> changed = PackagesToExtract(graph);
 		bool full = changed.Count == graph.All.Count;
@@ -153,9 +153,13 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 	sealed record Extracted(PackageEntry Entry, List<TypeExport> Types);
 
-	void RemoveEmpty(Realm realm)
+	string? FolderOf(ResolvedGraph graph) => graph.VendorFolder ?? project.Config.TryFolderFor(graph.Realm);
+
+	static string FolderField(ResolvedGraph graph) => graph.IsVendor ? "vendor" : ProjectConfig.FolderField(graph.Realm);
+
+	void RemoveEmpty(ResolvedGraph graph)
 	{
-		string? folderName = project.Config.TryFolderFor(realm);
+		string? folderName = FolderOf(graph);
 
 		if (folderName is null)
 		{
@@ -169,13 +173,24 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 			return;
 		}
 
-		if (prompt.Confirm($"Delete folder {Fmt.File(folderName)} ({realm.ManifestField()} is now empty)"))
+		string field = graph.IsVendor ? Manifest.VendorField(graph.Realm) : graph.Realm.ManifestField();
+
+		if (!prompt.Confirm($"Delete folder {Fmt.File(folderName)} ({field} is now empty)"))
 		{
-			Directory.Delete(folder, recursive: true);
+			return;
+		}
+
+		Directory.Delete(folder, recursive: true);
+
+		string? parent = Path.GetDirectoryName(folder);
+
+		if (graph.IsVendor && parent is not null && Directory.Exists(parent) && !Directory.EnumerateFileSystemEntries(parent).Any())
+		{
+			Directory.Delete(parent);
 		}
 	}
 
-	static void EnsureManaged(Realm realm, string folderName, string folder)
+	static void EnsureManaged(string field, string folderName, string folder)
 	{
 		if (!Directory.Exists(folder))
 		{
@@ -191,7 +206,7 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 
 		throw new CraterException(
 			$"Folder {Fmt.File(folderName)} exists, is not empty and was not created by crater. " +
-			$"Rename it or set a different {ProjectConfig.FolderField(realm)} in {Fmt.File(ProjectConfig.FileName)}.");
+			$"Rename it or set a different {field} in {Fmt.File(ProjectConfig.FileName)}.");
 	}
 
 	Dictionary<ResolvedPackage, Extracted> ExtractPackages(

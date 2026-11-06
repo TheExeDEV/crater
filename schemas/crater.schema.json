@@ -96,6 +96,10 @@
       ],
       "description": "Where this package may run in Roblox. A server package cannot go into import_client and a client package cannot go into import_server. Monorepository packages added \"as the package says\" go where this points."
     },
+    "package_root": {
+      "type": "string",
+      "description": "Folder to pack and publish instead of the project folder, for example bin/core with the output of a build. crater.json, README and LICENSE come from the project folder, path_to_main is relative to this folder and .gitignore does not apply inside it. A \"prepack\" script runs before pack and publish."
+    },
     "path_to_main": {
       "type": "string",
       "description": "Entry module, for example src/init.luau. Empty or a folder without init.luau makes the package a collection of modules."
@@ -123,6 +127,21 @@
       "$ref": "#/definitions/dependencies",
       "description": "Dependencies only for development (tests, tools), installed into the dev folder and never passed on to projects that use this package."
     },
+    "vendor_packages": {
+      "type": "object",
+      "properties": {
+        "client": {
+          "$ref": "#/definitions/dependencies",
+          "description": "Vendored dependencies for client and shared code, installed into _vendor/client."
+        },
+        "server": {
+          "$ref": "#/definitions/dependencies",
+          "description": "Vendored dependencies for server code, installed into _vendor/server. They ship with the package, so they replicate wherever the package goes."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Dependencies shipped inside this package instead of installed by the consumer. pack copies the locked versions, their dependencies and their licenses into _vendor/<realm>/ in the archive. Consumers do not resolve them, so their own versions never conflict. A package that keeps state (Promise, signals) becomes a second copy."
+    },
     "overrides": {
       "$ref": "#/definitions/dependencies",
       "description": "Force one version (or a local or git copy) of a package for the whole dependency tree, for example when two packages need different versions of Promise: [\"evaera/promise^4.1.0\"]."
@@ -139,7 +158,7 @@
       "additionalProperties": {
         "type": "string"
       },
-      "description": "Commands for crater run, for example { \"build\": \"rojo build -o game.rbxl\" }."
+      "description": "Commands for crater run, for example { \"build\": \"rojo build -o game.rbxl\" }. A \"prepack\" script runs before crater pack and crater publish."
     },
     "tools": {
       "type": "object",

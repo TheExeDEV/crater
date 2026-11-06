@@ -14,6 +14,7 @@ public static class PublishCommands
 		Project project = Common.LoadProject();
 
 		project.Manifest.ValidateForPublish();
+		RunPrepack(project);
 
 		byte[] archive = Packer.Pack(project, out List<string> files);
 		string defaultName = $"{project.Manifest.Name.Replace('/', '_')}@{project.Manifest.Version}.zip";
@@ -31,6 +32,39 @@ public static class PublishCommands
 		string size = $"{archive.Length / 1024.0:0.0} KB";
 
 		Out.Ok($"{Fmt.File(output)} ({Fmt.Plural(files.Count, "file", "files")}, {size}, sha256 {Fmt.Val(PackageCache.Sha256(archive))})");
+		DescribeVendored(project);
+	}
+
+	static void RunPrepack(Project project)
+	{
+		if (project.Manifest.Scripts?.GetValueOrDefault(Packer.PrepackScript) is not string script)
+		{
+			return;
+		}
+
+		Out.Step(Fmt.Cmd(script));
+
+		int code = Shell.RunInteractive(script, project.Directory, ProjectCommands.ScriptEnvironment(project));
+
+		if (code != 0)
+		{
+			throw new CraterException($"The {Fmt.Cmd(Packer.PrepackScript)} script failed with exit code {code}, nothing was packed.");
+		}
+	}
+
+	static void DescribeVendored(Project project)
+	{
+		List<LockedPackage> vendored = Packer.Vendored(project);
+
+		if (vendored.Count == 0)
+		{
+			return;
+		}
+
+		string list = string.Join(", ", vendored.Select(package => Fmt.Pkg(package.Id)).Distinct());
+
+		Out.Info($"  vendored into {Fmt.File($"{Packer.VendorFolder}/<realm>")}: {list}");
+		Out.Dim("  Consumers get these as private copies. A package that keeps state (Promise, signals, stores) is a separate copy from the one the game uses, so do not pass its objects across.");
 	}
 
 	public static async Task PublishAsync(Args args)
@@ -55,6 +89,7 @@ public static class PublishCommands
 		}
 
 		manifest.ValidateForPublish();
+		RunPrepack(project);
 
 		IRegistry registry = project.OpenPublishRegistry() ?? project.RequireRegistry();
 		GitHubRepository? github = GitHubRepository.FromRegistry(Registries.Expand(project.RegistryLocation!));
@@ -69,6 +104,7 @@ public static class PublishCommands
 		byte[] archive = Packer.Pack(project, out List<string> files);
 
 		DescribeEntry(project);
+		DescribeVendored(project);
 		ScanBeforePublish(archive, $"{manifest.Name}@{manifest.Version}");
 
 		RegistryRelease release = new()
@@ -142,7 +178,8 @@ public static class PublishCommands
 
 	static void DescribeEntry(Project project)
 	{
-		string rojoProject = Path.Combine(project.Directory, PackageEntry.RojoProject);
+		string root = Packer.Root(project);
+		string rojoProject = Path.Combine(root, PackageEntry.RojoProject);
 
 		if (File.Exists(rojoProject) && File.ReadAllText(rojoProject).Contains("\"DataModel\""))
 		{
@@ -151,12 +188,12 @@ public static class PublishCommands
 				$"Add it to {Fmt.Val("exclude")} in {Fmt.File(Manifest.FileName)}.");
 		}
 
-		PackageEntry entry = PackageEntry.Analyze(project.Directory, project.Manifest.PathToMain, project.Manifest.Name);
+		PackageEntry entry = PackageEntry.Analyze(root, project.Manifest.PathToMain, project.Manifest.Name);
 
 		switch (entry.Kind)
 		{
 			case EntryKind.Module:
-				Out.Dim($"  entry: {Path.GetRelativePath(project.Directory, entry.MainFile!).Replace('\\', '/')}");
+				Out.Dim($"  entry: {Path.GetRelativePath(root, entry.MainFile!).Replace('\\', '/')}");
 				break;
 
 			case EntryKind.Collection:

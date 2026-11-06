@@ -35,6 +35,16 @@ public static class InstallState
 			}
 		}
 
+		builder.Append("vendor ").Append(project.Config.Vendor).Append('\n');
+
+		foreach (Realm realm in Manifest.VendorRealms)
+		{
+			foreach (string dependency in manifest.VendorFor(realm))
+			{
+				builder.Append("vendored ").Append(realm.Key()).Append(' ').Append(dependency).Append('\n');
+			}
+		}
+
 		builder.Append("scripts ").Append(manifest.ScriptsBlocked).Append(' ').Append(string.Join(',', manifest.ScriptsAllowedFrom)).Append('\n');
 
 		foreach (string item in manifest.Overrides ?? [])
@@ -47,7 +57,7 @@ public static class InstallState
 
 	public static bool IsCurrent(Project project, LockFile lockFile)
 	{
-		bool hasMovingSources = lockFile.Packages.Any(package => package.Source is not null) || project.Workspace is not null;
+		bool hasMovingSources = lockFile.Everything.Any(package => package.Source is not null) || project.Workspace is not null;
 
 		if (hasMovingSources || lockFile.ManifestHash != ManifestHash(project))
 		{
@@ -56,46 +66,46 @@ public static class InstallState
 
 		foreach (Realm realm in Realms.All)
 		{
-			List<string> ids = lockFile.For(realm).Select(package => package.Id).ToList();
-			string? folderName = project.Config.TryFolderFor(realm);
-
-			if (folderName is null)
-			{
-				if (ids.Count > 0)
-				{
-					return false;
-				}
-
-				continue;
-			}
-
-			string folder = project.Abs(folderName);
-
-			if (ids.Count == 0)
-			{
-				if (PackageLayout.IsManaged(folder))
-				{
-					return false;
-				}
-
-				continue;
-			}
-
-			Dictionary<string, string> marker = PackageLayout.ReadMarker(folder);
-			string patches = marker.GetValueOrDefault(Patches.MarkerKey, "");
-			HashSet<string> installed = marker.Keys.Where(key => !key.StartsWith('#')).ToHashSet();
-
-			if (!installed.SetEquals(ids) || patches != Patches.Fingerprint(project, ids))
+			if (!FolderMatches(project, project.Config.TryFolderFor(realm), lockFile.For(realm).Select(package => package.Id).ToList()))
 			{
 				return false;
 			}
+		}
 
-			if (marker.Where(pair => !pair.Key.StartsWith('#')).Any(pair => !Directory.Exists(Path.Combine(folder, pair.Value))))
+		foreach (Realm realm in Manifest.VendorRealms)
+		{
+			if (!FolderMatches(project, project.Config.VendorFolder(realm), lockFile.VendorFor(realm).Select(package => package.Id).ToList()))
 			{
 				return false;
 			}
 		}
 
 		return true;
+	}
+
+	static bool FolderMatches(Project project, string? folderName, List<string> ids)
+	{
+		if (folderName is null)
+		{
+			return ids.Count == 0;
+		}
+
+		string folder = project.Abs(folderName);
+
+		if (ids.Count == 0)
+		{
+			return !PackageLayout.IsManaged(folder);
+		}
+
+		Dictionary<string, string> marker = PackageLayout.ReadMarker(folder);
+		string patches = marker.GetValueOrDefault(Patches.MarkerKey, "");
+		HashSet<string> installed = marker.Keys.Where(key => !key.StartsWith('#')).ToHashSet();
+
+		if (!installed.SetEquals(ids) || patches != Patches.Fingerprint(project, ids))
+		{
+			return false;
+		}
+
+		return marker.Where(pair => !pair.Key.StartsWith('#')).All(pair => Directory.Exists(Path.Combine(folder, pair.Value)));
 	}
 }

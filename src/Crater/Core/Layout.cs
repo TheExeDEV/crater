@@ -1,4 +1,5 @@
 using Crater.Models;
+using Crater.Util;
 
 namespace Crater.Core;
 
@@ -56,5 +57,24 @@ public static class Layout
 	public static IEnumerable<string> ManagedPrefixes(Project project)
 	{
 		return project.Config.ConfiguredFolders().Select(pair => $"{pair.Folder}/");
+	}
+
+	public static void IgnoreVendor(Project project, Prompter prompt)
+	{
+		string path = Path.Combine(project.Directory, ".gitignore");
+
+		if (!File.Exists(path))
+		{
+			return;
+		}
+
+		string entry = project.Config.Vendor + "/";
+		string text = File.ReadAllText(path);
+		bool listed = text.Replace("\r\n", "\n").Split('\n').Select(line => line.Trim().TrimStart('/')).Any(line => line == entry || line == project.Config.Vendor);
+
+		if (!listed && prompt.Confirm($"Keep vendored packages out of git ({entry} in .gitignore, {Fmt.File(LockFile.FileName)} pins them)"))
+		{
+			File.WriteAllText(path, text.TrimEnd('\r', '\n') + "\n" + entry + "\n");
+		}
 	}
 }

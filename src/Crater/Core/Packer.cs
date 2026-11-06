@@ -25,32 +25,74 @@ public static class Packer
 
 	static readonly DateTimeOffset FixedTime = new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
+	public const string VendorFolder = "_vendor";
+
+	static readonly string[] RootDocuments = ["README*", "LICENSE*", "LICENCE*", "COPYING*", "CHANGELOG*"];
+
+	public static string Root(Project project)
+	{
+		string? configured = project.Manifest.PackageRoot;
+
+		if (string.IsNullOrWhiteSpace(configured))
+		{
+			return project.Directory;
+		}
+
+		string root = Path.GetFullPath(Path.Combine(project.Directory, Links.NormalizeRelative(configured)));
+
+		if (!Directory.Exists(root))
+		{
+			string build = project.Manifest.Scripts?.ContainsKey(PrepackScript) == true
+				? $"{Fmt.Cmd($"crater run {PrepackScript}")} did not create it"
+				: $"build it first, or add a {Fmt.Val($"\"{PrepackScript}\"")} script that does";
+
+			throw new CraterException($"package_root = {Fmt.File(configured)} does not exist: {build}.");
+		}
+
+		return root;
+	}
+
+	public const string PrepackScript = "prepack";
+
 	public static byte[] Pack(Project project, out List<string> files)
 	{
+		string root = Root(project);
+		bool built = root != project.Directory;
 		List<Pattern> patterns = DefaultExclude
 			.Concat(project.Config.ConfiguredFolders().Select(pair => pair.Folder + "/"))
+			.Append(project.Config.Vendor + "/")
+			.Append(VendorFolder + "/")
 			.Concat(project.Manifest.ExcludedFiles)
 			.Select(Pattern.Create)
 			.ToList();
 
 		List<string> collected = [];
+		IgnoreRules rules = built ? new IgnoreRules() : new IgnoreRules().With(root, root);
 
-		CollectFiles(project.Directory, project.Directory, new IgnoreRules().With(project.Directory, project.Directory), collected);
+		CollectFiles(root, root, rules, collected, gitignore: !built);
 
-		files = collected
+		Dictionary<string, string> sources = collected
 			.Where(relative => !patterns.Any(pattern => pattern.Excludes(relative)))
-			.OrderBy(relative => relative, StringComparer.Ordinal)
-			.ToList();
+			.Where(relative => !built || relative != Manifest.FileName)
+			.ToDictionary(relative => relative, relative => Path.Combine(root, relative), StringComparer.Ordinal);
+
+		if (built)
+		{
+			AddRootDocuments(project, sources);
+		}
 
 		List<Pattern> allowed = project.Manifest.AllowedFiles.Select(Pattern.Create).ToList();
-		List<(string Path, ProgramKind Kind)> programs = files
-			.Select(relative => (Path: relative, Kind: Executables.Classify(Path.Combine(project.Directory, relative), relative)))
+		List<(string Path, ProgramKind Kind)> programs = sources
+			.Select(pair => (Path: pair.Key, Kind: Executables.Classify(pair.Value, pair.Key)))
 			.Where(item => item.Kind == ProgramKind.Binary || (item.Kind == ProgramKind.Script && !allowed.Any(pattern => pattern.Excludes(item.Path))))
 			.ToList();
 
 		if (programs.Count > 0)
 		{
-			files = files.Except(programs.Select(item => item.Path)).ToList();
+			foreach ((string path, ProgramKind _) in programs)
+			{
+				sources.Remove(path);
+			}
 
 			string shown = string.Join(", ", programs.Take(5).Select(item => Fmt.File(item.Path)));
 			string more = programs.Count > 5 ? $" and {programs.Count - 5} more" : "";
@@ -63,16 +105,27 @@ public static class Packer
 			}
 		}
 
-		if (!files.Contains(Manifest.FileName))
+		if (built)
+		{
+			sources[Manifest.FileName] = project.ManifestPath;
+		}
+
+		if (!sources.ContainsKey(Manifest.FileName))
 		{
 			throw new CraterException($"{Fmt.File(Manifest.FileName)} is excluded from the archive by the exclude patterns.");
 		}
 
-		RequirePath(project, files, project.Manifest.PathToMain, "path_to_main");
-		RequireIcon(project, files);
-		RequireDefinitions(project, files);
-		DocLanguage.Require(project.Directory, files);
-		RequireImplementationEntry(project, files);
+		List<string> own = sources.Keys.OrderBy(relative => relative, StringComparer.Ordinal).ToList();
+
+		RequirePath(root, own, project.Manifest.PathToMain, "path_to_main");
+		RequireIcon(project, root, own);
+		RequireDefinitions(project, root, own);
+		DocLanguage.Require(own.Select(relative => (relative, sources[relative])));
+		RequireImplementationEntry(project, own);
+
+		AddVendored(project, sources);
+
+		files = sources.Keys.OrderBy(relative => relative, StringComparer.Ordinal).ToList();
 
 		using MemoryStream stream = new();
 
@@ -84,7 +137,7 @@ public static class Packer
 				entry.LastWriteTime = FixedTime;
 
 				using Stream destination = entry.Open();
-				using FileStream source = File.OpenRead(Path.Combine(project.Directory, relative));
+				using FileStream source = File.OpenRead(sources[relative]);
 
 				source.CopyTo(destination);
 			}
@@ -93,7 +146,87 @@ public static class Packer
 		return stream.ToArray();
 	}
 
-	static void CollectFiles(string root, string directory, IgnoreRules rules, List<string> files)
+	public static List<LockedPackage> Vendored(Project project)
+	{
+		if (!project.Manifest.HasVendored)
+		{
+			return [];
+		}
+
+		LockFile lockFile = LockFile.Load(project.LockPath);
+
+		return Manifest.VendorRealms.SelectMany(lockFile.VendorFor).ToList();
+	}
+
+	static void AddVendored(Project project, Dictionary<string, string> sources)
+	{
+		if (!project.Manifest.HasVendored)
+		{
+			return;
+		}
+
+		LockFile lockFile = LockFile.Load(project.LockPath);
+		string install = $"Run {Fmt.Cmd("crater install")} in {Fmt.File(project.Directory)} first";
+
+		foreach (Realm realm in Manifest.VendorRealms)
+		{
+			List<string> wanted = project.Manifest.AllVendored()
+				.Where(item => item.Realm == realm)
+				.Select(item => item.Spec.FullName.ToLowerInvariant())
+				.Distinct()
+				.Order(StringComparer.Ordinal)
+				.ToList();
+
+			List<LockedPackage> locked = lockFile.VendorFor(realm).ToList();
+			List<string> direct = locked.Where(package => package.Direct).Select(package => package.Name.ToLowerInvariant()).Distinct().Order(StringComparer.Ordinal).ToList();
+
+			if (!wanted.SequenceEqual(direct))
+			{
+				throw new CraterException($"{Fmt.Val(Manifest.VendorField(realm))} does not match {Fmt.File(LockFile.FileName)}. {install}.");
+			}
+
+			if (locked.Count == 0)
+			{
+				continue;
+			}
+
+			string folderName = project.Config.VendorFolder(realm);
+			string folder = project.Abs(folderName);
+			HashSet<string> installed = PackageLayout.ReadMarker(folder).Keys.Where(key => !key.StartsWith('#')).ToHashSet();
+
+			if (!installed.SetEquals(locked.Select(package => package.Id)))
+			{
+				throw new CraterException($"{Fmt.File(folderName)} does not hold the vendored versions from {Fmt.File(LockFile.FileName)}. {install}.");
+			}
+
+			foreach (string file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+			{
+				string relative = Path.GetRelativePath(folder, file).Replace('\\', '/');
+
+				if (relative != PackageLayout.MarkerFile)
+				{
+					sources[$"{VendorFolder}/{realm.Key()}/{relative}"] = file;
+				}
+			}
+		}
+	}
+
+	static void AddRootDocuments(Project project, Dictionary<string, string> sources)
+	{
+		List<Pattern> documents = RootDocuments.Select(Pattern.Create).ToList();
+
+		foreach (string file in Directory.EnumerateFiles(project.Directory))
+		{
+			string name = Path.GetFileName(file);
+
+			if (documents.Any(pattern => pattern.Excludes(name)) && !sources.Keys.Any(key => key.Equals(name, StringComparison.OrdinalIgnoreCase)))
+			{
+				sources[name] = file;
+			}
+		}
+	}
+
+	static void CollectFiles(string root, string directory, IgnoreRules rules, List<string> files, bool gitignore)
 	{
 		foreach (string file in Directory.EnumerateFiles(directory))
 		{
@@ -111,7 +244,7 @@ public static class Packer
 
 			if (!rules.IsIgnored(relative, isDirectory: true))
 			{
-				CollectFiles(root, child, rules.With(root, child), files);
+				CollectFiles(root, child, gitignore ? rules.With(root, child) : rules, files, gitignore);
 			}
 		}
 	}
@@ -199,7 +332,7 @@ public static class Packer
 
 	public const int MaxIconBytes = 256 * 1024;
 
-	static void RequireIcon(Project project, List<string> files)
+	static void RequireIcon(Project project, string root, List<string> files)
 	{
 		string? icon = project.Manifest.Icon;
 
@@ -220,26 +353,26 @@ public static class Packer
 			throw new CraterException($"icon = {Fmt.File(icon)}: file not found or excluded from the archive.");
 		}
 
-		long size = new FileInfo(Path.Combine(project.Directory, relative)).Length;
+		long size = new FileInfo(Path.Combine(root, relative)).Length;
 
 		if (size > MaxIconBytes)
 		{
 			throw new CraterException($"icon = {Fmt.File(icon)} is {size / 1024} KB. Keep it under {MaxIconBytes / 1024} KB, 256x256 pixels is plenty.");
 		}
 
-		if (relative.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) && !SafeSvg.IsSafe(File.ReadAllBytes(Path.Combine(project.Directory, relative))))
+		if (relative.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) && !SafeSvg.IsSafe(File.ReadAllBytes(Path.Combine(root, relative))))
 		{
 			throw new CraterException($"icon = {Fmt.File(icon)} contains scripts, event handlers or links to other files. Use a plain SVG or a PNG.");
 		}
 	}
 
-	static void RequireDefinitions(Project project, List<string> files)
+	static void RequireDefinitions(Project project, string root, List<string> files)
 	{
 		List<string> packed = files.Where(file => file.EndsWith(DefinitionLookup.Extension, StringComparison.OrdinalIgnoreCase)).ToList();
 
 		foreach (string pattern in project.Manifest.DefinitionPatterns)
 		{
-			List<string> matched = DefinitionLookup.Match(project.Directory, packed, pattern)
+			List<string> matched = DefinitionLookup.Match(root, packed, pattern)
 				.Where(match => packed.Contains(match, StringComparer.OrdinalIgnoreCase))
 				.ToList();
 
@@ -271,7 +404,7 @@ public static class Packer
 		}
 	}
 
-	static void RequirePath(Project project, List<string> files, string path, string field)
+	static void RequirePath(string root, List<string> files, string path, string field)
 	{
 		if (string.IsNullOrWhiteSpace(path))
 		{
@@ -285,7 +418,7 @@ public static class Packer
 			return;
 		}
 
-		bool isFolder = Directory.Exists(Path.Combine(project.Directory, relative));
+		bool isFolder = Directory.Exists(Path.Combine(root, relative));
 
 		if (isFolder && files.Any(file => file.StartsWith(relative + "/")))
 		{

@@ -122,6 +122,11 @@ public static class PackageFiles
 			string name = segments[^1];
 			bool atRoot = segments.Length == 1;
 
+			if (!atRoot && segments[0] == Packer.VendorFolder)
+			{
+				return true;
+			}
+
 			if (name.EndsWith(".d.luau", StringComparison.OrdinalIgnoreCase) || (!atRoot && definitionTops.Contains(segments[0])))
 			{
 				return true;
@@ -321,7 +326,7 @@ public static class PackageFiles
 
 	static void Trim(string content, Manifest manifest, string id)
 	{
-		HashSet<string> keep = new(StringComparer.OrdinalIgnoreCase);
+		HashSet<string> keep = new(StringComparer.OrdinalIgnoreCase) { Packer.VendorFolder };
 		string? onlyCode = CodeRoot(content, manifest, id);
 
 		foreach (string definition in Definitions(content, manifest))

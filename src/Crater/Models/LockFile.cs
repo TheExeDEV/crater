@@ -12,6 +12,7 @@ public sealed class LockFile
 	[JsonPropertyName("lock_version")] public int LockVersion { get; set; } = 1;
 	[JsonPropertyName("manifest_hash")] public string? ManifestHash { get; set; }
 	[JsonPropertyName("packages")] public List<LockedPackage> Packages { get; set; } = [];
+	[JsonPropertyName("vendor")] public List<LockedPackage>? Vendor { get; set; }
 
 	[JsonIgnore] public bool HadConflicts { get; private set; }
 
@@ -43,12 +44,16 @@ public sealed class LockFile
 	{
 		(string ours, string theirs) = Sides(text);
 		List<LockedPackage> packages = [];
+		List<LockedPackage> vendor = [];
 
 		foreach (string side in new[] { ours, theirs })
 		{
 			try
 			{
-				packages.AddRange(Json.Parse<LockFile>(side, path).Packages);
+				LockFile parsed = Json.Parse<LockFile>(side, path);
+
+				packages.AddRange(parsed.Packages);
+				vendor.AddRange(parsed.Vendor ?? []);
 			}
 			catch (CraterException)
 			{
@@ -58,6 +63,7 @@ public sealed class LockFile
 		return new LockFile
 		{
 			Packages = packages.DistinctBy(package => (package.Realm, package.Name)).ToList(),
+			Vendor = vendor.Count > 0 ? vendor.DistinctBy(package => (package.Realm, package.Name)).ToList() : null,
 			HadConflicts = true,
 		};
 	}
@@ -110,9 +116,19 @@ public sealed class LockFile
 
 	public IEnumerable<LockedPackage> For(Realm realm) => Packages.Where(package => package.Realm == realm.Key());
 
-	public Dictionary<string, string> PreferredVersions(Realm realm)
+	public IEnumerable<LockedPackage> VendorFor(Realm realm) => (Vendor ?? []).Where(package => package.Realm == realm.Key());
+
+	public IEnumerable<LockedPackage> ForGraph(ResolvedGraph graph) => graph.IsVendor ? VendorFor(graph.Realm) : For(graph.Realm);
+
+	[JsonIgnore] public IEnumerable<LockedPackage> Everything => Packages.Concat(Vendor ?? []);
+
+	public Dictionary<string, string> PreferredVersions(Realm realm) => Preferred(For(realm));
+
+	public Dictionary<string, string> PreferredVendorVersions(Realm realm) => Preferred(VendorFor(realm));
+
+	static Dictionary<string, string> Preferred(IEnumerable<LockedPackage> packages)
 	{
-		return For(realm)
+		return packages
 			.Where(package => package.Source is null)
 			.GroupBy(package => package.Name)
 			.ToDictionary(group => group.Key, group => group.First().Version);
@@ -122,7 +138,7 @@ public sealed class LockFile
 	{
 		Dictionary<string, string> commits = [];
 
-		foreach (LockedPackage package in Packages)
+		foreach (LockedPackage package in Everything)
 		{
 			if (package.Source is not null && package.Commit is not null)
 			{
@@ -135,7 +151,23 @@ public sealed class LockFile
 
 	public static LockFile From(IReadOnlyDictionary<Realm, ResolvedGraph> graphs, string projectDirectory)
 	{
-		LockFile lockFile = new();
+		return From(graphs, new Dictionary<Realm, ResolvedGraph>(), projectDirectory);
+	}
+
+	public static LockFile From(IReadOnlyDictionary<Realm, ResolvedGraph> graphs, IReadOnlyDictionary<Realm, ResolvedGraph> vendor, string projectDirectory)
+	{
+		List<LockedPackage> vendored = Entries(vendor, projectDirectory);
+
+		return new LockFile
+		{
+			Packages = Entries(graphs, projectDirectory),
+			Vendor = vendored.Count > 0 ? vendored : null,
+		};
+	}
+
+	static List<LockedPackage> Entries(IReadOnlyDictionary<Realm, ResolvedGraph> graphs, string projectDirectory)
+	{
+		List<LockedPackage> entries = [];
 
 		foreach (Realm realm in Realms.All)
 		{
@@ -146,11 +178,11 @@ public sealed class LockFile
 
 			foreach (ResolvedPackage package in graph.All.OrderBy(package => package.Name, StringComparer.Ordinal))
 			{
-				lockFile.Packages.Add(LockedPackage.From(realm, graph, package, projectDirectory));
+				entries.Add(LockedPackage.From(realm, graph, package, projectDirectory));
 			}
 		}
 
-		return lockFile;
+		return entries;
 	}
 }
 

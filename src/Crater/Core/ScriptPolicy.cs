@@ -15,7 +15,7 @@ public static class ScriptPolicy
 		Manifest manifest = project.Manifest;
 		bool block = manifest.ScriptsBlocked;
 		HashSet<string> allowed = new(manifest.ScriptsAllowedFrom, StringComparer.OrdinalIgnoreCase);
-		HashSet<string> known = oldLock.Packages.Select(package => package.Id).ToHashSet();
+		HashSet<string> known = oldLock.Everything.Select(package => package.Id).ToHashSet();
 		List<(ResolvedPackage Package, List<string> Scripts)> blocked = [];
 
 		foreach (ResolvedPackage package in packages.DistinctBy(package => package.Id))

@@ -46,6 +46,11 @@ public sealed class ResolvedGraph
 	public List<ResolvedDependency> Roots { get; init; } = [];
 	public List<ResolvedPackage> All { get; init; } = [];
 	public List<string> Notes { get; init; } = [];
+	public string? VendorFolder { get; init; }
+
+	public bool IsVendor => VendorFolder is not null;
 
 	public static ResolvedGraph Empty(Realm realm) => new() { Realm = realm };
+
+	public ResolvedGraph AsVendor(string folder) => new() { Realm = Realm, Roots = Roots, All = All, Notes = Notes, VendorFolder = folder };
 }
