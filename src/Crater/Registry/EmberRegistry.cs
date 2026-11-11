@@ -243,7 +243,7 @@ public sealed class EmberRegistry(string indexUrl) : IRegistry, IListedRegistry
 			.Take(limit)
 			.ToList();
 
-		RegistryIndex?[] loaded = await Task.WhenAll(names.Select(GetIndexAsync));
+		RegistryIndex?[] loaded = await Task.WhenAll(names.Select(TryIndexAsync));
 
 		List<CatalogEntry> packages = loaded
 			.OfType<RegistryIndex>()
@@ -252,6 +252,19 @@ public sealed class EmberRegistry(string indexUrl) : IRegistry, IListedRegistry
 			.ToList();
 
 		return new Catalog { Packages = packages, GeneratedAt = DateTimeOffset.UtcNow };
+	}
+
+	async Task<RegistryIndex?> TryIndexAsync(string fullName)
+	{
+		try
+		{
+			return await GetIndexAsync(fullName);
+		}
+		catch (CraterException exception)
+		{
+			Out.Warn($"Skipped {Fmt.Pkg(fullName)} from Ember: {exception.Message}");
+			return null;
+		}
 	}
 
 	public Task PublishAsync(RegistryRelease release, byte[] archive)
