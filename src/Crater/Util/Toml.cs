@@ -27,17 +27,22 @@ public static class Toml
 	{
 		TomlTable root = new();
 		TomlTable current = root;
+		string[] lines = text.Replace("\r", "").Split('\n');
 		int lineNumber = 0;
 
-		foreach (string rawLine in text.Replace("\r", "").Split('\n'))
+		while (lineNumber < lines.Length)
 		{
-			lineNumber++;
-
-			string line = StripComment(rawLine).Trim();
+			int startLine = ++lineNumber;
+			string line = StripComment(lines[startLine - 1]).Trim();
 
 			if (line.Length == 0)
 			{
 				continue;
+			}
+
+			while (!line.StartsWith('[') && OpenBrackets(line) > 0 && lineNumber < lines.Length)
+			{
+				line += " " + StripComment(lines[lineNumber++]).Trim();
 			}
 
 			try
@@ -63,7 +68,7 @@ public static class Toml
 			}
 			catch (FormatException exception)
 			{
-				throw new CraterException($"{Fmt.File(source)} line {lineNumber}: {exception.Message}");
+				throw new CraterException($"{Fmt.File(source)} line {startLine}: {exception.Message}");
 			}
 		}
 
@@ -209,7 +214,7 @@ public static class Toml
 
 			if (position >= text.Length)
 			{
-				throw new FormatException("unterminated array (multi-line arrays are not supported)");
+				throw new FormatException("unterminated array");
 			}
 
 			if (text[position] == ']')
@@ -268,6 +273,43 @@ public static class Toml
 				position++;
 			}
 		}
+	}
+
+	static int OpenBrackets(string line)
+	{
+		int depth = 0;
+		char? quote = null;
+
+		for (int i = 0; i < line.Length; i++)
+		{
+			char current = line[i];
+
+			if (quote is not null)
+			{
+				if (current == '\\' && quote == '"')
+				{
+					i++;
+				}
+				else if (current == quote)
+				{
+					quote = null;
+				}
+			}
+			else if (current is '"' or '\'')
+			{
+				quote = current;
+			}
+			else if (current is '[' or '{')
+			{
+				depth++;
+			}
+			else if (current is ']' or '}')
+			{
+				depth--;
+			}
+		}
+
+		return depth;
 	}
 
 	static void SkipSpaces(string text, ref int position)
