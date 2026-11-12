@@ -53,6 +53,17 @@ public sealed class FolderBuilder(Project project, Prompter prompt)
 		}
 
 		PackageLayout layout = PackageLayout.Plan(graph, folderName);
+		Dictionary<string, string> installed = PackageLayout.ReadMarker(folder)
+			.Where(pair => !pair.Key.StartsWith('#'))
+			.ToDictionary(pair => pair.Key, pair => pair.Value);
+
+		bool sameVersions = installed.Count == graph.All.Count &&
+			graph.All.All(package => installed.GetValueOrDefault(package.Id) == layout.Folders[package]);
+
+		if (!sameVersions)
+		{
+			return false;
+		}
 
 		bool packagesPresent = layout.Folders.Values.All(name => Directory.Exists(Path.Combine(folder, name)));
 		bool aliasesPresent = layout.Aliases.Keys.All(name => File.Exists(Path.Combine(folder, name + ".luau")));

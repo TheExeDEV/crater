@@ -100,6 +100,11 @@
 					"help": [["why <name>", "show why a package is installed"]]
 				},
 				{
+					"name": "bisect",
+					"flags": ["--good <commit|lock file>", "--script <name>"],
+					"help": [["bisect --good <commit|lock file> [--script test] [-- command]", "find the package update that broke your test"]]
+				},
+				{
 					"name": "graph",
 					"flags": ["-o, --output <file>", "--client", "--server", "--dev", "--depth <n>"],
 					"help": [["graph [-o file.md] [--client|--server|--dev] [--depth n]", "dependency diagram in Mermaid, GitHub draws it"]]
@@ -188,8 +193,8 @@
 				},
 				{
 					"name": "publish",
-					"flags": ["--dry-run", "-w, --workspace"],
-					"help": [["publish [--dry-run]", "send the package to the registry for review"]]
+					"flags": ["--dry-run", "-w, --workspace", "--allow-breaking"],
+					"help": [["publish [--dry-run] [--allow-breaking]", "send the package to the registry for review"]]
 				},
 				{
 					"name": "deprecate",

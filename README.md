@@ -25,7 +25,7 @@ It started as a package manager like Wally or pesde, borrows ideas from Cargo an
 - Link files re-export `export type` declarations, so luau-lsp sees package types
 - Lock file with sha256 checks, parallel downloads, a summary of what changed
 - Installs from the crater registry, Wally, pesde, Forest, Ember and LuaRocks (plain Lua rocks), also mixed in one project
-- `outdated`, interactive `update -i`, `why`, `graph`, `search`, `info`, `patch`, `unused`, `size`, `licenses`
+- `outdated`, interactive `update -i`, `why`, `bisect` to find the update that broke your test, `graph`, `search`, `info`, `patch`, `unused`, `size`, `licenses`
 - Changelogs and deprecation messages from package authors, shown on install, update and the website
 - Optional updates of `.luaurc` aliases and the luau-lsp definition files in VS Code
 - Optional confirmation before every action that changes files, colored output
@@ -761,6 +761,22 @@ Exact versions, sources, git commits and sha256 of everything installed. Commit 
 - Merge conflicts in `crater.lock` fix themselves: when two people added different packages and git leaves `<<<<<<<` markers in the lock file, resolve `crater.json` as usual and run `crater install`. crater reads both sides of the conflict, keeps the versions each side had, resolves again from `crater.json` and writes a clean `crater.lock`. `crater install --locked` refuses a lock file with conflict markers.
 - When nothing changed since the last install (same `crater.json`, folders and patches), `install` finishes in a fraction of a second without touching the network. crater keeps a fingerprint of `crater.json` in `crater.lock` for that.
 - Registry indexes are cached on disk and revalidated with a short "has it changed?" request. With `--offline` (or `CRATER_OFFLINE=1`) crater uses only the cache: installs, updates and `outdated` work without internet as long as the packages were downloaded once.
+
+### Finding the update that broke something
+
+`crater update` moved 30 packages and the game broke. `crater bisect` finds the one that did it:
+
+```bash
+crater bisect --good HEAD~1 --script test
+crater bisect --good main -- lune run tests/run.luau
+crater bisect --good old-crater.lock -- rojo build -o game.rbxl
+```
+
+- `--good` is the state that worked: a git commit, branch or tag (crater reads `crater.lock` from it) or a lock file.
+- The test is a script from `crater.json` (`--script test`) or any command after `--`. It must exit with `0` when everything works.
+- crater compares that lock file with the current one, then puts some packages back on their old versions, reinstalls and runs the test, halving the suspects each time: 30 updates take about 5 runs. A package goes back through `crater.lock` and a normal install, so its dependencies follow it.
+- It checks both ends first: if the test already passes now, or still fails with the old versions, it says so and stops.
+- At the end it names the package and both versions, checks that undoing it alone fixes the test, and points at `crater changelog` and `overrides`. `crater.lock` and the package folders are always put back as they were.
 
 ---
 
@@ -1548,6 +1564,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `outdated [--all] [--json]` | Show newer versions and what changed in them. |
 | `list` (`ls`) `[--json]` | Installed tree. |
 | `why <scope/name>` | Why a package is installed. |
+| `bisect --good <commit\|lock file> [--script test] [-- command]` | Find the package update that broke your test, see [Finding the update that broke something](#finding-the-update-that-broke-something). |
 | `graph [-o file.md] [--client\|--server\|--dev] [--depth n]` | Mermaid diagram of the installed tree. |
 | `search [query] [package\|interface\|tool] [--tag t] [--implements a/b] [--sort name\|updated] [--json]` | Search the registry catalog, only interfaces, only packages, or the tools you can pin. Filter by tags or by the interface a package implements. |
 | `tags [word]` | Tags packages use, the most used first. |

@@ -106,6 +106,31 @@ public sealed class WorkflowTests : IDisposable
 	}
 
 	[Fact]
+	public void InstallFollowsALockFileFromAnotherBranch()
+	{
+		Publish("t/alpha");
+
+		string game = Project("t/game", ["t/alpha^1"], new() { ["init.luau"] = "return nil\n" });
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		string lockPath = Path.Combine(game, LockFile.FileName);
+		string oldLock = File.ReadAllText(lockPath);
+		string newer = Project("t/alpha-next", [], new() { ["init.luau"] = "return \"next\"\n" });
+		string manifest = Path.Combine(newer, "crater.json");
+
+		File.WriteAllText(manifest, File.ReadAllText(manifest).Replace("t/alpha-next", "t/alpha").Replace("1.0.0", "1.1.0"));
+		Assert.Equal(0, Crater(newer, "publish", "-y"));
+		Assert.Equal(0, Crater(game, "update", "-y"));
+		Assert.Contains("next", File.ReadAllText(Path.Combine(game, "Packages", "alpha", "init.luau")));
+
+		File.WriteAllText(lockPath, oldLock);
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+		Assert.DoesNotContain("next", File.ReadAllText(Path.Combine(game, "Packages", "alpha", "init.luau")));
+	}
+
+	[Fact]
 	public void AddingAPackageKeepsTheOthersInPlace()
 	{
 		Publish("t/alpha");
