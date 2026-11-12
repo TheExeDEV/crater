@@ -143,6 +143,9 @@ public static class Program
 				InspectCommands.Why(args);
 				return 0;
 
+			case "bisect":
+				return await BisectCommand.RunAsync(args);
+
 			case "patch":
 				await PatchCommand.RunAsync(args);
 				return 0;
