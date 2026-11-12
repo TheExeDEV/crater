@@ -40,8 +40,8 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 
 		string url = await SendAsync(login, head, files, $"publish/{name.Replace('/', '-')}-{release.Version}", $"Publish {id}", $"Publishes `{id}`.", id);
 
-		Out.Ok($"Sent {Fmt.Pkg(id)} for review: {Fmt.File(url)}");
-		Out.Info("The registry owner checks it and adds it. GitHub notifies you when it is accepted.");
+		Out.Ok($"Sent {Fmt.Pkg(id)}: {Fmt.File(url)}");
+		Out.Info("The registry checks it in a minute. A new version of a package you already published is added by itself when the check finds nothing; a new package, or anything the check flags, waits for the registry owner. GitHub notifies you when it is accepted.");
 	}
 
 	public async Task ChangeIndexAsync(string name, Func<JsonObject, string> edit, bool scopeOnly = false)
@@ -73,8 +73,8 @@ public sealed class GitHubPublisher(GitHubRepository registry, Prompter prompt, 
 		string title = Out.Plain(change);
 		string url = await SendAsync(login, head, files, branch, title, title + ".", name);
 
-		Out.Ok($"Sent for review: {Fmt.File(url)}");
-		Out.Info("The registry owner checks it and merges it. GitHub notifies you when it is accepted.");
+		Out.Ok($"Sent: {Fmt.File(url)}");
+		Out.Info("The registry checks it in a minute and adds it by itself when nothing needs a person; owner changes and anything the check flags wait for the registry owner. GitHub notifies you when it is accepted.");
 	}
 
 	async Task<string> SendAsync(string login, string head, List<PackageFile> files, string branch, string title, string body, string label)

@@ -1286,14 +1286,14 @@ crater publish
 
 By default crater asks GitHub only for what publishing needs: public repositories and reading your organizations. `crater login --private` also asks for private repositories, needed for [private registries](#private-registries). If you are already signed in to the GitHub CLI (`gh`), crater can use that sign-in too.
 
-`crater publish` sends the package to the registry written in `crater.json` for review. There is nothing to fill in: no paths, no flags. crater prints a link like this:
+`crater publish` sends the package to the registry written in `crater.json` as a pull request. There is nothing to fill in: no paths, no flags. crater prints a link like this:
 
 ```
-✓ Sent theexedev/cool-lib@1.0.0 for review: https://github.com/TheExeDEV/crater-registry/pull/7
-  The registry owner checks it and adds it. GitHub notifies you when it is accepted.
+✓ Sent theexedev/cool-lib@1.1.0: https://github.com/TheExeDEV/crater-registry/pull/7
+  The registry checks it in a minute. A new version of a package you already published is added by itself when the check finds nothing; a new package, or anything the check flags, waits for the registry owner. GitHub notifies you when it is accepted.
 ```
 
-When the owner accepts it, everyone can install it with `crater add theexedev/cool-lib^1`. Until then it is not in the registry.
+Once it is merged, everyone can install it with `crater add theexedev/cool-lib^1`. Until then it is not in the registry. Which pull requests merge by themselves is described in [Reviewing pull requests](#reviewing-pull-requests).
 
 ### Before the first publish
 
