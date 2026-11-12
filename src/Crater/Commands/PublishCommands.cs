@@ -111,6 +111,7 @@ public static class PublishCommands
 		DescribeEntry(project);
 		DescribeVendored(project);
 		ScanBeforePublish(archive, $"{manifest.Name}@{manifest.Version}");
+		await ApiCheck.RunAsync(registry, manifest, archive, args.Has("allow-breaking"));
 
 		RegistryRelease release = new()
 		{

@@ -1370,6 +1370,24 @@ Keep a `CHANGELOG.md` in the package folder with a heading per version:
 
 `CHANGES.md` and `HISTORY.md` are read too. The changelog is not installed into your game.
 
+### Breaking changes
+
+Versions promise something: `^1.2.0` lets people get 1.3.0 and 1.9.0 automatically, because a minor or patch release must not break their code. `crater publish` checks that promise. It reads the public API of the new version and of the last published one, compares them and shows what changed:
+
+```
+  API compared with 1.2.0:
+    - removed retryWithDelay()
+    - new() has a new required parameter executor
+    + added fromEvent()
+✗ 1.3.0 breaks code written for 1.2.0, but people who asked for ^1.2.0 would get it automatically. Publish it as 2.0.0, keep the old API, or pass --allow-breaking if crater got it wrong.
+```
+
+- The API is what the main module returns: the functions and fields of that table (`function M.new`, `M.Value = ...`, fields of `return { ... }`), the parameters of those functions, and `export type` declarations. For a collection of modules, every module and what it returns. Names starting with `_` are private and not compared.
+- Breaking: a removed function, field, type or module, a function that became a value, a new required parameter, an optional parameter that became required, a type that needs more or fewer type parameters. Adding things is never breaking. A parameter is required when it has a type that does not allow `nil`; untyped parameters are not checked.
+- Before 1.0.0 the rules shift one place, the same as `^` does: 0.2.x may not break 0.2.3, but 0.3.0 may; any 0.0.x release may break.
+- Adding API in a patch release of 1.0.0 or later only gets a warning that a minor release would say so.
+- When crater cannot tell what the module returns, it says so and does not compare. `--allow-breaking` publishes anyway with a warning, for the cases where crater is wrong.
+
 ### Deprecating
 
 Mark a package that is no longer maintained, or one bad version:
@@ -1578,7 +1596,7 @@ dotnet publish src/Crater -c Release -r win-x64 --self-contained -p:PublishSingl
 | `login [--force]` | Sign in with GitHub (needed for `publish`). |
 | `logout` | Sign out. |
 | `whoami` | Show the signed-in GitHub account. |
-| `publish [--dry-run] [--workspace]` | Send the package to the registry for review. See [Publishing](#publishing). |
+| `publish [--dry-run] [--workspace] [--allow-breaking]` | Send the package to the registry for review. Stops a minor or patch release that breaks the API, see [Breaking changes](#breaking-changes). See [Publishing](#publishing). |
 | `deprecate <scope/name>[@version] [message] [--undo]` | Mark a package or a version as deprecated, see [Deprecating](#deprecating). |
 | `owner add\|remove\|list <scope/name> [login...]` | Let other GitHub accounts publish a package, see [Co-owners](#co-owners). |
 | `history [scope/name] [--limit n]` | Who published, deprecated or changed what, see [History](#history). |
