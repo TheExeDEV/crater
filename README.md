@@ -1227,7 +1227,16 @@ After merge `publish.yml` asks the website to rebuild, including the catalog (`d
 
 ### Reviewing pull requests
 
-Nothing is merged automatically. The check only reports; a maintainer reads the code and merges.
+Routine updates merge by themselves; everything else waits for a maintainer. `crater registry check --verdict verdict.json` decides, and the check workflow merges the pull request only when all of these hold:
+
+- the check passed;
+- every changed package already exists: the first version of a new package is always read by a person;
+- the scanner found nothing at the warning level or above;
+- no new version runs scripts in games;
+- the owners of no package change;
+- nothing is deleted (a new version replacing `source/` is not a deletion) and nothing outside the package folders changes.
+
+Pull requests from maintainers (in `registry.json`) skip the scanner, scripts, new package and owners rules, but deletions and changes outside the package folders wait for a review from them too. The **Summary** of the check run ends with a "Merge" section that says which way it went and why.
 
 You never have to download anything to read a package, everything is on GitHub:
 
@@ -1255,7 +1264,7 @@ crater registry scan path/to/package
 
 ### Branch protection
 
-On the official registry `main` is protected with a ruleset: changes only through pull requests, one approval and a green **Check packages** are required, force pushes and branch deletion are blocked. Repository admins can merge their own pull requests without an approval (GitHub does not allow approving your own). Nothing else writes to `main`.
+On the official registry `main` is protected with a ruleset: changes only through pull requests and a green **Check packages** are required, force pushes and branch deletion are blocked. The merge job of the check workflow merges with the workflow token, only the exact commit that was checked, and asks the website to rebuild. Everything it does not merge waits for a maintainer.
 
 The check runs on `pull_request_target`: GitHub always takes the workflow from `main`, so a pull request cannot change the check that judges it. crater is built from the crater repository before the pull request is checked out, the checkout keeps no token, and the files of the pull request are only read, never run. Still never merge a pull request from someone else that touches `.github/` or `registry.json`.
 

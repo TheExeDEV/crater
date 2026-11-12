@@ -217,7 +217,7 @@
 					"flags": [
 						"--name <name>", "--repo <owner/repo>", "--branch <branch>", "--private", "--force", "--maintainer <login>",
 						"--base <location>", "--author <login>", "-o, --output <folder>", "--crater-repo <owner/repo>",
-						"--frontend <folder>", "--site-url <url>", "--serve", "--port <port>"
+						"--frontend <folder>", "--site-url <url>", "--serve", "--port <port>", "--verdict <file>"
 					],
 					"subcommands": ["init", "check", "catalog", "scan", "site"],
 					"help": [["registry init|check|catalog|site", "manage a registry repository"]]

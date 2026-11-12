@@ -25,6 +25,11 @@ public sealed partial class RegistryChecker(string root)
 	public List<Finding> Findings { get; } = [];
 	public int ScannedVersions { get; private set; }
 	public List<string> Reviews { get; } = [];
+	public List<string> ReviewReasons { get; } = [];
+	public bool ChangesChecked { get; private set; }
+	public bool AutoMerge => ChangesChecked && Errors.Count == 0 && ReviewReasons.Count == 0;
+
+	bool byMaintainer;
 
 	readonly Dictionary<string, RegistryIndex?> baseIndexes = [];
 
@@ -268,6 +273,11 @@ public sealed partial class RegistryChecker(string root)
 		RegistryInfo baseInfo = BaseRegistryInfo(baseRef);
 		bool isMaintainer = author is not null && baseInfo.IsMaintainer(author);
 		string? ownScope = author?.ToLowerInvariant();
+		HashSet<string> newPackages = [];
+		bool anyPackage = false;
+
+		byMaintainer = isMaintainer;
+		ChangesChecked = true;
 
 		string diff = Shell.Run("git", ["diff", "--name-status", "--no-renames", $"{baseRef}...HEAD"], root);
 
@@ -283,7 +293,13 @@ public sealed partial class RegistryChecker(string root)
 			char status = parts[0][0];
 			string path = parts[1].Replace('\\', '/');
 			string[] segments = path.Split('/');
-			bool isPackageFile = (segments.Length == 3 || (segments.Length > 3 && segments[2] == LocalRegistry.SourceFolder)) && !segments[0].StartsWith('.');
+			bool isSource = segments.Length > 3 && segments[2] == LocalRegistry.SourceFolder;
+			bool isPackageFile = (segments.Length == 3 || isSource) && !segments[0].StartsWith('.');
+
+			if (status == 'D' && !isSource)
+			{
+				ReviewReasons.Add($"{path} is deleted, deletions always wait for a maintainer");
+			}
 
 			if (!isPackageFile)
 			{
@@ -292,16 +308,34 @@ public sealed partial class RegistryChecker(string root)
 					Errors.Add($"Only maintainers can change {Fmt.File(path)}");
 				}
 
+				ReviewReasons.Add($"{path} is outside the package folders");
+
 				continue;
 			}
 
 			bool scopeOwner = ownScope is null || isMaintainer || segments[0] == ownScope || GitHubMembership.IsPublicMember(segments[0], author!);
 			bool ownFolder = scopeOwner || BaseIndex(baseRef, segments)?.IsOwner(author!) == true;
+			string package = $"{segments[0]}/{segments[1]}";
 
-			if (segments[2] == RegistryIndex.FileName && !scopeOwner && OwnersChanged(baseRef, segments))
+			anyPackage = true;
+
+			if (segments[2] == RegistryIndex.FileName && OwnersChanged(baseRef, segments))
 			{
-				Errors.Add($"{Fmt.File(path)}: only {Fmt.Val(segments[0])} can change the owners of {Fmt.Pkg($"{segments[0]}/{segments[1]}")}");
+				if (!scopeOwner)
+				{
+					Errors.Add($"{Fmt.File(path)}: only {Fmt.Val(segments[0])} can change the owners of {Fmt.Pkg(package)}");
+				}
+				else if (!isMaintainer)
+				{
+					ReviewReasons.Add($"the owners of {package} change");
+				}
 			}
+
+			if (!isMaintainer && BaseIndex(baseRef, segments) is null && newPackages.Add(package))
+			{
+				ReviewReasons.Add($"{package} is a new package, a person reads its first version");
+			}
+
 
 			if (!ownFolder)
 			{
@@ -319,6 +353,18 @@ public sealed partial class RegistryChecker(string root)
 			{
 				ScanNewVersion(path, segments);
 			}
+		}
+
+		if (!anyPackage && !isMaintainer)
+		{
+			ReviewReasons.Add("the pull request changes no package");
+		}
+
+		int toRead = Findings.Count(finding => finding.Severity >= Severity.Warning);
+
+		if (!isMaintainer && toRead > 0)
+		{
+			ReviewReasons.Add($"the scanner found {Fmt.Plural(toRead, "thing", "things")} to read");
 		}
 	}
 
@@ -459,6 +505,11 @@ public sealed partial class RegistryChecker(string root)
 		if (actual.Count > 0)
 		{
 			Out.Warn($"{Fmt.Pkg(packageId)} runs scripts in the games that install it: {string.Join(", ", actual)}");
+
+			if (!byMaintainer)
+			{
+				ReviewReasons.Add($"{packageId} runs scripts in games");
+			}
 		}
 	}
 
