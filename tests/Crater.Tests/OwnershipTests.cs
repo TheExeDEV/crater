@@ -88,6 +88,70 @@ public sealed class OwnershipTests : IDisposable
 		Git(registry, "commit", "-q", "-m", message);
 	}
 
+	static RegistryChecker Verdict(string registry, string author)
+	{
+		RegistryChecker checker = new(registry);
+
+		checker.CheckChanges("main", author);
+
+		return checker;
+	}
+
+	[Fact]
+	public void OnlyCleanUpdatesOfKnownPackagesMergeByThemselves()
+	{
+		string registry = Path.Combine(root, "registry");
+		Directory.CreateDirectory(registry);
+		Git(registry, "init", "-q", "-b", "main");
+		File.WriteAllText(Path.Combine(registry, "README.md"), "registry\n");
+		Commit(registry, "start");
+
+		string lib = Project("alice/lib", "../registry", []);
+		string manifest = Path.Combine(lib, "crater.json");
+
+		Git(registry, "checkout", "-q", "-b", "first");
+		Assert.Equal(0, Crater(lib, "publish", "-y").ExitCode);
+		Commit(registry, "alice/lib 1.0.0");
+
+		RegistryChecker first = Verdict(registry, "alice");
+
+		Assert.Empty(first.Errors);
+		Assert.False(first.AutoMerge);
+		Assert.Contains(first.ReviewReasons, reason => reason.Contains("new package"));
+
+		Git(registry, "checkout", "-q", "main");
+		Git(registry, "merge", "-q", "first");
+		Git(registry, "checkout", "-q", "-b", "update");
+		File.WriteAllText(manifest, File.ReadAllText(manifest).Replace("\"1.0.0\"", "\"1.1.0\""));
+		Assert.Equal(0, Crater(lib, "publish", "-y").ExitCode);
+		Commit(registry, "alice/lib 1.1.0");
+
+		Assert.True(Verdict(registry, "alice").AutoMerge);
+
+		Git(registry, "checkout", "-q", "main");
+		Git(registry, "merge", "-q", "update");
+		Git(registry, "checkout", "-q", "-b", "suspicious");
+		File.WriteAllText(manifest, File.ReadAllText(manifest).Replace("\"1.1.0\"", "\"1.2.0\""));
+		File.WriteAllText(Path.Combine(lib, "init.luau"), "local run = loadstring(\"return 1\")\nreturn {}\n");
+		Assert.Equal(0, Crater(lib, "publish", "-y").ExitCode);
+		Commit(registry, "alice/lib 1.2.0");
+
+		RegistryChecker suspicious = Verdict(registry, "alice");
+
+		Assert.False(suspicious.AutoMerge);
+		Assert.Contains(suspicious.ReviewReasons, reason => reason.Contains("scanner"));
+
+		Git(registry, "checkout", "-q", "main");
+		Git(registry, "checkout", "-q", "-b", "delete");
+		File.Delete(Path.Combine(registry, "alice", "lib", "1.0.0.zip"));
+		Commit(registry, "remove 1.0.0");
+
+		RegistryChecker deletion = Verdict(registry, "alice");
+
+		Assert.False(deletion.AutoMerge);
+		Assert.Contains(deletion.ReviewReasons, reason => reason.Contains("deleted"));
+	}
+
 	List<string> Check(string registry, string author)
 	{
 		RegistryChecker checker = new(registry);

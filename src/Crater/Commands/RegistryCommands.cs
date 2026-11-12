@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Crater.Cli;
 using Crater.Registry;
 using Crater.Site;
@@ -159,6 +160,11 @@ public static class RegistryCommands
 			Out.Warn(warning);
 		}
 
+		if (baseRef is not null)
+		{
+			ReportVerdict(checker, args.Value("verdict"));
+		}
+
 		foreach (string error in checker.Errors)
 		{
 			Out.Error(error);
@@ -175,6 +181,35 @@ public static class RegistryCommands
 		Out.Ok($"Registry is valid ({summary})");
 
 		return 0;
+	}
+
+	static void ReportVerdict(RegistryChecker checker, string? verdictPath)
+	{
+		List<string> reasons = checker.Errors.Count > 0 ? ["the check failed"] : [.. checker.ReviewReasons.Distinct()];
+
+		if (checker.AutoMerge)
+		{
+			Out.Ok("Nothing here needs a person: this pull request can be merged automatically");
+		}
+		else
+		{
+			Out.Info($"Needs a review: {string.Join("; ", reasons)}");
+		}
+
+		ScanReport.AppendGitHubSummary(checker.AutoMerge
+			? "## Merge\n\nNothing here needs a person, so the pull request is merged automatically.\n"
+			: $"## Merge\n\nA maintainer reviews this pull request:\n\n{string.Concat(reasons.Select(reason => $"- {reason}\n"))}");
+
+		if (verdictPath is not null)
+		{
+			JsonObject verdict = new()
+			{
+				["auto_merge"] = checker.AutoMerge,
+				["reasons"] = new JsonArray(reasons.Select(reason => (JsonNode?)reason).ToArray()),
+			};
+
+			Json.WriteText(verdictPath, Json.Serialize(verdict));
+		}
 	}
 
 	static int Scan(Args args)
