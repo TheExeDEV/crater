@@ -39,7 +39,7 @@ public sealed partial class PublicApi
 		switch (entry.Kind)
 		{
 			case EntryKind.Module:
-				api.ReadModule(File.ReadAllText(entry.MainFile!), "");
+				api.ReadModule(File.ReadAllText(entry.MainFile!), "", entry.MainFile);
 				break;
 
 			case EntryKind.Collection:
@@ -52,7 +52,7 @@ public sealed partial class PublicApi
 
 					if (TypeExports.FindMainFile(folder, member.Name) is string file)
 					{
-						api.ReadModule(File.ReadAllText(file), member.Name + ".");
+						api.ReadModule(File.ReadAllText(file), member.Name + ".", file);
 					}
 				}
 
@@ -80,7 +80,7 @@ public sealed partial class PublicApi
 		Members.TryAdd(member.Key, member);
 	}
 
-	void ReadModule(string source, string prefix)
+	void ReadModule(string source, string prefix, string? file = null, int depth = 0)
 	{
 		foreach (TypeExport type in TypeExports.Parse(source))
 		{
@@ -89,7 +89,7 @@ public sealed partial class PublicApi
 			Add(new ApiMember($"{prefix}type {type.Name}", ApiKind.Type, [], required));
 		}
 
-		string code = LuauLexer.Lex(source).Masked;
+		(string kept, string code) = LuauLexer.Lex(source);
 		List<Token> tokens = Tokenize(code);
 		Dictionary<string, List<ApiParameter>> localFunctions = LocalFunctions(code, tokens);
 		int returned = tokens.FindLastIndex(token => token.Text == "return" && token.Blocks == 0 && token.Brackets == 0);
@@ -120,6 +120,11 @@ public sealed partial class PublicApi
 			return;
 		}
 
+		if (first.Text == "require" && Next(tokens, returned + 2) == "(" && FollowRequire(kept, tokens, returned + 3, prefix, file, depth))
+		{
+			return;
+		}
+
 		if (!IsWord(first.Text) || Next(tokens, returned + 2) is "(" or "." or ":" or "[")
 		{
 			Opaque = prefix.Length == 0 || Opaque;
@@ -135,6 +140,112 @@ public sealed partial class PublicApi
 		}
 
 		ReadTable(code, tokens, table, localFunctions, prefix);
+	}
+
+	bool FollowRequire(string kept, List<Token> tokens, int argument, string prefix, string? file, int depth)
+	{
+		if (file is null || depth >= MaxRequireDepth || argument >= tokens.Count)
+		{
+			return false;
+		}
+
+		string? target = RequireTarget(kept, tokens, argument, file);
+
+		if (target is null || Path.GetFullPath(target) == Path.GetFullPath(file))
+		{
+			return false;
+		}
+
+		ReadModule(File.ReadAllText(target), prefix, target, depth + 1);
+
+		return true;
+	}
+
+	const int MaxRequireDepth = 4;
+
+	static string? RequireTarget(string kept, List<Token> tokens, int argument, string file)
+	{
+		string directory = Path.GetDirectoryName(file)!;
+		bool isInit = Path.GetFileNameWithoutExtension(file).Equals("init", StringComparison.OrdinalIgnoreCase);
+		string self = isInit ? directory : Path.Combine(directory, Path.GetFileNameWithoutExtension(file));
+		Token first = tokens[argument];
+
+		if (LuauLexer.IsQuote(kept[first.Index]))
+		{
+			int end = kept.IndexOf(kept[first.Index], first.Index + 1);
+
+			if (end < 0)
+			{
+				return null;
+			}
+
+			string path = kept[(first.Index + 1)..end];
+			string relativeBase = isInit ? Path.GetDirectoryName(directory) ?? directory : directory;
+			string? start = path.StartsWith("@self/", StringComparison.Ordinal) ? self
+				: path.StartsWith("./", StringComparison.Ordinal) || path.StartsWith("../", StringComparison.Ordinal) ? relativeBase
+				: null;
+
+			if (start is null)
+			{
+				return null;
+			}
+
+			string rest = path.StartsWith("@self/", StringComparison.Ordinal) ? path["@self/".Length..] : path;
+
+			return ModuleAt(Path.GetFullPath(Path.Combine(start, rest)));
+		}
+
+		if (first.Text != "script")
+		{
+			return null;
+		}
+
+		string current = self;
+		int index = argument + 1;
+
+		while (index + 1 < tokens.Count)
+		{
+			if (tokens[index].Text == "." && IsWord(tokens[index + 1].Text))
+			{
+				string name = tokens[index + 1].Text;
+
+				current = name == "Parent" ? Path.GetDirectoryName(current) ?? current : Path.Combine(current, name);
+				index += 2;
+			}
+			else if (tokens[index].Text == ":" && Next(tokens, index + 1) is "WaitForChild" or "FindFirstChild" && Next(tokens, index + 2) == "(" && index + 3 < tokens.Count && LuauLexer.IsQuote(kept[tokens[index + 3].Index]))
+			{
+				Token literal = tokens[index + 3];
+				int end = kept.IndexOf(kept[literal.Index], literal.Index + 1);
+
+				if (end < 0)
+				{
+					return null;
+				}
+
+				current = Path.Combine(current, kept[(literal.Index + 1)..end]);
+				index += 4;
+
+				while (index < tokens.Count && tokens[index].Text != ")")
+				{
+					index++;
+				}
+
+				index++;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		return Next(tokens, index) == ")" ? ModuleAt(current) : null;
+	}
+
+	static string? ModuleAt(string path)
+	{
+		string? parent = Path.GetDirectoryName(path);
+
+		return parent is null ? null : TypeExports.FindMainFile(parent, Path.GetFileName(path));
 	}
 
 	static string Callable(string prefix) => prefix.Length == 0 ? "()" : prefix.TrimEnd('.') + "()";
