@@ -78,6 +78,25 @@ public sealed class ApiCheckTests : IDisposable
 		Assert.Equal(2, api.Members["sum"].Parameters.Count);
 	}
 
+	[Theory]
+	[InlineData("return require(\"@self/bloom\")\n")]
+	[InlineData("return require(\"./src/bloom\")\n")]
+	[InlineData("return require(script.bloom)\n")]
+	[InlineData("return require(script:WaitForChild(\"bloom\"))\n")]
+	public void FollowsAMainModuleThatReturnsAnotherModule(string main)
+	{
+		string package = Path.Combine(root, "bloom");
+
+		Directory.CreateDirectory(Path.Combine(package, "src", "bloom"));
+		File.WriteAllText(Path.Combine(package, "src", "init.luau"), "export type Theme = { accent: Color3 }\n" + main);
+		File.WriteAllText(Path.Combine(package, "src", "bloom", "init.luau"), "local Bloom = {}\nfunction Bloom.mount(root: Instance) end\nreturn Bloom\n");
+
+		PublicApi api = PublicApi.Read(package, "src/init.luau", "t/bloom");
+
+		Assert.False(api.Opaque);
+		Assert.Equal(["mount", "type Theme"], api.Members.Keys.Order(StringComparer.Ordinal));
+	}
+
 	[Fact]
 	public void FindsBreakingChanges()
 	{

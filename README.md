@@ -1391,7 +1391,7 @@ Versions promise something: `^1.2.0` lets people get 1.3.0 and 1.9.0 automatical
 ✗ 1.3.0 breaks code written for 1.2.0, but people who asked for ^1.2.0 would get it automatically. Publish it as 2.0.0, keep the old API, or pass --allow-breaking if crater got it wrong.
 ```
 
-- The API is what the main module returns: the functions and fields of that table (`function M.new`, `M.Value = ...`, fields of `return { ... }`), the parameters of those functions, and `export type` declarations. For a collection of modules, every module and what it returns. Names starting with `_` are private and not compared.
+- The API is what the main module returns: the functions and fields of that table (`function M.new`, `M.Value = ...`, fields of `return { ... }`), the parameters of those functions, and `export type` declarations. For a collection of modules, every module and what it returns. A main module that only returns another one (`return require("@self/core")`, `require("./src/core")` or `require(script.core)`) is followed to that module. Names starting with `_` are private and not compared.
 - Breaking: a removed function, field, type or module, a function that became a value, a new required parameter, an optional parameter that became required, a type that needs more or fewer type parameters. Adding things is never breaking. A parameter is required when it has a type that does not allow `nil`; untyped parameters are not checked.
 - Before 1.0.0 the rules shift one place, the same as `^` does: 0.2.x may not break 0.2.3, but 0.3.0 may; any 0.0.x release may break.
 - Adding API in a patch release of 1.0.0 or later only gets a warning that a minor release would say so.
