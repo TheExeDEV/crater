@@ -37,6 +37,7 @@ public sealed class Manifest : IJsonOnDeserialized
 	[JsonPropertyName("icon")] public string? Icon { get; set; }
 	[JsonPropertyName("path_to_definition_files")] public List<string> DefinitionFiles { get; set; } = [];
 	[JsonPropertyName("path_to_definition_file")] public string? LegacyDefinitionFile { get; set; }
+	[JsonPropertyName("definition_priority")] public int? DefinitionPriority { get; set; }
 
 	[JsonIgnore]
 	public List<string> DefinitionPatterns

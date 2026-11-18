@@ -325,13 +325,12 @@ public static class DoctorCommand
 			return;
 		}
 
-		JsonNode? definitions = Json.ReadObject(path)[VsCodeSettings.Key];
-		List<string> files = definitions switch
-		{
-			JsonArray list => list.Select(item => item?.GetValue<string>() ?? "").ToList(),
-			JsonObject map => map.Select(pair => pair.Value?.GetValue<string>() ?? "").ToList(),
-			_ => [],
-		};
+		JsonObject settings = Json.ReadObject(path);
+		List<string> files = DefinitionEntries(settings[VsCodeSettings.Key])
+			.Concat(DefinitionEntries(settings[VsCodeSettings.LunautKey]))
+			.Where(file => !file.Contains('*'))
+			.Distinct()
+			.ToList();
 
 		if (files.Count == 0)
 		{
@@ -350,13 +349,28 @@ public static class DoctorCommand
 
 		if (own.Count > 0)
 		{
-			report.Warn($"VS Code points to definition files that do not exist: {string.Join(", ", own.Take(3))}. Fix or remove them in {Fmt.File(".vscode/settings.json")} ({Fmt.Val(VsCodeSettings.Key)}).");
+			report.Warn($"VS Code points to definition files that do not exist: {string.Join(", ", own.Take(3))}. Fix or remove them in {Fmt.File(".vscode/settings.json")} ({Fmt.Val(VsCodeSettings.Key)} or {Fmt.Val(VsCodeSettings.LunautKey)}).");
 		}
 
 		if (broken.Count == 0)
 		{
 			report.Pass($"VS Code definition files exist");
 		}
+	}
+
+	static IEnumerable<string> DefinitionEntries(JsonNode? node)
+	{
+		return node switch
+		{
+			JsonArray list => list.Select(item => item switch
+			{
+				JsonObject entry => entry["path"] is JsonValue value && value.TryGetValue(out string? file) ? file : "",
+				JsonValue value when value.TryGetValue(out string? file) => file,
+				_ => "",
+			}),
+			JsonObject map => map.Select(pair => pair.Value is JsonValue value && value.TryGetValue(out string? file) ? file : ""),
+			_ => [],
+		};
 	}
 
 	static string DefinitionPath(Project project, string file)

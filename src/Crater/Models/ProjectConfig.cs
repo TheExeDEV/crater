@@ -28,6 +28,8 @@ public sealed class ProjectConfig
 
 	[JsonPropertyName("sync")] public string Sync { get; set; } = "auto";
 
+	[JsonPropertyName("language_server")] public string LanguageServer { get; set; } = "auto";
+
 	[JsonPropertyName("self_update_repo")] public string SelfUpdateRepo { get; set; } = "";
 
 	[JsonPropertyName("vendor_client_path")] public string VendorClientPath { get; set; } = "";
@@ -335,6 +337,11 @@ public sealed class ProjectConfig
 		if (Sync is not ("auto" or "rojo" or "azul"))
 		{
 			throw new CraterException($"sync = {Fmt.Val(Sync)}: expected auto, rojo or azul.");
+		}
+
+		if (LanguageServer is not ("auto" or "luau-lsp" or "lunaut" or "both"))
+		{
+			throw new CraterException($"language_server = {Fmt.Val(LanguageServer)}: expected auto, luau-lsp, lunaut or both.");
 		}
 
 		ImportClientPath = NormalizeFolder(ImportClientPath);
