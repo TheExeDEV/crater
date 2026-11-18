@@ -105,6 +105,51 @@ public sealed class EndToEndTests : IDisposable
 	}
 
 	[Fact]
+	public void WritesLunautDefinitionsWithPackagePriorities()
+	{
+		foreach ((string name, int priority) in new[] { ("t/base", 100), ("t/extra", 10) })
+		{
+			string package = NewPackage(name, "1.0.0", "init.luau", [], new()
+			{
+				["init.luau"] = "return {}\n",
+				[$"{name[2..]}.d.luau"] = $"declare {name[2..].ToUpperInvariant()}: number\n",
+			});
+
+			string manifestPath = Path.Combine(package, "crater.json");
+			JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+
+			manifest["definition_priority"] = priority;
+			File.WriteAllText(manifestPath, manifest.ToJsonString());
+
+			Assert.Equal(0, Crater(package, "publish", "-y"));
+		}
+
+		string game = NewPackage("t/game", "0.1.0", "src/init.luau", ["t/extra^1", "t/base^1"], []);
+		string settingsPath = Path.Combine(game, ".vscode", "settings.json");
+
+		Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+		File.WriteAllText(settingsPath, "{ \"lunaut.platform\": \"roblox\", \"luau-lsp.types.definitionFiles\": { \"@own\": \"types/own.d.luau\" } }");
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		JsonObject settings = JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
+		List<JsonObject> lunaut = settings["lunaut.definitions"]!.AsArray().Select(item => item!.AsObject()).ToList();
+
+		Assert.Equal(["types/own.d.luau", "Packages/base/base.d.luau", "Packages/extra/extra.d.luau"], lunaut.Select(entry => entry["path"]!.GetValue<string>()));
+		Assert.Equal([100, 10], lunaut.Skip(1).Select(entry => entry["priority"]!.GetValue<int>()));
+		Assert.Null(lunaut[0]["priority"]);
+		Assert.Equal(3, settings["luau-lsp.types.definitionFiles"]!.AsObject().Count);
+
+		File.WriteAllText(Path.Combine(game, "crater.settings.json"), File.ReadAllText(Path.Combine(game, "crater.settings.json")).TrimEnd().TrimEnd('}') + ", \"language_server\": \"lunaut\" }");
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		settings = JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
+
+		Assert.Equal(["@own"], settings["luau-lsp.types.definitionFiles"]!.AsObject().Select(pair => pair.Key));
+		Assert.Equal(3, settings["lunaut.definitions"]!.AsArray().Count);
+	}
+
+	[Fact]
 	public void LockedInstallFailsWhenLockIsOutdated()
 	{
 		string lib = NewPackage("t/lib", "1.0.0", "init.luau", [], new() { ["init.luau"] = "return {}\n" });

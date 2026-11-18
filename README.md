@@ -247,6 +247,7 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
 | `icon` | Optional picture of the package for the registry website, a path inside the package like `"assets/icon.png"`: `.png`, `.jpg`, `.webp`, `.gif` or `.svg`, at most 256 KB (256x256 pixels is plenty). `crater pack` and `crater publish` check it. Without an icon (and for Wally and pesde packages, which have none) the site shows the GitHub avatar of the scope, or a neutral placeholder. |
 | `path_to_definition_files` | `.d.luau` files added to VS Code settings on install. Each entry is a file, a folder (every `.d.luau` inside it) or a pattern with `*` / `**`. Empty means every `*.d.luau` in the package (up to 10). The old single-file field `path_to_definition_file` still works. |
+| `definition_priority` | Load priority of the package's `.d.luau` files in [lunaut](#editor-integration): higher loads first. Set it on a package whose types others extend. Unset leaves the `--!priority` line of the file, or `0`. |
 | `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
 | `overrides` | Force one version (or a local or git copy) of a package for the whole tree. See [overrides](#one-copy-per-package-and-overrides). |
 | `vendor_packages` | Internal dependencies the package embeds instead of the consumer installing them: `{ "import_client": [...], "import_server": [...], "import_develop": [...] }`. See [Vendored dependencies](#vendored-dependencies). |
@@ -285,6 +286,7 @@ Install settings of your project. The folder names live here and only here: crat
 | `vscode_definitions` | Keep `luau-lsp.types.definitionFiles` in `.vscode/settings.json` up to date with the `.d.luau` files of installed packages. When it is `false` and a new or updated package comes with `.d.luau` files, `install` says once that luau-lsp will not see them. |
 | `confirm` | Ask before every change. `-y` skips the questions for one run. |
 | `link_style` | `roblox` (default) or `string`, see [Link styles](#link-styles). |
+| `language_server` | `auto` (default), `luau-lsp`, `lunaut` or `both`: which language server gets the `.d.luau` files of installed packages, see [Editor integration](#editor-integration). |
 | `darklua` | `true` (default): when your code requires through aliases like `@Packages/promise`, `install` sets up darklua so the code works in Roblox, see [Aliases in game code](#aliases-in-game-code). `false` turns it off. |
 | `sync` | `auto` (default), `rojo` or `azul`: which tool syncs the project with Studio, see [Azul](#azul). `auto` picks Rojo when `default.project.json` exists and Azul when a `sync/` folder exists. |
 | `vendor` | Where `vendor_packages` go: `client`, `server` and `develop`, each with `path` (`_vendor/<realm>` when empty) and `alias`, like the package folders above. See [Vendored dependencies](#vendored-dependencies). |
@@ -320,7 +322,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
   "path_to_crater_settings": "crater.settings.json",
   "path_to_package_info": "crater.json",
   "api_version": 3,
-  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3, "sync": 3, "vendor_packages": 3 },
+  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3, "sync": 3, "vendor_packages": 3, "definition_priority": 3 },
   "schemas": { "package_info": "https://.../crater.schema.json", "crater_settings": "https://.../crater.settings.schema.json" },
   "registries": { "crater": "...", "wally": "https://github.com/UpliftGames/wally-index", "pesde": "...", "forest": "...", "ember": "..." },
   "realms": { "import_client": "client", "import_server": "server", "import_develop": "develop" },
@@ -743,6 +745,21 @@ Generics, defaults, function types, string literal types and packs are kept. Tex
 ```
 
 Your own entries stay; only entries that point into crater folders are replaced. An old array is converted to this form.
+
+**lunaut:** [lunaut](https://github.com/TheExeDEV/lunaut) loads definition files in priority order, higher first, so base types are ready before the files that extend them. crater writes the same files into `lunaut.definitions`, each with the `definition_priority` from the package's `crater.json`:
+
+```json
+"lunaut.definitions": [
+  { "path": "types/game.d.luau", "name": "@game" },
+  { "path": "Packages/core/core.d.luau", "name": "@core@2.1.0", "priority": 100 },
+  { "path": "Packages/ui/ui.d.luau", "name": "@ui@1.4.0", "priority": 10 }
+]
+```
+
+- A package author sets `"definition_priority": 100` on a package whose types others extend, and a lower number on the packages that build on it. Without it crater writes no priority, and lunaut takes the `--!priority` line of the file, or `0`.
+- Your own entries stay. When `lunaut.definitions` does not exist yet, crater starts it with your own entries from `luau-lsp.types.definitionFiles`, because lunaut reads only one of the two lists and `lunaut.definitions` wins.
+- Which list crater writes is set by `language_server` in `crater.settings.json`: `auto` (default) writes the luau-lsp list, and the lunaut one too when `.vscode/settings.json` already has `lunaut.` keys or `lunaut` is on `PATH`; `luau-lsp`, `lunaut` or `both` choose by hand. With `lunaut` the package entries leave the luau-lsp list and your own entries stay there.
+- `crater doctor` checks the files of both lists.
 
 Comments in these files are lost when crater rewrites them, and the prompt says so.
 

@@ -115,6 +115,10 @@
       },
       "description": ".d.luau files added to VS Code settings on install. A file, a folder or a pattern with * and **. Empty means every .d.luau in the package."
     },
+    "definition_priority": {
+      "type": "integer",
+      "description": "Load priority of this package's .d.luau files in lunaut: higher loads first, so a package with base types can come before the packages that extend them. Unset leaves the --!priority line of the file, or 0."
+    },
     "import_client": {
       "$ref": "#/definitions/dependencies",
       "description": "Dependencies for client and shared code, installed into the client folder from crater.settings.json."

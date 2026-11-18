@@ -47,6 +47,7 @@ public static class VsCodeSettings
 				prefixes.Any(prefix => text.StartsWith(prefix));
 		}
 
+		(bool luauLsp, bool lunaut) = Targets(project, root);
 		JsonObject map = AsObject(root[Key]);
 
 		foreach (string key in map.Where(pair => IsManaged(pair.Value)).Select(pair => pair.Key).ToList())
@@ -54,22 +55,91 @@ public static class VsCodeSettings
 			map.Remove(key);
 		}
 
+		JsonObject own = map.DeepClone().AsObject();
+		List<(string Name, string Path, int? Priority)> entries = [];
+
 		foreach ((ResolvedPackage package, string name, string file) in definitions)
 		{
-			map[UniqueKey(map, package, name, file)] = file;
+			string key = UniqueKey(map, package, name, file);
+
+			map[key] = file;
+			entries.Add((key, file, package.Manifest.DefinitionPriority));
 		}
 
-		root[Key] = map;
+		if (lunaut)
+		{
+			UpdateLunaut(root, own, entries, IsManaged);
+		}
 
-		if (map.Count == 0)
+		JsonObject written = luauLsp ? map : own;
+
+		if (written.Count > 0 && (luauLsp || root[Key] is not null))
+		{
+			root[Key] = written;
+		}
+		else
 		{
 			root.Remove(Key);
 		}
 
 		string count = Fmt.Plural(definitions.Count, "file", "files");
+		string keys = string.Join(" and ", new[] { luauLsp ? Key : null, lunaut ? LunautKey : null }.OfType<string>().Select(key => Fmt.Val(key)));
 		string extra = writeBaseLuaurc ? $" and {Fmt.Val(BaseLuaurcKey)}" : "";
 
-		Save(path, root, before, prompt, $"Update {Fmt.Val(Key)} ({count}){extra}");
+		Save(path, root, before, prompt, $"Update {keys} ({count}){extra}");
+	}
+
+	public const string LunautKey = "lunaut.definitions";
+
+	static (bool LuauLsp, bool Lunaut) Targets(Project project, JsonObject root)
+	{
+		return project.Config.LanguageServer switch
+		{
+			"luau-lsp" => (true, false),
+			"lunaut" => (false, true),
+			"both" => (true, true),
+			_ => (true, UsesLunaut(root)),
+		};
+	}
+
+	static bool UsesLunaut(JsonObject root)
+	{
+		return root.Any(pair => pair.Key == "lunaut" || pair.Key.StartsWith("lunaut.", StringComparison.Ordinal)) || Shell.Exists("lunaut");
+	}
+
+	static void UpdateLunaut(JsonObject root, JsonObject luauLspMap, List<(string Name, string Path, int? Priority)> entries, Func<JsonNode?, bool> isManaged)
+	{
+		JsonArray list = root[LunautKey] switch
+		{
+			JsonArray existing => existing,
+			JsonObject named => new JsonArray(named.Select(pair => (JsonNode?)new JsonObject { ["name"] = pair.Key, ["path"] = pair.Value?.DeepClone() }).ToArray()),
+			_ => new JsonArray(luauLspMap.Select(pair => (JsonNode?)new JsonObject { ["name"] = pair.Key, ["path"] = pair.Value?.DeepClone() }).ToArray()),
+		};
+
+		foreach (JsonNode? item in list.Where(item => isManaged(item is JsonObject entry ? entry["path"] : item)).ToList())
+		{
+			list.Remove(item);
+		}
+
+		foreach ((string name, string file, int? priority) in entries.OrderByDescending(entry => entry.Priority ?? 0).ThenBy(entry => entry.Name, StringComparer.Ordinal))
+		{
+			JsonObject entry = new() { ["path"] = file, ["name"] = name };
+
+			if (priority is int value)
+			{
+				entry["priority"] = value;
+			}
+
+			list.Add(entry);
+		}
+
+		if (list.Count == 0)
+		{
+			root.Remove(LunautKey);
+			return;
+		}
+
+		root[LunautKey] = list;
 	}
 
 	static void Save(string path, JsonObject root, string before, Prompter prompt, string action)

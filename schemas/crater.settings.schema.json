@@ -74,6 +74,12 @@
       ],
       "description": "Folders for vendor_packages, in the same form as client, server and develop. An empty path uses _vendor/<realm>, an empty alias the folder name. pack puts vendored packages at the same paths inside the package, so require paths are the same during development and for consumers."
     },
+    "language_server": {
+      "type": "string",
+      "enum": ["auto", "luau-lsp", "lunaut", "both"],
+      "default": "auto",
+      "description": "Which language server gets the .d.luau files of installed packages in .vscode/settings.json: luau-lsp.types.definitionFiles, lunaut.definitions with the priorities from definition_priority, or both. auto writes luau-lsp, and lunaut too when settings.json has lunaut keys or lunaut is on PATH."
+    },
     "darklua": {
       "type": "boolean",
       "default": true,
