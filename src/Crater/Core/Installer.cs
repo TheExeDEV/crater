@@ -16,6 +16,8 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		Stopwatch watch = Stopwatch.StartNew();
 		LockFile oldLock = LockFile.Load(project.LockPath);
 
+		RemoveLeftoverStaging(project);
+
 		if (locked && oldLock.HadConflicts)
 		{
 			throw new CraterException($"{Fmt.File(LockFile.FileName)} has merge conflicts. Run {Fmt.Cmd("crater install")} and commit the result.");
@@ -61,7 +63,8 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		FolderBuilder builder = new(project, prompt);
 		List<ResolvedGraph> stale = everything.Where(graph => !builder.IsUpToDate(graph, oldLock)).ToList();
 		Dictionary<ResolvedPackage, byte[]> archives = await DownloadAsync(stale.SelectMany(builder.PackagesToExtract).ToList());
-		string staging = Path.Combine(project.Directory, ".crater-staging");
+		string staging = StagingPath(project);
+		using IDisposable cleanup = Interrupt.DeleteOnCancel(staging);
 
 		try
 		{
@@ -107,6 +110,23 @@ public sealed class Installer(Project project, Prompter prompt, bool locked = fa
 		await VersionNotices.PrintChangesAsync(oldLock, graphs.Values);
 		WarnHiddenDefinitions(project, graphs, oldLock);
 		AfterInstall(project, prompt);
+	}
+
+	public const string StagingFolder = ".crater-staging";
+
+	public static string StagingPath(Project project) => Path.Combine(project.Directory, StagingFolder);
+
+	static void RemoveLeftoverStaging(Project project)
+	{
+		string staging = StagingPath(project);
+
+		if (!Directory.Exists(staging))
+		{
+			return;
+		}
+
+		Directory.Delete(staging, recursive: true);
+		Out.Dim($"  removed {StagingFolder}, left by an install that was interrupted");
 	}
 
 	static void WarnHiddenDefinitions(Project project, IReadOnlyDictionary<Realm, ResolvedGraph> graphs, LockFile oldLock)

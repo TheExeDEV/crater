@@ -12,7 +12,11 @@ public static class Program
 		Console.OutputEncoding = new UTF8Encoding(false);
 		Console.InputEncoding = new UTF8Encoding(false);
 
-		Console.CancelKeyPress += (_, _) => Terminal.Restore();
+		Console.CancelKeyPress += (_, _) =>
+		{
+			Terminal.Restore();
+			Interrupt.RunAll();
+		};
 
 		if (argv.Length > 0 && argv[0] == "__complete")
 		{

@@ -3,6 +3,7 @@ using Crater.Core;
 using CraterProject = Crater.Core.Project;
 using Crater.Models;
 using Crater.Registry;
+using Crater.Util;
 using Crater.Versioning;
 
 namespace Crater.Tests;
@@ -103,6 +104,46 @@ public sealed class WorkflowTests : IDisposable
 		File.WriteAllText(Path.Combine(game, "crater.json"), File.ReadAllText(Path.Combine(game, "crater.json")).Replace("t/alpha^1", "t/alpha^1.0.0"));
 
 		Assert.False(InstallState.IsCurrent(CraterProject.Load(game), LockFile.Load(Path.Combine(game, LockFile.FileName))));
+	}
+
+	[Fact]
+	public void InstallRemovesStagingLeftByAnInterruptedInstall()
+	{
+		Publish("t/alpha");
+
+		string game = Project("t/game", ["t/alpha^1"], new() { ["init.luau"] = "return nil\n" });
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		string staging = Path.Combine(game, Installer.StagingFolder);
+
+		Directory.CreateDirectory(Path.Combine(staging, "0"));
+		File.WriteAllText(Path.Combine(staging, "0", "init.luau"), "return {}\n");
+
+		Assert.Contains(Installer.StagingFolder, CraterOutput(game, "doctor"));
+		Assert.Equal(0, Crater(game, "install", "-y"));
+		Assert.False(Directory.Exists(staging));
+	}
+
+	[Fact]
+	public void InterruptActionsRunOnceInReverseOrder()
+	{
+		List<string> order = [];
+
+		using (Interrupt.OnCancel(() => order.Add("dropped")))
+		{
+		}
+
+		IDisposable first = Interrupt.OnCancel(() => order.Add("first"));
+		IDisposable second = Interrupt.OnCancel(() => order.Add("second"));
+
+		Interrupt.RunAll();
+		Interrupt.RunAll();
+
+		Assert.Equal(["second", "first"], order);
+
+		first.Dispose();
+		second.Dispose();
 	}
 
 	[Fact]
