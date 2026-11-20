@@ -119,6 +119,11 @@
       "type": "integer",
       "description": "Load priority of this package's .d.luau files in lunaut: higher loads first, so a package with base types can come before the packages that extend them. Unset leaves the --!priority line of the file, or 0."
     },
+    "definition_show_as_module": {
+      "type": "boolean",
+      "default": false,
+      "description": "true makes lunaut show the types of this package's .d.luau files as if they came from a module named after the package, for example core.pointer instead of pointer. Annotations can write core.pointer, @core.pointer or the bare name."
+    },
     "import_client": {
       "$ref": "#/definitions/dependencies",
       "description": "Dependencies for client and shared code, installed into the client folder from crater.settings.json."

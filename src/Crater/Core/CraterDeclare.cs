@@ -32,6 +32,7 @@ public static class CraterDeclare
 		("sync", 3),
 		("vendor_packages", 3),
 		("definition_priority", 3),
+		("definition_show_as_module", 3),
 	];
 
 	public static string PathIn(string directory) => Path.Combine(directory, FileName);
@@ -142,6 +143,7 @@ public static class CraterDeclare
 			["icon"] = "",
 			["path_to_definition_files"] = Empty(),
 			["definition_priority"] = null,
+			["definition_show_as_module"] = false,
 			["package_files"] = new JsonObject { ["exclude"] = Empty(), ["allow"] = Empty() },
 			["import_client"] = Empty(),
 			["import_server"] = Empty(),

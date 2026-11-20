@@ -38,6 +38,7 @@ public sealed class Manifest : IJsonOnDeserialized
 	[JsonPropertyName("path_to_definition_files")] public List<string> DefinitionFiles { get; set; } = [];
 	[JsonPropertyName("path_to_definition_file")] public string? LegacyDefinitionFile { get; set; }
 	[JsonPropertyName("definition_priority")] public int? DefinitionPriority { get; set; }
+	[JsonPropertyName("definition_show_as_module")] public bool? DefinitionShowAsModule { get; set; }
 
 	[JsonIgnore]
 	public List<string> DefinitionPatterns
