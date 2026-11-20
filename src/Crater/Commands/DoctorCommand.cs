@@ -54,6 +54,7 @@ public static class DoctorCommand
 		await RunAsync("local dependencies", () => Task.Run(() => CheckLocalSources(project, specs, report)), report);
 		await RunAsync("crater.lock", () => Task.Run(() => CheckLock(project, lockFile, report)), report);
 		await RunAsync("package folders", () => Task.Run(() => CheckFolders(project, lockFile, report)), report);
+		await RunAsync("leftovers", () => Task.Run(() => CheckLeftovers(project, report)), report);
 		await RunAsync(".luaurc", () => Task.Run(() => CheckLuauRc(project, lockFile, report)), report);
 		await RunAsync("VS Code settings", () => Task.Run(() => CheckVsCode(project, report)), report);
 		await RunAsync("Rojo project", () => Task.Run(() => CheckRojo(project, lockFile, report)), report);
@@ -313,6 +314,14 @@ public static class DoctorCommand
 		else
 		{
 			report.Fail($"Local dependencies point to folders that do not exist: {string.Join(", ", missing)}. Fix the path in {Fmt.File(Manifest.FileName)}.");
+		}
+	}
+
+	static void CheckLeftovers(Project project, Report report)
+	{
+		if (Directory.Exists(Installer.StagingPath(project)))
+		{
+			report.Warn($"{Fmt.File(Installer.StagingFolder)} is left by an install that was interrupted. Delete it, or run {Fmt.Cmd("crater install")}, which removes it.");
 		}
 	}
 

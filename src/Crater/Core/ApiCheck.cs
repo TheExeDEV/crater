@@ -117,6 +117,7 @@ public static class ApiCheck
 	static PublicApi Read(byte[] archive, string pathToMain, string name, string version)
 	{
 		string directory = Path.Combine(Path.GetTempPath(), $"crater-api-{Guid.NewGuid():N}");
+		using IDisposable cleanup = Interrupt.DeleteOnCancel(directory);
 
 		try
 		{

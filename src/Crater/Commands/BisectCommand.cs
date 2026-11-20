@@ -45,6 +45,7 @@ public static class BisectCommand
 		}
 
 		Session session = new(project, good, bad, test, changes);
+		using IDisposable restore = Interrupt.OnCancel(() => File.WriteAllText(project.LockPath, original));
 
 		try
 		{
