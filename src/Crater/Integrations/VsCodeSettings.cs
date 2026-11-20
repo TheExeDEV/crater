@@ -56,14 +56,12 @@ public static class VsCodeSettings
 		}
 
 		JsonObject own = map.DeepClone().AsObject();
-		List<(string Name, string Path, int? Priority)> entries = [];
+		List<LunautEntry> entries = [];
 
 		foreach ((ResolvedPackage package, string name, string file) in definitions)
 		{
-			string key = UniqueKey(map, package, name, file);
-
-			map[key] = file;
-			entries.Add((key, file, package.Manifest.DefinitionPriority));
+			map[UniqueKey(map, package, name, file)] = file;
+			entries.Add(new LunautEntry(name, file, package.Manifest.DefinitionPriority, package.Manifest.DefinitionShowAsModule == true));
 		}
 
 		if (lunaut)
@@ -107,7 +105,9 @@ public static class VsCodeSettings
 		return root.Any(pair => pair.Key == "lunaut" || pair.Key.StartsWith("lunaut.", StringComparison.Ordinal)) || Shell.Exists("lunaut");
 	}
 
-	static void UpdateLunaut(JsonObject root, JsonObject luauLspMap, List<(string Name, string Path, int? Priority)> entries, Func<JsonNode?, bool> isManaged)
+	sealed record LunautEntry(string Package, string File, int? Priority, bool ShowAsModule);
+
+	static void UpdateLunaut(JsonObject root, JsonObject luauLspMap, List<LunautEntry> entries, Func<JsonNode?, bool> isManaged)
 	{
 		JsonArray list = root[LunautKey] switch
 		{
@@ -121,13 +121,28 @@ public static class VsCodeSettings
 			list.Remove(item);
 		}
 
-		foreach ((string name, string file, int? priority) in entries.OrderByDescending(entry => entry.Priority ?? 0).ThenBy(entry => entry.Name, StringComparer.Ordinal))
-		{
-			JsonObject entry = new() { ["path"] = file, ["name"] = name };
+		HashSet<string> taken = list.OfType<JsonObject>()
+			.Select(item => item["name"] is JsonValue value && value.TryGetValue(out string? name) ? name : "")
+			.Append("@roblox")
+			.ToHashSet(StringComparer.Ordinal);
+		HashSet<string> several = entries.GroupBy(entry => entry.Package).Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet();
 
-			if (priority is int value)
+		foreach (LunautEntry item in entries.OrderByDescending(entry => entry.Priority ?? 0).ThenBy(entry => entry.Package, StringComparer.Ordinal).ThenBy(entry => entry.File, StringComparer.Ordinal))
+		{
+			string module = Identifier(several.Contains(item.Package) ? $"{item.Package}_{Stem(item.File)}" : item.Package);
+			string name = FreeName(taken, "@" + module);
+			JsonObject entry = new() { ["path"] = item.File, ["name"] = name };
+
+			taken.Add(name);
+
+			if (item.Priority is int value)
 			{
 				entry["priority"] = value;
+			}
+
+			if (item.ShowAsModule)
+			{
+				entry["show_as_module"] = true;
 			}
 
 			list.Add(entry);
@@ -140,6 +155,25 @@ public static class VsCodeSettings
 		}
 
 		root[LunautKey] = list;
+	}
+
+	static string Identifier(string text)
+	{
+		string result = new(text.Select(character => char.IsAsciiLetterOrDigit(character) || character == '_' ? character : '_').ToArray());
+
+		return result.Length == 0 || char.IsAsciiDigit(result[0]) ? "_" + result : result;
+	}
+
+	static string FreeName(HashSet<string> taken, string name)
+	{
+		string candidate = name;
+
+		for (int index = 2; taken.Contains(candidate); index++)
+		{
+			candidate = $"{name}_{index}";
+		}
+
+		return candidate;
 	}
 
 	static void Save(string path, JsonObject root, string before, Prompter prompt, string action)

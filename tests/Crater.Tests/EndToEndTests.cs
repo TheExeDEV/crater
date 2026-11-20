@@ -119,6 +119,7 @@ public sealed class EndToEndTests : IDisposable
 			JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
 
 			manifest["definition_priority"] = priority;
+			manifest["definition_show_as_module"] = priority == 100;
 			File.WriteAllText(manifestPath, manifest.ToJsonString());
 
 			Assert.Equal(0, Crater(package, "publish", "-y"));
@@ -138,6 +139,9 @@ public sealed class EndToEndTests : IDisposable
 		Assert.Equal(["types/own.d.luau", "Packages/base/base.d.luau", "Packages/extra/extra.d.luau"], lunaut.Select(entry => entry["path"]!.GetValue<string>()));
 		Assert.Equal([100, 10], lunaut.Skip(1).Select(entry => entry["priority"]!.GetValue<int>()));
 		Assert.Null(lunaut[0]["priority"]);
+		Assert.Equal(["@own", "@base", "@extra"], lunaut.Select(entry => entry["name"]!.GetValue<string>()));
+		Assert.True(lunaut[1]["show_as_module"]!.GetValue<bool>());
+		Assert.Null(lunaut[2]["show_as_module"]);
 		Assert.Equal(3, settings["luau-lsp.types.definitionFiles"]!.AsObject().Count);
 
 		File.WriteAllText(Path.Combine(game, "crater.settings.json"), File.ReadAllText(Path.Combine(game, "crater.settings.json")).TrimEnd().TrimEnd('}') + ", \"language_server\": \"lunaut\" }");

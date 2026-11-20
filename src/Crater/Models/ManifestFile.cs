@@ -16,7 +16,7 @@ public static class ManifestFile
 		["$schema"],
 		["name", "version", "description", "authors", "license", "keywords", "repository"],
 		["registry", "registries", "can_publish", "import_to"],
-		["package_root", "path_to_main", "icon", "path_to_definition_files", "path_to_definition_file", "definition_priority", "package_files", "exclude", "allow_files"],
+		["package_root", "path_to_main", "icon", "path_to_definition_files", "path_to_definition_file", "definition_priority", "definition_show_as_module", "package_files", "exclude", "allow_files"],
 		["import_client", "import_server", "import_develop", "vendor_packages", "overrides"],
 		["workspace", "scripts", "tools", "package_scripts", "block_package_scripts", "allow_scripts_from"],
 		["monorepository-elements", "interface", "realized_interfaces"],
