@@ -19,6 +19,7 @@ public sealed partial class PackageMeta
 	[JsonPropertyName("import_client")] public List<string> ImportClient { get; set; } = [];
 	[JsonPropertyName("import_server")] public List<string> ImportServer { get; set; } = [];
 	[JsonPropertyName("definition_files")] public List<string> DefinitionFiles { get; set; } = [];
+	[JsonPropertyName("definition_options")] public Dictionary<string, DefinitionFile>? DefinitionOptions { get; set; }
 
 	[JsonIgnore] public bool IsCrater => Source == "crater";
 
@@ -39,7 +40,7 @@ public sealed partial class PackageMeta
 		}
 	}
 
-	public static void Capture(string directory, Manifest manifest, List<string> definitionFiles)
+	public static void Capture(string directory, Manifest manifest, List<string> definitionFiles, Dictionary<string, DefinitionFile>? definitionOptions = null)
 	{
 		PackageMeta meta = new()
 		{
@@ -51,6 +52,7 @@ public sealed partial class PackageMeta
 			ImportClient = manifest.ImportClient,
 			ImportServer = manifest.ImportServer.Except(manifest.ImportClient).ToList(),
 			DefinitionFiles = definitionFiles,
+			DefinitionOptions = definitionOptions is { Count: > 0 } ? definitionOptions : null,
 		};
 
 		if (meta.License.Length == 0)

@@ -5,7 +5,7 @@ using Crater.Versioning;
 
 namespace Crater.Models;
 
-public sealed class Manifest : IJsonOnDeserialized
+public sealed partial class Manifest : IJsonOnDeserialized
 {
 	public const string FileName = "crater.json";
 
@@ -35,7 +35,19 @@ public sealed class Manifest : IJsonOnDeserialized
 
 	[JsonPropertyName("path_to_main")] public string PathToMain { get; set; } = "";
 	[JsonPropertyName("icon")] public string? Icon { get; set; }
-	[JsonPropertyName("path_to_definition_files")] public List<string> DefinitionFiles { get; set; } = [];
+	[JsonPropertyName("path_to_definition_files")]
+	[JsonConverter(typeof(DefinitionFilesConverter))]
+	public List<DefinitionFile> DefinitionFiles { get; set; } = [];
+
+	[JsonPropertyName("definition_files")]
+	public List<DefinitionFile>? DefinitionOptions
+	{
+		get => DefinitionFiles.Any(file => file.HasOptions) ? DefinitionFiles.Where(file => file.HasOptions).ToList() : null;
+		set => pendingOptions = value;
+	}
+
+	List<DefinitionFile>? pendingOptions;
+
 	[JsonPropertyName("path_to_definition_file")] public string? LegacyDefinitionFile { get; set; }
 	[JsonPropertyName("definition_priority")] public int? DefinitionPriority { get; set; }
 	[JsonPropertyName("definition_show_as_module")] public bool? DefinitionShowAsModule { get; set; }
@@ -48,12 +60,37 @@ public sealed class Manifest : IJsonOnDeserialized
 			IEnumerable<string> legacy = string.IsNullOrWhiteSpace(LegacyDefinitionFile) ? [] : [LegacyDefinitionFile];
 
 			return DefinitionFiles
+				.Select(file => file.Path)
 				.Concat(legacy)
 				.Where(entry => !string.IsNullOrWhiteSpace(entry))
 				.Select(entry => entry.Trim())
 				.Distinct(StringComparer.OrdinalIgnoreCase)
 				.ToList();
 		}
+	}
+
+	public DefinitionFile? DefinitionOptionsFor(string contentDirectory, string file)
+	{
+		return DefinitionFiles.FirstOrDefault(entry => entry.HasOptions && Crater.Core.DefinitionLookup.Match(contentDirectory, [file], entry.Path).Contains(file, StringComparer.OrdinalIgnoreCase));
+	}
+
+	void MergeDefinitionOptions()
+	{
+		foreach (DefinitionFile options in pendingOptions ?? [])
+		{
+			DefinitionFile? entry = DefinitionFiles.FirstOrDefault(file => file.Path == options.Path);
+
+			if (entry is null)
+			{
+				DefinitionFiles.Add(options);
+			}
+			else
+			{
+				entry.Take(options);
+			}
+		}
+
+		pendingOptions = null;
 	}
 
 	[JsonPropertyName("import_client")] public List<string> ImportClient { get; set; } = [];
@@ -107,6 +144,8 @@ public sealed class Manifest : IJsonOnDeserialized
 
 	public void OnDeserialized()
 	{
+		MergeDefinitionOptions();
+
 		if (Extra is null)
 		{
 			return;
@@ -154,7 +193,20 @@ public sealed class Manifest : IJsonOnDeserialized
 		}
 	}
 
-	void ValidateVendor()
+	void ValidateDefinitionNames()
+	{
+		DefinitionFile? bad = DefinitionFiles.FirstOrDefault(file => file.Name is string name && !DefinitionNameRegex().IsMatch(name));
+
+		if (bad is not null)
+		{
+			throw new CraterException($"path_to_definition_files: name {Fmt.Val(bad.Name!)} of {Fmt.File(bad.Path)} must be an identifier like {Fmt.Val("core_types")}, optionally starting with @.");
+		}
+	}
+
+	[System.Text.RegularExpressions.GeneratedRegex(@"^@?[A-Za-z_][A-Za-z0-9_]*$")]
+	private static partial System.Text.RegularExpressions.Regex DefinitionNameRegex();
+
+		void ValidateVendor()
 	{
 		foreach (string key in (VendorPackages?.Extra?.Keys ?? Enumerable.Empty<string>()).Where(key => !ManifestFile.IsLabel(key)))
 		{
@@ -228,6 +280,7 @@ public sealed class Manifest : IJsonOnDeserialized
 
 		ParseOverrides();
 		ValidateVendor();
+		ValidateDefinitionNames();
 
 		foreach ((string element, string raw) in MonorepositoryElements ?? [])
 		{

@@ -219,6 +219,10 @@ public static class PackageFiles
 		PrepareRojoProject(id, content, folderName, quiet);
 
 		List<string> definitions = Definitions(content, manifest).ToList();
+		Dictionary<string, DefinitionFile> options = definitions
+			.Select(file => (File: file, Options: manifest.DefinitionOptionsFor(content, file)))
+			.Where(item => item.Options is not null)
+			.ToDictionary(item => item.File, item => item.Options!);
 
 		Trim(content, manifest, id);
 
@@ -226,12 +230,13 @@ public static class PackageFiles
 
 		if (lifted is not null)
 		{
-			definitions = definitions
-				.Select(path => path.StartsWith(lifted + "/", StringComparison.Ordinal) ? path[(lifted.Length + 1)..] : path)
-				.ToList();
+			string Lift(string path) => path.StartsWith(lifted + "/", StringComparison.Ordinal) ? path[(lifted.Length + 1)..] : path;
+
+			definitions = definitions.Select(Lift).ToList();
+			options = options.ToDictionary(pair => Lift(pair.Key), pair => pair.Value);
 		}
 
-		PackageMeta.Capture(content, manifest, definitions.Where(path => File.Exists(Path.Combine(content, path))).ToList());
+		PackageMeta.Capture(content, manifest, definitions.Where(path => File.Exists(Path.Combine(content, path))).ToList(), options);
 	}
 
 	static string? LiftProjectPath(string content)

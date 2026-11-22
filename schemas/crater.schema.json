@@ -111,9 +111,22 @@
     "path_to_definition_files": {
       "type": "array",
       "items": {
-        "type": "string"
+        "oneOf": [
+          { "type": "string", "description": "A file, a folder or a pattern with * and **." },
+          {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string", "description": "A file, a folder or a pattern with * and **." },
+              "name": { "type": "string", "pattern": "^@?[A-Za-z_][A-Za-z0-9_]*$", "description": "Name of the definition package in the language server, for example funny_core_types; with show_as_module it is also the module name in hover." },
+              "priority": { "type": "integer", "description": "lunaut load priority of these files, higher first. Overrides definition_priority." },
+              "show_as_module": { "type": "boolean", "description": "lunaut shows the types of these files as a module named after name. Overrides definition_show_as_module." }
+            },
+            "required": ["path"],
+            "additionalProperties": false
+          }
+        ]
       },
-      "description": ".d.luau files added to VS Code settings on install. A file, a folder or a pattern with * and **. Empty means every .d.luau in the package."
+      "description": ".d.luau files added to VS Code settings on install. Each entry is a path, or an object with path, name, priority and show_as_module for that file. Empty means every .d.luau in the package."
     },
     "definition_priority": {
       "type": "integer",

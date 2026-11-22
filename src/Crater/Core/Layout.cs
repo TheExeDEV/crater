@@ -12,7 +12,7 @@ public static class Layout
 		return depth == 0 ? "  " : new string(' ', depth * 2) + "└ ";
 	}
 
-	public static IEnumerable<(ResolvedPackage Package, string Name, string Path)> DefinitionFiles(
+	public static IEnumerable<(ResolvedPackage Package, string Name, string Path, DefinitionFile? Options)> DefinitionFiles(
 		Project project,
 		IReadOnlyDictionary<Realm, ResolvedGraph> graphs)
 	{
@@ -30,28 +30,31 @@ public static class Layout
 			{
 				string content = $"{folder}/{layout.Folders[package]}";
 
-				foreach (string definition in DefinitionsOf(project, package, content))
+				foreach ((string definition, DefinitionFile? options) in DefinitionsOf(project, package, content))
 				{
-					yield return (package, Path.GetFileName(layout.Folders[package]), $"{content}/{definition}");
+					yield return (package, Path.GetFileName(layout.Folders[package]), $"{content}/{definition}", options);
 				}
 			}
 		}
 	}
 
-	static IEnumerable<string> DefinitionsOf(Project project, ResolvedPackage package, string content)
+	static IEnumerable<(string File, DefinitionFile? Options)> DefinitionsOf(Project project, ResolvedPackage package, string content)
 	{
 		string directory = project.Abs(content);
 
 		if (PackageMeta.Read(directory) is PackageMeta meta)
 		{
-			return meta.DefinitionFiles.Where(file => File.Exists(Path.Combine(directory, file)));
+			return meta.DefinitionFiles
+				.Where(file => File.Exists(Path.Combine(directory, file)))
+				.Select(file => (file, meta.DefinitionOptions is null ? package.Manifest.DefinitionOptionsFor(directory, file) : meta.DefinitionOptions.GetValueOrDefault(file)));
 		}
 
 		List<string> patterns = package.Manifest.DefinitionPatterns;
-
-		return patterns.Count > 0
+		List<string> files = patterns.Count > 0
 			? DefinitionLookup.Resolve(directory, patterns)
 			: DefinitionLookup.AutoDetect(directory);
+
+		return files.Select(file => (file, package.Manifest.DefinitionOptionsFor(directory, file)));
 	}
 
 	public static IEnumerable<string> ManagedPrefixes(Project project)

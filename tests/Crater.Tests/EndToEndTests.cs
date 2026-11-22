@@ -1,4 +1,6 @@
 using System.Text.Json.Nodes;
+using CraterManifest = Crater.Models.Manifest;
+using CraterJson = Crater.Util.Json;
 
 namespace Crater.Tests;
 
@@ -151,6 +153,79 @@ public sealed class EndToEndTests : IDisposable
 
 		Assert.Equal(["@own"], settings["luau-lsp.types.definitionFiles"]!.AsObject().Select(pair => pair.Key));
 		Assert.Equal(3, settings["lunaut.definitions"]!.AsArray().Count);
+	}
+
+	sealed class OldManifest
+	{
+		[System.Text.Json.Serialization.JsonPropertyName("path_to_definition_files")] public List<string> DefinitionFiles { get; set; } = [];
+	}
+
+	[Fact]
+	public void DefinitionFilesTakeObjectsAndStayReadableForOlderCrater()
+	{
+		const string text = """
+			{
+			  "name": "t/core",
+			  "path_to_definition_files": [
+			    { "name": "funny_core_types", "path": "src/core.d.luau", "priority": 100, "show_as_module": true },
+			    "src/extra.d.luau"
+			  ]
+			}
+			""";
+
+		CraterManifest manifest = CraterJson.Parse<CraterManifest>(text, "crater.json");
+
+		Assert.Equal(["src/core.d.luau", "src/extra.d.luau"], manifest.DefinitionPatterns);
+		Assert.Equal(100, manifest.DefinitionFiles[0].Priority);
+
+		string index = CraterJson.Serialize(manifest);
+		OldManifest old = System.Text.Json.JsonSerializer.Deserialize<OldManifest>(index)!;
+
+		Assert.Equal(["src/core.d.luau", "src/extra.d.luau"], old.DefinitionFiles);
+
+		CraterManifest again = CraterJson.Parse<CraterManifest>(index, "index.json");
+
+		Assert.Equal("funny_core_types", again.DefinitionFiles[0].Name);
+		Assert.True(again.DefinitionFiles[0].ShowAsModule);
+		Assert.Null(again.DefinitionFiles[1].Priority);
+	}
+
+	[Fact]
+	public void PerFileDefinitionOptionsReachLunautThroughALiftedPackage()
+	{
+		string core = NewPackage("t/core", "1.0.0", "src/init.luau", [], new()
+		{
+			["default.project.json"] = "{ \"name\": \"core\", \"tree\": { \"$path\": \"src\" } }",
+			["src/init.luau"] = "return {}\n",
+			["src/core.d.luau"] = "declare CORE: number\n",
+			["src/extra.d.luau"] = "declare EXTRA: number\n",
+		});
+
+		string manifestPath = Path.Combine(core, "crater.json");
+		JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+
+		manifest["definition_priority"] = 5;
+		manifest["path_to_definition_files"] = JsonNode.Parse("""[{ "name": "funny_core_types", "path": "src/core.d.luau", "priority": 100, "show_as_module": true }, "src/extra.d.luau"]""");
+		File.WriteAllText(manifestPath, manifest.ToJsonString());
+
+		Assert.Equal(0, Crater(core, "publish", "-y"));
+
+		string game = NewPackage("t/game", "0.1.0", "src/init.luau", ["t/core^1"], []);
+		string settingsPath = Path.Combine(game, ".vscode", "settings.json");
+
+		Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+		File.WriteAllText(settingsPath, "{ \"lunaut.platform\": \"roblox\" }");
+
+		Assert.Equal(0, Crater(game, "install", "-y"));
+
+		List<JsonObject> lunaut = JsonNode.Parse(File.ReadAllText(settingsPath))!["lunaut.definitions"]!.AsArray().Select(item => item!.AsObject()).ToList();
+		JsonObject types = lunaut.Single(entry => entry["name"]!.GetValue<string>() == "@funny_core_types");
+		JsonObject extra = lunaut.Single(entry => entry["path"]!.GetValue<string>().EndsWith("extra.d.luau", StringComparison.Ordinal));
+
+		Assert.Equal(100, types["priority"]!.GetValue<int>());
+		Assert.True(types["show_as_module"]!.GetValue<bool>());
+		Assert.Equal(5, extra["priority"]!.GetValue<int>());
+		Assert.Null(extra["show_as_module"]);
 	}
 
 	[Fact]

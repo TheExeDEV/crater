@@ -18,7 +18,7 @@ public static class VsCodeSettings
 		string path = PathIn(project);
 		bool writeDefinitions = project.Config.OnInstallUpdateVscodeLuauDefinitionFiles;
 		bool writeBaseLuaurc = project.Config.OnInstallUpdateLuaurc && LuauRc.IsCustom(project) && LuauRc.FromVsCode(project) is null;
-		List<(ResolvedPackage Package, string Name, string Path)> definitions = writeDefinitions ? Layout.DefinitionFiles(project, graphs).ToList() : [];
+		List<(ResolvedPackage Package, string Name, string Path, DefinitionFile? Options)> definitions = writeDefinitions ? Layout.DefinitionFiles(project, graphs).ToList() : [];
 
 		if (!File.Exists(path) && definitions.Count == 0 && !writeBaseLuaurc)
 		{
@@ -58,10 +58,17 @@ public static class VsCodeSettings
 		JsonObject own = map.DeepClone().AsObject();
 		List<LunautEntry> entries = [];
 
-		foreach ((ResolvedPackage package, string name, string file) in definitions)
+		foreach ((ResolvedPackage package, string name, string file, DefinitionFile? options) in definitions)
 		{
-			map[UniqueKey(map, package, name, file)] = file;
-			entries.Add(new LunautEntry(name, file, package.Manifest.DefinitionPriority, package.Manifest.DefinitionShowAsModule == true));
+			string? named = options?.Name is string chosen ? "@" + chosen.TrimStart('@') : null;
+
+			map[named is null ? UniqueKey(map, package, name, file) : FreeKey(map, named)] = file;
+			entries.Add(new LunautEntry(
+				name,
+				file,
+				options?.Priority ?? package.Manifest.DefinitionPriority,
+				(options?.ShowAsModule ?? package.Manifest.DefinitionShowAsModule) == true,
+				named));
 		}
 
 		if (lunaut)
@@ -105,7 +112,7 @@ public static class VsCodeSettings
 		return root.Any(pair => pair.Key == "lunaut" || pair.Key.StartsWith("lunaut.", StringComparison.Ordinal)) || Shell.Exists("lunaut");
 	}
 
-	sealed record LunautEntry(string Package, string File, int? Priority, bool ShowAsModule);
+	sealed record LunautEntry(string Package, string File, int? Priority, bool ShowAsModule, string? Name);
 
 	static void UpdateLunaut(JsonObject root, JsonObject luauLspMap, List<LunautEntry> entries, Func<JsonNode?, bool> isManaged)
 	{
@@ -130,7 +137,7 @@ public static class VsCodeSettings
 		foreach (LunautEntry item in entries.OrderByDescending(entry => entry.Priority ?? 0).ThenBy(entry => entry.Package, StringComparer.Ordinal).ThenBy(entry => entry.File, StringComparer.Ordinal))
 		{
 			string module = Identifier(several.Contains(item.Package) ? $"{item.Package}_{Stem(item.File)}" : item.Package);
-			string name = FreeName(taken, "@" + module);
+			string name = FreeName(taken, item.Name ?? "@" + module);
 			JsonObject entry = new() { ["path"] = item.File, ["name"] = name };
 
 			taken.Add(name);

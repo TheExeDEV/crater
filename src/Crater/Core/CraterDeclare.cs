@@ -33,6 +33,7 @@ public static class CraterDeclare
 		("vendor_packages", 3),
 		("definition_priority", 3),
 		("definition_show_as_module", 3),
+		("definition_file_options", 3),
 	];
 
 	public static string PathIn(string directory) => Path.Combine(directory, FileName);

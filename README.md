@@ -247,6 +247,7 @@ Every project and every package has a `crater.json`. `crater init` writes every 
 | `path_to_main` | Entry module, for example `src/init.luau`. Empty or a folder without `init.luau` makes the package a [collection of modules](#packages-without-a-main-module). |
 | `icon` | Optional picture of the package for the registry website, a path inside the package like `"assets/icon.png"`: `.png`, `.jpg`, `.webp`, `.gif` or `.svg`, at most 256 KB (256x256 pixels is plenty). `crater pack` and `crater publish` check it. Without an icon (and for Wally and pesde packages, which have none) the site shows the GitHub avatar of the scope, or a neutral placeholder. |
 | `path_to_definition_files` | `.d.luau` files added to VS Code settings on install. Each entry is a file, a folder (every `.d.luau` inside it) or a pattern with `*` / `**`. Empty means every `*.d.luau` in the package (up to 10). The old single-file field `path_to_definition_file` still works. |
+| `path_to_definition_files` entries | Instead of a path, an entry can be `{ "path": "src/core.d.luau", "name": "funny_core_types", "priority": 100, "show_as_module": true }` to set the name, the [lunaut](#editor-integration) priority and `show_as_module` of those files alone. |
 | `definition_priority` | Load priority of the package's `.d.luau` files in [lunaut](#editor-integration): higher loads first. Set it on a package whose types others extend. Unset leaves the `--!priority` line of the file, or `0`. |
 | `definition_show_as_module` | `true` makes lunaut show the types of the package's `.d.luau` files as a module named after the package: `core.pointer` instead of `pointer`. |
 | `import_client`, `import_server`, `import_develop` | Dependencies, see [Dependency syntax](#dependency-syntax). |
@@ -323,7 +324,7 @@ Older projects keep working: `crater.config.json` is still read when there is no
   "path_to_crater_settings": "crater.settings.json",
   "path_to_package_info": "crater.json",
   "api_version": 3,
-  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3, "sync": 3, "vendor_packages": 3, "definition_priority": 3, "definition_show_as_module": 3 },
+  "features": { "dependencies": 1, "tools": 1, "scripts": 1, "workspaces": 1, "interfaces": 1, "monorepository": 2, "settings": 2, "package_rules": 3, "registry_names": 3, "sync": 3, "vendor_packages": 3, "definition_priority": 3, "definition_show_as_module": 3, "definition_file_options": 3 },
   "schemas": { "package_info": "https://.../crater.schema.json", "crater_settings": "https://.../crater.settings.schema.json" },
   "registries": { "crater": "...", "wally": "https://github.com/UpliftGames/wally-index", "pesde": "...", "forest": "...", "ember": "..." },
   "realms": { "import_client": "client", "import_server": "server", "import_develop": "develop" },
@@ -758,7 +759,17 @@ Your own entries stay; only entries that point into crater folders are replaced.
 ```
 
 - A package author sets `"definition_priority": 100` on a package whose types others extend, and a lower number on the packages that build on it. Without it crater writes no priority, and lunaut takes the `--!priority` line of the file, or `0`.
-- The name is the package folder (`@core`), so lunaut can show the types as a module. A package with `"definition_show_as_module": true` gets `"show_as_module": true`: hover shows `core.pointer`, and annotations can write `core.pointer`, `@core.pointer` or `pointer`. A package with several files gets one name per file (`@core_math`), and a name already used by your own entries or `@roblox` gets a number.
+- One file can differ from the rest of its package: an entry of `path_to_definition_files` can be an object, and its `name`, `priority` and `show_as_module` win over the package-wide values:
+
+  ```json
+  "path_to_definition_files": [
+    { "path": "src/core.d.luau", "name": "funny_core_types", "priority": 100, "show_as_module": true },
+    "src/extra.d.luau"
+  ]
+  ```
+
+  The registry index keeps `path_to_definition_files` as plain paths and stores these options next to it in `definition_files`, so crater versions from before 0.8.3 still install the package, only without the options.
+- Without a `name`, the name is the package folder (`@core`), so lunaut can show the types as a module. A package with `"definition_show_as_module": true` gets `"show_as_module": true`: hover shows `core.pointer`, and annotations can write `core.pointer`, `@core.pointer` or `pointer`. A package with several files gets one name per file (`@core_math`), and a name already used by your own entries or `@roblox` gets a number.
 - Your own entries stay. When `lunaut.definitions` does not exist yet, crater starts it with your own entries from `luau-lsp.types.definitionFiles`, because lunaut reads only one of the two lists and `lunaut.definitions` wins.
 - Which list crater writes is set by `language_server` in `crater.settings.json`: `auto` (default) writes the luau-lsp list, and the lunaut one too when `.vscode/settings.json` already has `lunaut.` keys or `lunaut` is on `PATH`; `luau-lsp`, `lunaut` or `both` choose by hand. With `lunaut` the package entries leave the luau-lsp list and your own entries stay there.
 - `crater doctor` checks the files of both lists.
