@@ -9,14 +9,16 @@ public sealed class DefinitionFile
 	[JsonPropertyName("name")] public string? Name { get; set; }
 	[JsonPropertyName("priority")] public int? Priority { get; set; }
 	[JsonPropertyName("show_as_module")] public bool? ShowAsModule { get; set; }
+	[JsonPropertyName("message")] public string? Message { get; set; }
 
-	[JsonIgnore] public bool HasOptions => Name is not null || Priority is not null || ShowAsModule is not null;
+	[JsonIgnore] public bool HasOptions => Name is not null || Priority is not null || ShowAsModule is not null || Message is not null;
 
 	public void Take(DefinitionFile options)
 	{
 		Name ??= options.Name;
 		Priority ??= options.Priority;
 		ShowAsModule ??= options.ShowAsModule;
+		Message ??= options.Message;
 	}
 }
 

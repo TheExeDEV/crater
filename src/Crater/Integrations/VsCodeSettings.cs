@@ -68,7 +68,9 @@ public static class VsCodeSettings
 				file,
 				options?.Priority ?? package.Manifest.DefinitionPriority,
 				(options?.ShowAsModule ?? package.Manifest.DefinitionShowAsModule) == true,
-				named));
+				named,
+				options?.Message,
+				named is null && Lunaut.Directives(project.Abs(file)).ContainsKey(Lunaut.NameDirective)));
 		}
 
 		if (lunaut)
@@ -103,16 +105,28 @@ public static class VsCodeSettings
 			"luau-lsp" => (true, false),
 			"lunaut" => (false, true),
 			"both" => (true, true),
-			_ => (true, UsesLunaut(root)),
+			_ => Auto(project, root),
 		};
 	}
 
-	static bool UsesLunaut(JsonObject root)
+	static (bool LuauLsp, bool Lunaut) Auto(Project project, JsonObject root)
 	{
-		return root.Any(pair => pair.Key == "lunaut" || pair.Key.StartsWith("lunaut.", StringComparison.Ordinal)) || Shell.Exists("lunaut");
+		bool luauLsp = Lunaut.UsesLuauLsp(project, root, Key);
+
+		if (Lunaut.IsDeclared(project, root))
+		{
+			return (luauLsp, true);
+		}
+
+		if (!Lunaut.IsInstalled)
+		{
+			return (true, false);
+		}
+
+		return (luauLsp || Lunaut.IsLuauLspInstalled, true);
 	}
 
-	sealed record LunautEntry(string Package, string File, int? Priority, bool ShowAsModule, string? Name);
+	sealed record LunautEntry(string Package, string File, int? Priority, bool ShowAsModule, string? Name, string? Message, bool NameInFile);
 
 	static void UpdateLunaut(JsonObject root, JsonObject luauLspMap, List<LunautEntry> entries, Func<JsonNode?, bool> isManaged)
 	{
@@ -136,11 +150,16 @@ public static class VsCodeSettings
 
 		foreach (LunautEntry item in entries.OrderByDescending(entry => entry.Priority ?? 0).ThenBy(entry => entry.Package, StringComparer.Ordinal).ThenBy(entry => entry.File, StringComparer.Ordinal))
 		{
-			string module = Identifier(several.Contains(item.Package) ? $"{item.Package}_{Stem(item.File)}" : item.Package);
-			string name = FreeName(taken, item.Name ?? "@" + module);
-			JsonObject entry = new() { ["path"] = item.File, ["name"] = name };
+			JsonObject entry = new() { ["path"] = item.File };
 
-			taken.Add(name);
+			if (!item.NameInFile)
+			{
+				string module = Identifier(several.Contains(item.Package) ? $"{item.Package}_{Stem(item.File)}" : item.Package);
+				string name = FreeName(taken, item.Name ?? "@" + module);
+
+				entry["name"] = name;
+				taken.Add(name);
+			}
 
 			if (item.Priority is int value)
 			{
@@ -150,6 +169,11 @@ public static class VsCodeSettings
 			if (item.ShowAsModule)
 			{
 				entry["show_as_module"] = true;
+			}
+
+			if (item.Message is string message)
+			{
+				entry["message"] = message;
 			}
 
 			list.Add(entry);

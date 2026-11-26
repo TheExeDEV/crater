@@ -119,7 +119,8 @@
               "path": { "type": "string", "description": "A file, a folder or a pattern with * and **." },
               "name": { "type": "string", "pattern": "^@?[A-Za-z_][A-Za-z0-9_]*$", "description": "Name of the definition package in the language server, for example funny_core_types; with show_as_module it is also the module name in hover." },
               "priority": { "type": "integer", "description": "lunaut load priority of these files, higher first. Overrides definition_priority." },
-              "show_as_module": { "type": "boolean", "description": "lunaut shows the types of these files as a module named after name. Overrides definition_show_as_module." }
+              "show_as_module": { "type": "boolean", "description": "lunaut shows the types of these files as a module named after name. Overrides definition_show_as_module." },
+              "message": { "type": "string", "description": "Description of the module that lunaut shows in completion next to its name." }
             },
             "required": ["path"],
             "additionalProperties": false

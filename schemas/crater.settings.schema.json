@@ -78,7 +78,7 @@
       "type": "string",
       "enum": ["auto", "luau-lsp", "lunaut", "both"],
       "default": "auto",
-      "description": "Which language server gets the .d.luau files of installed packages in .vscode/settings.json: luau-lsp.types.definitionFiles, lunaut.definitions with the priorities from definition_priority, or both. auto writes luau-lsp, and lunaut too when settings.json has lunaut keys or lunaut is on PATH."
+      "description": "Which language server gets the .d.luau files of installed packages in .vscode/settings.json: luau-lsp.types.definitionFiles, lunaut.definitions with the priorities from definition_priority, or both. auto picks by itself: only lunaut when the project uses it (.lunaut-declare, lunaut keys in settings.json, or a lunaut recommendation in extensions.json), lunaut and luau-lsp when lunaut is installed (the command or an editor extension) next to luau-lsp, otherwise luau-lsp."
     },
     "darklua": {
       "type": "boolean",

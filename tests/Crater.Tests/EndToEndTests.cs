@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using LunautEditors = Crater.Integrations.Lunaut;
 using CraterManifest = Crater.Models.Manifest;
 using CraterJson = Crater.Util.Json;
 
@@ -144,7 +145,7 @@ public sealed class EndToEndTests : IDisposable
 		Assert.Equal(["@own", "@base", "@extra"], lunaut.Select(entry => entry["name"]!.GetValue<string>()));
 		Assert.True(lunaut[1]["show_as_module"]!.GetValue<bool>());
 		Assert.Null(lunaut[2]["show_as_module"]);
-		Assert.Equal(3, settings["luau-lsp.types.definitionFiles"]!.AsObject().Count);
+		Assert.Equal(["@own"], settings["luau-lsp.types.definitionFiles"]!.AsObject().Select(pair => pair.Key));
 
 		File.WriteAllText(Path.Combine(game, "crater.settings.json"), File.ReadAllText(Path.Combine(game, "crater.settings.json")).TrimEnd().TrimEnd('}') + ", \"language_server\": \"lunaut\" }");
 		Assert.Equal(0, Crater(game, "install", "-y"));
@@ -199,13 +200,20 @@ public sealed class EndToEndTests : IDisposable
 			["src/init.luau"] = "return {}\n",
 			["src/core.d.luau"] = "declare CORE: number\n",
 			["src/extra.d.luau"] = "declare EXTRA: number\n",
+			["src/named.d.luau"] = "--!strict\n--!show_module_name_message \"fc_named\"\nexport type Row = { id: number }\n",
 		});
 
 		string manifestPath = Path.Combine(core, "crater.json");
 		JsonObject manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
 
 		manifest["definition_priority"] = 5;
-		manifest["path_to_definition_files"] = JsonNode.Parse("""[{ "name": "funny_core_types", "path": "src/core.d.luau", "priority": 100, "show_as_module": true }, "src/extra.d.luau"]""");
+		manifest["path_to_definition_files"] = JsonNode.Parse("""
+			[
+			  { "name": "funny_core_types", "path": "src/core.d.luau", "priority": 100, "show_as_module": true, "message": "Core types" },
+			  "src/extra.d.luau",
+			  "src/named.d.luau"
+			]
+			""");
 		File.WriteAllText(manifestPath, manifest.ToJsonString());
 
 		Assert.Equal(0, Crater(core, "publish", "-y"));
@@ -219,13 +227,32 @@ public sealed class EndToEndTests : IDisposable
 		Assert.Equal(0, Crater(game, "install", "-y"));
 
 		List<JsonObject> lunaut = JsonNode.Parse(File.ReadAllText(settingsPath))!["lunaut.definitions"]!.AsArray().Select(item => item!.AsObject()).ToList();
-		JsonObject types = lunaut.Single(entry => entry["name"]!.GetValue<string>() == "@funny_core_types");
+		JsonObject types = lunaut.Single(entry => entry["name"]?.GetValue<string>() == "@funny_core_types");
 		JsonObject extra = lunaut.Single(entry => entry["path"]!.GetValue<string>().EndsWith("extra.d.luau", StringComparison.Ordinal));
 
 		Assert.Equal(100, types["priority"]!.GetValue<int>());
 		Assert.True(types["show_as_module"]!.GetValue<bool>());
 		Assert.Equal(5, extra["priority"]!.GetValue<int>());
 		Assert.Null(extra["show_as_module"]);
+		Assert.Equal("Core types", types["message"]!.GetValue<string>());
+		Assert.Null(lunaut.Single(entry => entry["path"]!.GetValue<string>().EndsWith("named.d.luau", StringComparison.Ordinal))["name"]);
+	}
+
+	[Fact]
+	public void FindsTheLunautExtensionInEveryEditor()
+	{
+		string home = Path.Combine(root, "home");
+		string extensions = Path.Combine(home, ".cursor", "extensions");
+		string[] lunaut = ["theexe.lunaut-luau"];
+
+		Directory.CreateDirectory(Path.Combine(extensions, "theexe.lunaut-luautools-1.0.0"));
+		Assert.False(LunautEditors.HasEditorExtension(home, lunaut));
+
+		Directory.CreateDirectory(Path.Combine(extensions, "theexe.lunaut-luau-0.0.9-win32-x64"));
+		Assert.True(LunautEditors.HasEditorExtension(home, lunaut));
+
+		File.WriteAllText(Path.Combine(extensions, ".obsolete"), "{ \"theexe.lunaut-luau-0.0.9-win32-x64\": true }");
+		Assert.False(LunautEditors.HasEditorExtension(home, lunaut));
 	}
 
 	[Fact]

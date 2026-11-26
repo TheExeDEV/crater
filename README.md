@@ -759,7 +759,7 @@ Your own entries stay; only entries that point into crater folders are replaced.
 ```
 
 - A package author sets `"definition_priority": 100` on a package whose types others extend, and a lower number on the packages that build on it. Without it crater writes no priority, and lunaut takes the `--!priority` line of the file, or `0`.
-- One file can differ from the rest of its package: an entry of `path_to_definition_files` can be an object, and its `name`, `priority` and `show_as_module` win over the package-wide values:
+- One file can differ from the rest of its package: an entry of `path_to_definition_files` can be an object, and its `name`, `priority`, `show_as_module` and `message` (the module description lunaut shows in completion) win over the package-wide values:
 
   ```json
   "path_to_definition_files": [
@@ -770,8 +770,14 @@ Your own entries stay; only entries that point into crater folders are replaced.
 
   The registry index keeps `path_to_definition_files` as plain paths and stores these options next to it in `definition_files`, so crater versions from before 0.8.3 still install the package, only without the options.
 - Without a `name`, the name is the package folder (`@core`), so lunaut can show the types as a module. A package with `"definition_show_as_module": true` gets `"show_as_module": true`: hover shows `core.pointer`, and annotations can write `core.pointer`, `@core.pointer` or `pointer`. A package with several files gets one name per file (`@core_math`), and a name already used by your own entries or `@roblox` gets a number.
+- A definition file can carry its own settings in comment lines at the top, the lunaut way (`--!priority 120`, `--!show_as_module true`, `--!show_module_name_message "fc_database"`, `--!show_description_message "..."`). Settings in `.vscode/settings.json` win over them, so crater writes only what `crater.json` sets, and leaves `name` out when the file names itself with `--!show_module_name_message`.
 - Your own entries stay. When `lunaut.definitions` does not exist yet, crater starts it with your own entries from `luau-lsp.types.definitionFiles`, because lunaut reads only one of the two lists and `lunaut.definitions` wins.
-- Which list crater writes is set by `language_server` in `crater.settings.json`: `auto` (default) writes the luau-lsp list, and the lunaut one too when `.vscode/settings.json` already has `lunaut.` keys or `lunaut` is on `PATH`; `luau-lsp`, `lunaut` or `both` choose by hand. With `lunaut` the package entries leave the luau-lsp list and your own entries stay there.
+- Which list crater writes is set by `language_server` in `crater.settings.json`, `auto` by default:
+  - the project uses lunaut (it has [`.lunaut-declare`](https://github.com/TheExeDEV/lunaut#lunaut-declare), `lunaut.` keys in `.vscode/settings.json`, or `.vscode/extensions.json` recommends the lunaut extension): only `lunaut.definitions`, plus the luau-lsp list when the project also has `luau-lsp.` settings or recommends luau-lsp;
+  - lunaut is installed on this computer (the `lunaut` command, or the lunaut extension in VS Code, VS Code Insiders, Cursor, Windsurf, VSCodium or Zed, so a plugin alone is enough): `lunaut.definitions`, plus the luau-lsp list when the luau-lsp extension is installed or the project has `luau-lsp.` settings;
+  - otherwise only the luau-lsp list.
+
+  `luau-lsp`, `lunaut` or `both` choose by hand. When the luau-lsp list is not written, the package entries leave it and your own entries stay there.
 - `crater doctor` checks the files of both lists.
 
 Comments in these files are lost when crater rewrites them, and the prompt says so.
